@@ -1,36 +1,64 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Boatship — Client Onboarding System
 
-## Getting Started
+Web app for managing client onboarding: team/admin manage clients, tasks, documents, and forms; clients complete a self-service checklist.
 
-First, run the development server:
+## Stack
+
+- Next.js (App Router) + Tailwind CSS
+- Local durable store (`.data/`) for full demo without Firebase
+- Optional Firebase Auth / Firestore / Storage when env vars are set
+- Resend for transactional email (logs to console without `RESEND_API_KEY`)
+- Composio for 250+ app integrations (Slack, Gmail, Drive, HubSpot, …)
+- Cloudflare Pages via OpenNext (`@opennextjs/cloudflare`)
+
+## Quick start
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Demo accounts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Role  | Email                   | Password     |
+|-------|-------------------------|--------------|
+| Admin | admin@boatship.local    | admin123     |
+| Team  | team@boatship.local     | team123      |
+| Client| (after invite)          | Welcome123!  |
 
-## Learn More
+## Core flows
 
-To learn more about Next.js, take a look at the following resources:
+1. Sign in as admin → **Clients** → **New client** (tasks auto-seed from Standard Onboarding)
+2. Open client → **Invite client** → copy temp password
+3. Sign out → sign in as client → complete tasks, submit form, upload documents
+4. Sign in as admin → review documents/forms, update task status, check **Activity** / **Analytics**
+5. Optional: **Integrations** → each member connects **Google Drive** (needs `COMPOSIO_API_KEY`) → open **Drive Agent** (`OPENAI_API_KEY`) to list/create folders
+6. Optional: connect Slack → set `COMPOSIO_SLACK_CHANNEL` for auto-notify
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Environment
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Copy `.env.example` to `.env.local`. All Firebase/Resend/Composio/OpenAI vars are optional for local demo mode.
 
-## Deploy on Vercel
+### Composio + Drive Agent
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Get an API key at [app.composio.dev](https://app.composio.dev)
+2. Set `COMPOSIO_API_KEY` and `OPENAI_API_KEY` in `.env.local`
+3. Open **Integrations** → connect **Google Drive** (OAuth is per signed-in team member)
+4. Open **Drive Agent** to chat against your Drive (create client folders, search files, etc.)
+5. Optionally set `COMPOSIO_SLACK_CHANNEL` so client create / invite / task complete / onboarding complete post to Slack
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Curated toolkits are listed in the UI; Composio’s catalog covers 250+ apps — add more slugs in `lib/composio.ts` as needed.
+
+## Deploy (Cloudflare)
+
+```bash
+npm run deploy
+```
+
+Configure the same secrets in Cloudflare Pages / Workers.
+
+## Security rules
+
+When using Firebase, deploy `firestore.rules` and `storage.rules`. Server API routes enforce RBAC regardless of mode.

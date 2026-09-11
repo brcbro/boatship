@@ -1,0 +1,80 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return signedIn() && userDoc().role == 'admin';
+    }
+
+    function isStaff() {
+      return signedIn() && userDoc().role in ['admin', 'team'];
+    }
+
+    function isClientOf(clientId) {
+      return signedIn() && userDoc().role == 'client' && userDoc().clientId == clientId;
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn() && (request.auth.uid == userId || isStaff());
+      allow write: if isAdmin();
+    }
+
+    match /clients/{clientId} {
+      allow read: if isStaff() || isClientOf(clientId);
+      allow create, update, delete: if isStaff();
+    }
+
+    match /tasks/{taskId} {
+      allow read: if isStaff() || isClientOf(resource.data.clientId);
+      allow create, delete: if isStaff();
+      allow update: if isStaff()
+        || (isClientOf(resource.data.clientId)
+            && resource.data.type == 'client_facing'
+            && !request.resource.data.diff(resource.data).affectedKeys()
+                .hasAny(['internalNotes', 'type', 'clientId', 'assignedRole']));
+    }
+
+    match /documents/{documentId} {
+      allow read: if isStaff() || isClientOf(resource.data.clientId);
+      allow create: if isStaff()
+        || (isClientOf(request.resource.data.clientId)
+            && request.resource.data.status == 'pending_review');
+      allow update: if isStaff();
+      allow delete: if isAdmin();
+    }
+
+    match /forms/{formId} {
+      allow read: if isStaff() || isClientOf(resource.data.clientId);
+      allow create: if isStaff();
+      allow update: if isStaff()
+        || (isClientOf(resource.data.clientId)
+            && request.resource.data.status in ['not_started', 'submitted']
+            && !request.resource.data.diff(resource.data).affectedKeys()
+                .hasAny(['status']) || request.resource.data.status == 'submitted');
+      allow delete: if isAdmin();
+    }
+
+    match /form_templates/{id} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /onboarding_templates/{id} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    match /activity_log/{id} {
+      allow read: if isStaff() || isClientOf(resource.data.clientId);
+      allow create: if isStaff() || signedIn();
+      allow update, delete: if false;
+    }
+  }
+}

@@ -1,0 +1,124 @@
+import { jsonError, jsonOk } from "@/lib/api";
+import { encodeLocalSession, SESSION_COOKIE } from "@/lib/auth";
+import { isFirebaseAdminConfigured } from "@/lib/firebase-admin";
+import { verifyPassword } from "@/lib/password";
+import { getStore } from "@/lib/store";
+import type { AuthSession } from "@/types";
+
+export const runtime = "nodejs";
+
+const DEMO_PASSWORDS: Record<string, string> = {
+  "admin@boatship.local": "admin123",
+  "team@boatship.local": "team123",
+};
+
+/** Default password for invited client users in local/demo mode. */
+const LOCAL_CLIENT_PASSWORD = "Welcome123!";
+
+const RATE_LIMIT_MAX = 20;
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+
+type RateBucket = { count: number; resetAt: number };
+const loginAttempts = new Map<string, RateBucket>();
+
+function checkRateLimit(email: string): boolean {
+  const now = Date.now();
+  const key = email.toLowerCase();
+  const bucket = loginAttempts.get(key);
+  if (!bucket || now >= bucket.resetAt) {
+    loginAttempts.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+  if (bucket.count >= RATE_LIMIT_MAX) return false;
+  bucket.count += 1;
+  return true;
+}
+
+function clearRateLimit(email: string) {
+  loginAttempts.delete(email.toLowerCase());
+}
+
+function sessionCookieOptions() {
+  return {
+    httpOnly: true,
+    sameSite: "lax" as const,
+    path: "/",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 60 * 60 * 24 * 14,
+  };
+}
+
+function passwordsMatch(password: string, expected: string | null | undefined) {
+  return Boolean(expected) && password === expected;
+}
+
+export async function POST(req: Request) {
+  try {
+    const body = (await req.json().catch(() => ({}))) as {
+      email?: string;
+      password?: string;
+    };
+    const email = (body.email || "").trim().toLowerCase();
+    const password = body.password || "";
+
+    if (!email || !password) {
+      return jsonError("Email and password are required", 400);
+    }
+
+    if (!checkRateLimit(email)) {
+      return jsonError("Too many login attempts. Try again in 15 minutes.", 429);
+    }
+
+    // Firebase Auth mode: sign in on the client and send the ID token.
+    if (isFirebaseAdminConfigured() && process.env.FORCE_LOCAL_AUTH !== "1") {
+      return jsonError(
+        "Use Firebase Auth sign-in, then pass the ID token as Bearer authorization",
+        400
+      );
+    }
+
+    const store = await getStore();
+    const user = await store.getUserByEmail(email);
+    if (!user) {
+      return jsonError("Invalid email or password", 401);
+    }
+
+    let ok = false;
+    if (user.passwordHash) {
+      ok = verifyPassword(password, user.passwordHash);
+    } else {
+      const expected =
+        user.password ||
+        DEMO_PASSWORDS[user.email.toLowerCase()] ||
+        (user.role === "client" || user.mustResetPassword || user.inviteToken
+          ? LOCAL_CLIENT_PASSWORD
+          : null);
+      ok = passwordsMatch(password, expected);
+    }
+
+    if (!ok) {
+      return jsonError("Invalid email or password", 401);
+    }
+
+    clearRateLimit(email);
+
+    const session: AuthSession = {
+      uid: user.uid,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      clientId: user.clientId,
+      permissions: user.permissions,
+    };
+    const token = encodeLocalSession(session);
+
+    const response = jsonOk({ token, session });
+    response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions());
+    return response;
+  } catch (err) {
+    if (err instanceof Response) return err;
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    console.error(message, err);
+    return jsonError(message, 500);
+  }
+}
