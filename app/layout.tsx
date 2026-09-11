@@ -15,8 +15,8 @@ const sans = DM_Sans({
 });
 
 export const metadata = {
-  title: "Boatship Onboarding",
-  description: "Client onboarding lifecycle management",
+  title: "Boatship | Infotech Client Onboarding",
+  description: "A connected onboarding command center for digital service delivery.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -2,8 +2,26 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
-import { Menu, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  BarChart3,
+  Bot,
+  Sparkles,
+  CalendarDays,
+  ClipboardCheck,
+  FileText,
+  Gauge,
+  Handshake,
+  LayoutDashboard,
+  MessageSquare,
+  Menu,
+  Plug,
+  ShieldCheck,
+  Users,
+  UsersRound,
+  Webhook,
+  X,
+} from "lucide-react";
 import { useAuth } from "@/components/shared/AuthProvider";
 import { CommandPalette } from "@/components/shared/CommandPalette";
 import { NotificationBell } from "@/components/shared/NotificationBell";
@@ -11,19 +29,21 @@ import { Button } from "@/components/shared/ui";
 import { cn, statusLabel } from "@/lib/utils";
 
 const NAV = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/clients", label: "Clients" },
-  { href: "/team", label: "Team" },
-  { href: "/workload", label: "Workload" },
-  { href: "/calendar", label: "Calendar" },
-  { href: "/messages", label: "Messages" },
-  { href: "/templates", label: "Templates" },
-  { href: "/forms", label: "Forms" },
-  { href: "/analytics", label: "Analytics" },
-  { href: "/integrations", label: "Integrations" },
-  { href: "/webhooks", label: "Webhooks" },
-  { href: "/compliance", label: "Compliance" },
-  { href: "/agent", label: "Drive Agent" },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/clients", label: "Clients", icon: Users },
+  { href: "/team", label: "Team", icon: UsersRound },
+  { href: "/workload", label: "Workload", icon: Gauge },
+  { href: "/calendar", label: "Calendar", icon: CalendarDays },
+  { href: "/messages", label: "Messages", icon: MessageSquare },
+  { href: "/templates", label: "Templates", icon: ClipboardCheck },
+  { href: "/forms", label: "Forms", icon: FileText },
+  { href: "/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/integrations", label: "Integrations", icon: Plug },
+  { href: "/webhooks", label: "Webhooks", icon: Webhook },
+  { href: "/compliance", label: "Compliance", icon: ShieldCheck },
+  { href: "/hodi", label: "Hodi dashboard", icon: Bot },
+  { href: "/automations", label: "Automations", icon: Sparkles },
+  { href: "/agent", label: "Hodi", icon: Bot },
 ] as const;
 
 function isActive(pathname: string, href: string) {
@@ -35,7 +55,29 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { session, logout, loading } = useAuth();
   const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    setCollapsed(localStorage.getItem("boatship-sidebar-collapsed") === "true");
+  }, []);
+
+  function toggleSidebar() {
+    setCollapsed((value) => {
+      const next = !value;
+      localStorage.setItem("boatship-sidebar-collapsed", String(next));
+      return next;
+    });
+  }
 
   async function onLogout() {
     setLoggingOut(true);
@@ -46,30 +88,39 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const nav = (
+  function nav(compact = false) {
+    return (
     <nav className="flex flex-col gap-1">
       {NAV.map((item) => (
-        <Link
-          key={item.href}
-          href={item.href}
-          onClick={() => setOpen(false)}
-          className={cn(
-            "rounded-md px-3 py-2 text-sm font-medium transition",
-            isActive(pathname, item.href)
-              ? "bg-white/10 text-white"
-              : "text-slate-300 hover:bg-white/5 hover:text-white"
-          )}
-        >
-          {item.label}
-        </Link>
+        (() => {
+          const Icon = item.icon;
+          return <Link
+            key={item.href}
+            href={item.href}
+            onClick={() => setOpen(false)}
+            title={compact ? item.label : undefined}
+            className={cn(
+              "flex items-center rounded-md py-2 text-sm font-medium transition",
+              compact ? "justify-center px-2" : "gap-3 px-3",
+              isActive(pathname, item.href)
+                ? "bg-white/10 text-white"
+                : "text-slate-300 hover:bg-white/5 hover:text-white"
+            )}
+          >
+            <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+            {compact ? <span className="sr-only">{item.label}</span> : item.label}
+          </Link>;
+        })()
       ))}
     </nav>
-  );
+    );
+  }
 
-  const userBlock = (
+  function userBlock(compact = false) {
+    return (
     <div className="mt-auto border-t border-white/10 pt-4">
-      <div className="mb-3 flex items-start justify-between gap-2">
-        <div className="min-w-0">
+      <div className={cn("mb-3 flex items-start gap-2", compact ? "justify-center" : "justify-between")}>
+        <div className={cn("min-w-0", compact && "hidden")}>
           <p className="truncate text-sm font-medium text-white">
             {loading ? "…" : session?.name || "Staff"}
           </p>
@@ -78,34 +129,47 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             {session?.email ? ` · ${session.email}` : ""}
           </p>
         </div>
-        <NotificationBell tone="dark" className="hidden shrink-0 lg:block" />
+        <NotificationBell tone="dark" className="shrink-0" />
       </div>
       <Button
         variant="secondary"
         size="sm"
-        className="w-full border-white/20 bg-white/10 text-white hover:bg-white/15"
+        title={compact ? "Logout" : undefined}
+        className={cn("border-white/20 bg-white/10 text-white hover:bg-white/15", compact ? "mx-auto flex w-10 px-0" : "w-full")}
         onClick={() => void onLogout()}
         disabled={loggingOut}
       >
-        {loggingOut ? "Signing out…" : "Logout"}
+        {compact ? <span aria-hidden="true">↪</span> : loggingOut ? "Signing out…" : "Logout"}
       </Button>
     </div>
-  );
+    );
+  }
 
   return (
-    <div className="min-h-screen lg:flex">
+    <div className="min-h-screen lg:flex lg:h-screen lg:overflow-hidden">
       {/* Desktop sidebar */}
-      <aside className="hidden w-64 shrink-0 flex-col bg-[var(--brand)] px-4 py-6 text-white lg:flex">
-        <Link href="/dashboard" className="mb-8 flex items-center gap-2.5 px-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 text-sm font-semibold">
-            B
-          </span>
-          <span className="font-[family-name:var(--font-display)] text-xl tracking-tight">
-            Boatship
-          </span>
-        </Link>
-        {nav}
-        {userBlock}
+      <aside className={cn("hidden shrink-0 flex-col bg-[var(--brand)] py-6 text-white transition-[width] duration-200 lg:flex lg:overflow-y-auto lg:overscroll-contain", collapsed ? "w-20 px-3" : "w-64 px-4")}>
+        <div className={cn("mb-8 flex items-center", collapsed ? "justify-center" : "justify-between px-2")}>
+          {collapsed ? null : (
+            <Link href="/dashboard" className="flex items-center gap-2.5">
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 text-sm font-semibold">
+                B
+              </span>
+              <span className="font-[family-name:var(--font-display)] text-xl tracking-tight">Boatship</span>
+            </Link>
+          )}
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+            title={collapsed ? "Expand navigation" : "Collapse navigation"}
+            className="flex h-10 w-10 items-center justify-center rounded-md text-white hover:bg-white/10"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+        </div>
+        {nav(collapsed)}
+        {userBlock(collapsed)}
       </aside>
 
       {/* Mobile top bar */}
@@ -123,7 +187,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           <button
             type="button"
             aria-label={open ? "Close menu" : "Open menu"}
-            className="rounded-md p-2 text-[var(--ink)] hover:bg-[var(--surface-2)]"
+            className="flex h-11 w-11 items-center justify-center rounded-md text-[var(--ink)] hover:bg-[var(--surface-2)]"
             onClick={() => setOpen((v) => !v)}
           >
             {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -140,25 +204,32 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             className="absolute inset-0 bg-slate-900/40"
             onClick={() => setOpen(false)}
           />
-          <aside className="absolute inset-y-0 left-0 flex w-72 flex-col bg-[var(--brand)] px-4 py-6 text-white shadow-xl">
+          <aside
+            role="dialog"
+            aria-modal="true"
+            aria-label="Navigation menu"
+            className="absolute inset-y-0 left-0 flex w-[min(18rem,calc(100vw-2rem))] flex-col overflow-y-auto bg-[var(--brand)] px-4 py-6 text-white shadow-xl"
+          >
             <div className="mb-8 flex items-center justify-between px-2">
               <span className="font-[family-name:var(--font-display)] text-xl">Boatship</span>
               <button
                 type="button"
                 aria-label="Close"
-                className="rounded-md p-1.5 hover:bg-white/10"
+                className="flex h-11 w-11 items-center justify-center rounded-md hover:bg-white/10"
                 onClick={() => setOpen(false)}
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
-            {nav}
-            {userBlock}
+            {nav()}
+            {userBlock()}
           </aside>
         </div>
       ) : null}
 
-      <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">{children}</main>
+      <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:px-8 lg:py-8">
+        {children}
+      </main>
       <CommandPalette variant="admin" />
     </div>
   );

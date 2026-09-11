@@ -330,6 +330,24 @@ export interface SavedSmartList {
   createdAt: string;
 }
 
+/** A persisted, text-only agent turn. Tool payloads and credentials are never stored. */
+export interface AgentChatMessage {
+  id: string;
+  userId: string;
+  sessionId: string;
+  role: "user" | "assistant";
+  text: string;
+  createdAt: string;
+}
+
+export interface AgentChatSession {
+  id: string;
+  userId: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AuthSession {
   uid: string;
   email: string;

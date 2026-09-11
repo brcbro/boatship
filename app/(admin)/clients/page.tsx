@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/shared/AuthProvider";
 import {
@@ -22,6 +21,26 @@ import { formatDate, statusLabel } from "@/lib/utils";
 import type { ClientStatus, ClientWithProgress, SavedSmartList } from "@/types";
 
 type TeamUser = { uid: string; name: string; email: string; role: string };
+type OnboardingHealth = {
+  clientId: string;
+  state: "on_track" | "waiting_on_client" | "blocked_internally" | "ready_to_launch";
+  score: number;
+  blockers: unknown[];
+};
+
+const healthLabels: Record<OnboardingHealth["state"], string> = {
+  on_track: "On track",
+  waiting_on_client: "Waiting on client",
+  blocked_internally: "Blocked internally",
+  ready_to_launch: "Ready to launch",
+};
+
+function healthTone(state: OnboardingHealth["state"]): "success" | "warning" | "danger" | "info" {
+  if (state === "ready_to_launch") return "success";
+  if (state === "waiting_on_client") return "warning";
+  if (state === "blocked_internally") return "danger";
+  return "info";
+}
 
 function statusTone(status: string): "neutral" | "success" | "warning" | "danger" | "info" {
   if (status === "completed") return "success";
@@ -33,9 +52,9 @@ function statusTone(status: string): "neutral" | "success" | "warning" | "danger
 
 export default function ClientsPage() {
   const { token } = useAuth();
-  const router = useRouter();
   const [clients, setClients] = useState<ClientWithProgress[]>([]);
   const [users, setUsers] = useState<TeamUser[]>([]);
+  const [healthByClientId, setHealthByClientId] = useState<Record<string, OnboardingHealth>>({});
   const [smartLists, setSmartLists] = useState<SavedSmartList[]>([]);
   const [smartListId, setSmartListId] = useState("");
   const [q, setQ] = useState("");
@@ -85,12 +104,14 @@ export default function ClientsPage() {
     setLoading(true);
     setError("");
     try {
-      const [c, u] = await Promise.all([
+      const [c, u, h] = await Promise.all([
         apiFetch<{ clients: ClientWithProgress[] }>(`/api/clients${queryString}`, { token }),
         apiFetch<{ users: TeamUser[] }>("/api/users", { token }),
+        apiFetch<{ health: OnboardingHealth[] }>("/api/onboarding-health", { token }),
       ]);
       setClients(c.clients);
       setUsers(u.users);
+      setHealthByClientId(Object.fromEntries(h.health.map((item) => [item.clientId, item])));
       setSelected(new Set());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load clients");
@@ -451,7 +472,7 @@ export default function ClientsPage() {
       ) : (
         <Card className="overflow-hidden p-0">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] text-left text-sm">
+            <table className="w-full min-w-0 text-left text-sm sm:min-w-[680px] lg:min-w-[900px]">
               <thead className="bg-[var(--surface-2)] text-[var(--ink-muted)]">
                 <tr>
                   <th className="px-5 py-3 font-medium">
@@ -464,13 +485,14 @@ export default function ClientsPage() {
                     />
                   </th>
                   <th className="px-5 py-3 font-medium">Name</th>
-                  <th className="px-5 py-3 font-medium">Company</th>
+                  <th className="hidden px-5 py-3 font-medium sm:table-cell">Company</th>
                   <th className="px-5 py-3 font-medium">Status</th>
-                  <th className="px-5 py-3 font-medium">Tags</th>
-                  <th className="px-5 py-3 font-medium">Assignee</th>
-                  <th className="px-5 py-3 font-medium">Vessels</th>
-                  <th className="px-5 py-3 font-medium">Progress</th>
-                  <th className="px-5 py-3 font-medium">Updated</th>
+                  <th className="hidden px-5 py-3 font-medium xl:table-cell">Health</th>
+                  <th className="hidden px-5 py-3 font-medium lg:table-cell">Tags</th>
+                  <th className="hidden px-5 py-3 font-medium md:table-cell">Assignee</th>
+                  <th className="hidden px-5 py-3 font-medium lg:table-cell">Vessels</th>
+                  <th className="hidden px-5 py-3 font-medium sm:table-cell">Progress</th>
+                  <th className="hidden px-5 py-3 font-medium lg:table-cell">Updated</th>
                   <th className="px-5 py-3 font-medium" />
                 </tr>
               </thead>
@@ -478,8 +500,7 @@ export default function ClientsPage() {
                 {clients.map((c) => (
                   <tr
                     key={c.id}
-                    className="cursor-pointer border-t border-[var(--border)] hover:bg-slate-50/80"
-                    onClick={() => router.push(`/clients/${c.id}`)}
+                    className="border-t border-[var(--border)] hover:bg-slate-50/80"
                   >
                     <td className="px-5 py-3" onClick={(e) => e.stopPropagation()}>
                       <input
@@ -489,10 +510,30 @@ export default function ClientsPage() {
                         aria-label={`Select ${c.name}`}
                       />
                     </td>
-                    <td className="px-5 py-3 font-medium text-[var(--ink)]">{c.name}</td>
-                    <td className="px-5 py-3 text-[var(--ink-muted)]">{c.companyName}</td>
-                    <td className="px-5 py-3">
+                    <td className="px-5 py-3 font-medium text-[var(--ink)]">
+                      <Link
+                        href={`/clients/${c.id}`}
+                        className="hover:text-[var(--accent)] hover:underline"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {c.name}
+                      </Link>
+                    </td>
+                    <td className="hidden px-5 py-3 text-[var(--ink-muted)] sm:table-cell">{c.companyName}</td>
+                    <td className="hidden px-5 py-3 lg:table-cell">
                       <Badge tone={statusTone(c.status)}>{statusLabel(c.status)}</Badge>
+                    </td>
+                    <td className="hidden px-5 py-3 xl:table-cell">
+                      {healthByClientId[c.id] ? (
+                        <div className="flex items-center gap-2">
+                          <Badge tone={healthTone(healthByClientId[c.id].state)}>
+                            {healthLabels[healthByClientId[c.id].state]}
+                          </Badge>
+                          <span className="text-xs text-[var(--ink-muted)]">
+                            {healthByClientId[c.id].blockers.length} blocker{healthByClientId[c.id].blockers.length === 1 ? "" : "s"}
+                          </span>
+                        </div>
+                      ) : "—"}
                     </td>
                     <td className="px-5 py-3">
                       <div className="flex flex-wrap gap-1">
@@ -507,13 +548,13 @@ export default function ClientsPage() {
                         )}
                       </div>
                     </td>
-                    <td className="px-5 py-3 text-[var(--ink-muted)]">
+                    <td className="hidden px-5 py-3 text-[var(--ink-muted)] md:table-cell">
                       {c.assignedTeamMemberName || "—"}
                     </td>
-                    <td className="px-5 py-3 text-[var(--ink-muted)]">
+                    <td className="hidden px-5 py-3 text-[var(--ink-muted)] lg:table-cell">
                       {typeof c.vesselCount === "number" ? c.vesselCount : "—"}
                     </td>
-                    <td className="px-5 py-3">
+                    <td className="hidden px-5 py-3 sm:table-cell">
                       <div className="flex items-center gap-2">
                         <div className="w-24">
                           <ProgressBar value={c.progress} />
@@ -521,7 +562,7 @@ export default function ClientsPage() {
                         <span className="text-xs text-[var(--ink-muted)]">{c.progress}%</span>
                       </div>
                     </td>
-                    <td className="px-5 py-3 text-[var(--ink-muted)]">{formatDate(c.updatedAt)}</td>
+                    <td className="hidden px-5 py-3 text-[var(--ink-muted)] lg:table-cell">{formatDate(c.updatedAt)}</td>
                     <td className="px-5 py-3 text-right">
                       <Link
                         href={`/clients/${c.id}`}

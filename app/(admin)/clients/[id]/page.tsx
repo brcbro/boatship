@@ -20,6 +20,7 @@ import {
 import { apiFetch } from "@/lib/api-client";
 import { cn, formatDate, formatDateTime, statusLabel } from "@/lib/utils";
 import { TaskBoard } from "@/components/shared/TaskBoard";
+import { ClientWorkspaceNav } from "@/components/clients/ClientWorkspaceNav";
 import type {
   ClientStatus,
   ClientWithProgress,
@@ -80,15 +81,6 @@ function statusTone(status: string): "neutral" | "success" | "warning" | "danger
   if (status === "not_started" || status === "pending") return "warning";
   return "neutral";
 }
-
-const TABS: { id: Tab; label: string }[] = [
-  { id: "overview", label: "Overview" },
-  { id: "tasks", label: "Tasks" },
-  { id: "documents", label: "Documents" },
-  { id: "forms", label: "Forms" },
-  { id: "vessels", label: "Vessels" },
-  { id: "activity", label: "Activity" },
-];
 
 export default function ClientDetailPage() {
   const params = useParams();
@@ -678,23 +670,7 @@ export default function ClientDetailPage() {
         <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>
       ) : null}
 
-      <div className="mb-6 flex flex-wrap gap-1 border-b border-[var(--border)]">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setTab(t.id)}
-            className={cn(
-              "-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition",
-              tab === t.id
-                ? "border-[var(--brand)] text-[var(--ink)]"
-                : "border-transparent text-[var(--ink-muted)] hover:text-[var(--ink)]"
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <ClientWorkspaceNav active={tab} onChange={(next) => setTab(next as Tab)} />
 
       {tab === "overview" ? (
         <div className="grid gap-6 lg:grid-cols-2">
@@ -1197,9 +1173,43 @@ export default function ClientDetailPage() {
               }
             />
           ) : (
-            <Card className="overflow-hidden p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[720px] text-left text-sm">
+            <>
+              <div className="space-y-3 sm:hidden">
+                {vessels.map((vessel) => (
+                  <Card key={vessel.id} className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="truncate font-medium text-[var(--ink)]">{vessel.name}</h3>
+                        <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                          {vessel.vesselType || "Type not set"} · {vessel.flag || "Flag not set"}
+                        </p>
+                      </div>
+                      {vessel.imo ? <Badge tone="neutral">IMO {vessel.imo}</Badge> : null}
+                    </div>
+                    <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                      <div>
+                        <dt className="text-xs text-[var(--ink-muted)]">Class society</dt>
+                        <dd className="truncate text-[var(--ink)]">{vessel.classSociety || "—"}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-[var(--ink-muted)]">Notes</dt>
+                        <dd className="truncate text-[var(--ink)]">{vessel.notes || "—"}</dd>
+                      </div>
+                    </dl>
+                    <div className="mt-4 grid grid-cols-2 gap-2">
+                      <Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => openEditVessel(vessel)}>
+                        Edit
+                      </Button>
+                      <Button type="button" size="sm" variant="danger" disabled={busy} onClick={() => void deleteVessel(vessel.id)}>
+                        Delete
+                      </Button>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+              <Card className="hidden overflow-hidden p-0 sm:block">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[720px] text-left text-sm">
                   <thead className="bg-[var(--surface-2)] text-[var(--ink-muted)]">
                     <tr>
                       <th className="px-5 py-3 font-medium">Name</th>
@@ -1251,9 +1261,10 @@ export default function ClientDetailPage() {
                       </tr>
                     ))}
                   </tbody>
-                </table>
-              </div>
-            </Card>
+                  </table>
+                </div>
+              </Card>
+            </>
           )}
 
           <Modal

@@ -2,6 +2,7 @@
 
 import {
   createContext,
+  forwardRef,
   useContext,
   useEffect,
   useId,
@@ -26,9 +27,9 @@ export function Button({
     <button
       className={cn(
         "inline-flex items-center justify-center gap-2 rounded-md font-medium transition disabled:opacity-50 disabled:pointer-events-none",
-        size === "sm" && "px-3 py-1.5 text-sm",
-        size === "md" && "px-4 py-2 text-sm",
-        size === "lg" && "px-5 py-2.5 text-base",
+        size === "sm" && "min-h-8 px-3 py-1.5 text-sm max-sm:min-h-11",
+        size === "md" && "min-h-10 px-4 py-2 text-sm max-sm:min-h-11",
+        size === "lg" && "min-h-11 px-5 py-2.5 text-base",
         variant === "primary" &&
           "bg-[var(--brand)] text-[var(--surface-raised)] hover:bg-[var(--brand-strong)]",
         variant === "secondary" &&
@@ -50,7 +51,7 @@ export function Input({
   return (
     <input
       className={cn(
-        "w-full rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--ink)] outline-none transition placeholder:text-[var(--ink-muted)]/70 focus:border-[var(--ink)] focus:ring-1 focus:ring-[var(--ink)]/15",
+        "min-h-10 w-full rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--ink)] outline-none transition placeholder:text-[var(--ink-muted)]/70 focus:border-[var(--ink)] focus:ring-1 focus:ring-[var(--ink)]/15 max-sm:min-h-11",
         className
       )}
       {...props}
@@ -58,12 +59,13 @@ export function Input({
   );
 }
 
-export function Textarea({
-  className,
-  ...props
-}: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+export const Textarea = forwardRef<
+  HTMLTextAreaElement,
+  React.TextareaHTMLAttributes<HTMLTextAreaElement>
+>(function Textarea({ className, ...props }, ref) {
   return (
     <textarea
+      ref={ref}
       className={cn(
         "w-full rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--ink)] outline-none transition placeholder:text-[var(--ink-muted)]/70 focus:border-[var(--ink)] focus:ring-1 focus:ring-[var(--ink)]/15",
         className
@@ -71,7 +73,7 @@ export function Textarea({
       {...props}
     />
   );
-}
+});
 
 /** Native select styled to theme (kept for simple cases). Prefer Dropdown. */
 export function Select({
@@ -82,7 +84,7 @@ export function Select({
   return (
     <select
       className={cn(
-        "boatship-select w-full rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--ink)] outline-none transition focus:border-[var(--ink)] focus:ring-1 focus:ring-[var(--ink)]/15",
+        "boatship-select min-h-10 w-full rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--ink)] outline-none transition focus:border-[var(--ink)] focus:ring-1 focus:ring-[var(--ink)]/15 max-sm:min-h-11",
         className
       )}
       {...props}
@@ -135,7 +137,7 @@ export function Dropdown({
         disabled={disabled}
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          "flex w-full items-center justify-between gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-left text-sm outline-none transition",
+          "flex min-h-10 w-full items-center justify-between gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-left text-sm outline-none transition max-sm:min-h-11",
           "hover:border-[var(--ink)]/40 focus:border-[var(--ink)] focus:ring-1 focus:ring-[var(--ink)]/15",
           disabled && "opacity-50",
           open && "border-[var(--ink)] ring-1 ring-[var(--ink)]/15"
@@ -303,20 +305,79 @@ export function Modal({
 }) {
   const titleId = useId();
   const ctx = useMemo(() => ({ close: onClose }), [onClose]);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
     document.body.style.overflow = "hidden";
+
+    const getFocusableElements = () => {
+      const dialog = dialogRef.current;
+      if (!dialog) return [];
+
+      return Array.from(
+        dialog.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((element) => element.getAttribute("aria-hidden") !== "true" && element.getClientRects().length > 0);
+    };
+
+    const focusInitialElement = () => {
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      (getFocusableElements()[0] ?? dialog).focus();
+    };
+
+    const focusFrame = window.requestAnimationFrame(focusInitialElement);
+
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+
+      if (e.key !== "Tab") return;
+
+      const dialog = dialogRef.current;
+      const focusableElements = getFocusableElements();
+      if (!dialog || focusableElements.length === 0) {
+        e.preventDefault();
+        dialog?.focus();
+        return;
+      }
+
+      const first = focusableElements[0];
+      const last = focusableElements[focusableElements.length - 1];
+      const activeElement = document.activeElement;
+
+      if (e.shiftKey && (activeElement === first || !dialog.contains(activeElement))) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (activeElement === last || !dialog.contains(activeElement))) {
+        e.preventDefault();
+        first.focus();
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => {
+      window.cancelAnimationFrame(focusFrame);
       document.body.style.overflow = prev;
       window.removeEventListener("keydown", onKey);
+      const previouslyFocused = previouslyFocusedRef.current;
+      if (previouslyFocused?.isConnected) previouslyFocused.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
@@ -330,9 +391,11 @@ export function Modal({
           onClick={onClose}
         />
         <div
+          ref={dialogRef}
           role="dialog"
           aria-modal="true"
           aria-labelledby={title ? titleId : undefined}
+          tabIndex={-1}
           className={cn(
             "relative z-10 flex max-h-[min(90vh,880px)] w-full flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface-raised)] shadow-[0_24px_80px_rgba(20,20,20,0.22)]",
             size === "sm" && "max-w-md",

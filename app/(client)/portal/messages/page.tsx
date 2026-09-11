@@ -89,7 +89,7 @@ export default function PortalMessagesPage() {
         />
       ) : (
         <Card className="flex flex-col gap-4 p-0 overflow-hidden">
-          <div className="max-h-[min(28rem,55vh)] min-h-[16rem] space-y-3 overflow-y-auto px-5 py-4">
+          <div className="max-h-[min(28rem,55vh)] min-h-[16rem] space-y-3 overflow-y-auto overscroll-contain px-5 py-4">
             {messages.length === 0 ? (
               <p className="py-8 text-center text-sm text-[var(--ink-muted)]">
                 No messages yet. Say hello to start the conversation.

@@ -253,7 +253,7 @@ export function TaskBoard({
           type="button"
           onClick={() => setOpenId(task.id)}
           className={cn(
-            "flex h-9 w-full items-center gap-2 px-2.5 text-left transition hover:bg-[var(--surface-2)]/60",
+            "flex min-h-11 w-full items-center gap-2 px-2.5 text-left transition hover:bg-[var(--surface-2)]/60 sm:h-9 sm:min-h-0",
             openId === task.id && "bg-[var(--surface-2)]",
             blocked && task.status !== "completed" && "opacity-90"
           )}
@@ -393,11 +393,14 @@ export function TaskBoard({
       ) : filtered.length === 0 ? (
         <EmptyState title="No matches" description="Try a different search." />
       ) : viewMode === "kanban" ? (
-        <div className="flex gap-3 overflow-x-auto pb-2">
+        <div
+          className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-3 [scrollbar-gutter:stable]"
+          aria-label="Task board columns. Swipe horizontally to see more statuses."
+        >
           {kanbanColumns.map((col) => (
             <section
               key={col.status}
-              className="flex w-64 shrink-0 flex-col rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/50"
+              className="flex w-[82vw] max-w-80 shrink-0 snap-start flex-col rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/50 sm:w-64"
             >
               <header className="flex items-center justify-between gap-2 border-b border-[var(--border)] px-2.5 py-2">
                 <span className="text-xs font-semibold uppercase tracking-wide text-[var(--ink)]">
@@ -407,7 +410,7 @@ export function TaskBoard({
                   {col.tasks.length}
                 </span>
               </header>
-              <ul className="flex max-h-[28rem] flex-col gap-2 overflow-y-auto p-2">
+              <ul className="flex max-h-[28rem] flex-col gap-2 overflow-y-auto overscroll-contain p-2">
                 {col.tasks.length === 0 ? (
                   <li className="px-1 py-4 text-center text-xs text-[var(--ink-muted)]">Empty</li>
                 ) : (

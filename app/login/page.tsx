@@ -112,7 +112,7 @@ function LoginContent() {
       ? "Enter your email and we’ll send a reset link if an account exists."
       : mode === "reset"
         ? "Choose a password to finish inviting or resetting your account."
-        : "Structured client onboarding for your team and clients.";
+        : "Connected onboarding for websites, apps, marketing, content, and growth campaigns.";
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-10">

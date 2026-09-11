@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Bell } from "lucide-react";
 import { useAuth } from "@/components/shared/AuthProvider";
 import { apiFetch } from "@/lib/api-client";
@@ -21,7 +22,10 @@ export function NotificationBell({
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [panelStyle, setPanelStyle] = useState<React.CSSProperties | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const isDark = tone === "dark";
 
   const load = useCallback(async () => {
     if (authLoading) return;
@@ -48,7 +52,12 @@ export function NotificationBell({
 
   useEffect(() => {
     function onDoc(e: MouseEvent) {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+      if (
+        !rootRef.current?.contains(e.target as Node) &&
+        !panelRef.current?.contains(e.target as Node)
+      ) {
+        setOpen(false);
+      }
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
@@ -62,6 +71,29 @@ export function NotificationBell({
       document.removeEventListener("keydown", onKey);
     };
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const updatePosition = () => {
+      const trigger = rootRef.current?.getBoundingClientRect();
+      if (!trigger) return;
+      const width = Math.min(352, window.innerWidth - 32);
+      const left = Math.max(16, Math.min(trigger.right - width, window.innerWidth - width - 16));
+      // Sidebar bells open upward; top-bar bells open downward. Reserve enough
+      // room for the panel's maximum height and keep it inside the viewport.
+      const top = isDark
+        ? Math.max(16, trigger.top - 368)
+        : Math.min(trigger.bottom + 8, window.innerHeight - 16);
+      setPanelStyle({ left, top, width });
+    };
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open, isDark]);
 
   async function markOne(id: string) {
     try {
@@ -99,8 +131,6 @@ export function NotificationBell({
     if (next) void load();
   }
 
-  const isDark = tone === "dark";
-
   return (
     <div ref={rootRef} className={cn("relative", className)}>
       <button
@@ -109,7 +139,7 @@ export function NotificationBell({
         aria-expanded={open}
         onClick={() => void onOpenChange(!open)}
         className={cn(
-          "relative inline-flex h-9 w-9 items-center justify-center rounded-md transition",
+          "relative inline-flex h-11 w-11 items-center justify-center rounded-md transition sm:h-9 sm:w-9",
           isDark
             ? "text-white hover:bg-white/10"
             : "border border-[var(--border)] text-[var(--ink)] hover:bg-[var(--surface-2)]"
@@ -123,11 +153,13 @@ export function NotificationBell({
         ) : null}
       </button>
 
-      {open ? (
+      {open && panelStyle && typeof document !== "undefined"
+        ? createPortal(
         <div
+          ref={panelRef}
+          style={panelStyle}
           className={cn(
-            "absolute z-50 w-[min(100vw-2rem,22rem)] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] shadow-lg",
-            isDark ? "bottom-full right-0 mb-2" : "right-0 top-full mt-2"
+            "fixed z-[70] max-h-[calc(100dvh-2rem)] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] shadow-lg"
           )}
         >
           <div className="flex items-center justify-between border-b border-[var(--border)] px-3 py-2.5">
@@ -143,7 +175,7 @@ export function NotificationBell({
             ) : null}
           </div>
 
-          <div className="max-h-80 overflow-y-auto">
+          <div className="max-h-80 overflow-y-auto overscroll-contain">
             {loading && notifications.length === 0 ? (
               <p className="px-3 py-6 text-center text-sm text-[var(--ink-muted)]">Loading…</p>
             ) : notifications.length === 0 ? (
@@ -206,7 +238,10 @@ export function NotificationBell({
             )}
           </div>
         </div>
-      ) : null}
+        ,
+        document.body
+      )
+        : null}
     </div>
   );
 }

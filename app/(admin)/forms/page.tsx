@@ -289,7 +289,7 @@ export default function FormsAdminPage() {
         title="Forms"
         description={
           canEdit
-            ? "Create Google Form links or native Boatship forms with conditional fields."
+            ? "Create Google Form links or native client forms with conditional fields."
             : "View form templates (admin can edit)."
         }
         actions={
@@ -453,7 +453,7 @@ export default function FormsAdminPage() {
               }
             >
               <option value="google">Google Forms</option>
-              <option value="native">Native Boatship form</option>
+              <option value="native">Native client form</option>
             </Select>
           </div>
 

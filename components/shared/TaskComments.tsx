@@ -163,7 +163,7 @@ export function TaskComments({
           ) : comments.length === 0 ? (
             <p className="text-sm text-[var(--ink-muted)]">No comments yet.</p>
           ) : (
-            <ul className="max-h-56 space-y-2.5 overflow-y-auto">
+            <ul className="max-h-56 space-y-2.5 overflow-y-auto overscroll-contain">
               {comments.map((c) => (
                 <li key={c.id} className="rounded-md bg-[var(--surface-2)]/70 px-2.5 py-2">
                   <div className="mb-0.5 flex items-baseline justify-between gap-2">

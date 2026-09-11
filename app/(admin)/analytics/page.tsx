@@ -310,7 +310,7 @@ export default function AnalyticsPage() {
           {!analytics?.recentActivity?.length ? (
             <p className="text-sm text-[var(--ink-muted)]">No recent activity.</p>
           ) : (
-            <ul className="max-h-80 space-y-3 overflow-y-auto">
+            <ul className="max-h-80 space-y-3 overflow-y-auto overscroll-contain">
               {analytics.recentActivity.slice(0, 15).map((entry) => (
                 <li key={entry.id} className="text-sm">
                   <p>
@@ -349,11 +349,11 @@ export default function AnalyticsPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left text-sm">
+            <table className="w-full min-w-0 text-left text-sm">
               <thead className="bg-[var(--surface-2)] text-[var(--ink-muted)]">
                 <tr>
                   <th className="px-5 py-3 font-medium">Task</th>
-                  <th className="px-5 py-3 font-medium">Client</th>
+                  <th className="hidden px-5 py-3 font-medium sm:table-cell">Client</th>
                   <th className="px-5 py-3 font-medium">Due</th>
                 </tr>
               </thead>
@@ -361,7 +361,7 @@ export default function AnalyticsPage() {
                 {overdueList.map((row) => (
                   <tr key={row.taskId} className="border-t border-[var(--border)]">
                     <td className="px-5 py-3 font-medium">{row.title}</td>
-                    <td className="px-5 py-3">
+                    <td className="hidden px-5 py-3 sm:table-cell">
                       <Link
                         href={`/clients/${row.clientId}`}
                         className="text-[var(--accent)] hover:underline"

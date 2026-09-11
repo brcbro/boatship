@@ -9,9 +9,33 @@ import {
 } from "@/lib/email";
 import { notifyStaffForClient, notifyUser } from "@/lib/notifications";
 import { getStore } from "@/lib/store";
+import { evaluateOnboardingHealth } from "@/lib/onboarding-health";
 import type { Client } from "@/types";
 
 export const runtime = "nodejs";
+
+/** Review-only reminder queue. GET never sends email, notifications, or writes data. */
+export async function GET(req: Request) {
+  return handleApi(async () => {
+    await requireRoles(req, ["admin", "team"]);
+    const store = await getStore();
+    const clientId = new URL(req.url).searchParams.get("clientId");
+    const clients = clientId
+      ? [await store.getClient(clientId)].filter(Boolean)
+      : await store.listClients();
+    const health = await Promise.all(
+      clients.map(async (client) =>
+        evaluateOnboardingHealth(
+          client!,
+          await store.listTasks(client!.id),
+          await store.listForms(client!.id),
+          await store.listDocuments(client!.id)
+        )
+      )
+    );
+    return { reminders: health.flatMap((item) => item.reminders), mode: "review_only" };
+  });
+}
 
 function sameUtcDay(a: string, b: Date) {
   const d = new Date(a);

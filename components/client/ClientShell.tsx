@@ -48,7 +48,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
                 B
               </span>
               <span className="font-[family-name:var(--font-display)] text-lg tracking-tight text-[var(--brand)]">
-                Boatship Portal
+                Boatship Workspace
               </span>
             </Link>
 
@@ -89,7 +89,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
             </Button>
             <button
               type="button"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-[var(--border)] text-[var(--ink)] md:hidden"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-[var(--border)] text-[var(--ink)] md:hidden"
               onClick={() => setOpen((v) => !v)}
               aria-label={open ? "Close menu" : "Open menu"}
             >

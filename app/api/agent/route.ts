@@ -11,24 +11,22 @@ export async function GET(req: Request) {
     const composioConfigured = isComposioConfigured();
     const llmConfigured = isLlmConfigured();
 
-    let driveConnected = false;
+    let connectors: Awaited<ReturnType<typeof listBoatshipConnections>> = [];
     if (composioConfigured) {
-      const connections = await listBoatshipConnections(session.uid);
-      driveConnected = Boolean(connections.find((c) => c.slug === "googledrive" && c.connected));
+      connectors = await listBoatshipConnections(session.uid);
     }
 
     return {
       composioConfigured,
       llmConfigured,
-      driveConnected,
-      ready: composioConfigured && llmConfigured,
+      driveConnected: Boolean(connectors.find((c) => c.slug === "googledrive" && c.connected)),
+      connectors,
+      ready: llmConfigured,
       userId: session.uid,
-      message: !composioConfigured
-        ? "Set COMPOSIO_API_KEY to enable the Drive agent."
-        : !llmConfigured
-          ? "Set OPENAI_API_KEY (or AI_GATEWAY_API_KEY) so the agent can reason."
-          : !driveConnected
-            ? "Connect Google Drive under Integrations (your account only), then chat here."
+      message: !llmConfigured
+          ? "Set OPENROUTER_API_KEY, OPENAI_API_KEY, or AI_GATEWAY_API_KEY so the agent can reason."
+          : !composioConfigured
+            ? "Boatship knowledge is ready. Add COMPOSIO_API_KEY to use connected apps."
             : null,
     };
   });

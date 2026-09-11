@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/shared/AuthProvider";
 import {
   Badge,
@@ -32,6 +31,27 @@ type Analytics = {
   }>;
 };
 
+type OnboardingHealth = {
+  clientId: string;
+  state: "on_track" | "waiting_on_client" | "blocked_internally" | "ready_to_launch";
+  score: number;
+  blockers: unknown[];
+};
+
+const healthLabels: Record<OnboardingHealth["state"], string> = {
+  on_track: "On track",
+  waiting_on_client: "Waiting on client",
+  blocked_internally: "Blocked internally",
+  ready_to_launch: "Ready to launch",
+};
+
+function healthTone(state: OnboardingHealth["state"]): "success" | "warning" | "danger" | "info" {
+  if (state === "ready_to_launch") return "success";
+  if (state === "waiting_on_client") return "warning";
+  if (state === "blocked_internally") return "danger";
+  return "info";
+}
+
 function statusTone(status: string): "neutral" | "success" | "warning" | "danger" | "info" {
   if (status === "completed" || status === "approved") return "success";
   if (status === "in_progress" || status === "pending_review" || status === "submitted") return "info";
@@ -42,9 +62,9 @@ function statusTone(status: string): "neutral" | "success" | "warning" | "danger
 
 export default function DashboardPage() {
   const { token } = useAuth();
-  const router = useRouter();
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [clients, setClients] = useState<ClientWithProgress[]>([]);
+  const [healthByClientId, setHealthByClientId] = useState<Record<string, OnboardingHealth>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -52,14 +72,16 @@ export default function DashboardPage() {
     setLoading(true);
     setError("");
     try {
-      const [a, c] = await Promise.all([
+      const [a, c, h] = await Promise.all([
         apiFetch<Analytics>("/api/analytics", { token }),
         apiFetch<{ clients: ClientWithProgress[] }>("/api/clients", { token }),
+        apiFetch<{ health: OnboardingHealth[] }>("/api/onboarding-health", { token }),
       ]);
       setAnalytics(a);
       setClients(
         [...c.clients].sort((x, y) => y.updatedAt.localeCompare(x.updatedAt)).slice(0, 8)
       );
+      setHealthByClientId(Object.fromEntries(h.health.map((item) => [item.clientId, item])));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load dashboard");
     } finally {
@@ -164,22 +186,22 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left text-sm">
+            <table className="w-full min-w-0 text-left text-sm sm:min-w-[640px]">
               <thead className="bg-[var(--surface-2)] text-xs uppercase tracking-wide text-[var(--ink-muted)]">
                 <tr>
                   <th className="px-4 py-2.5 font-medium">Name</th>
-                  <th className="px-4 py-2.5 font-medium">Company</th>
+                  <th className="hidden px-4 py-2.5 font-medium sm:table-cell">Company</th>
                   <th className="px-4 py-2.5 font-medium">Status</th>
+                  <th className="hidden px-4 py-2.5 font-medium md:table-cell">Onboarding health</th>
                   <th className="px-4 py-2.5 font-medium">Progress</th>
-                  <th className="px-4 py-2.5 font-medium">Updated</th>
+                  <th className="hidden px-4 py-2.5 font-medium sm:table-cell">Updated</th>
                 </tr>
               </thead>
               <tbody>
                 {clients.map((c) => (
                   <tr
                     key={c.id}
-                    className="cursor-pointer border-t border-[var(--border)] hover:bg-slate-50/80"
-                    onClick={() => router.push(`/clients/${c.id}`)}
+                    className="border-t border-[var(--border)] hover:bg-slate-50/80"
                   >
                     <td className="px-4 py-2.5">
                       <Link
@@ -190,9 +212,21 @@ export default function DashboardPage() {
                         {c.name}
                       </Link>
                     </td>
-                    <td className="px-4 py-2.5 text-[var(--ink-muted)]">{c.companyName}</td>
+                    <td className="hidden px-4 py-2.5 text-[var(--ink-muted)] sm:table-cell">{c.companyName}</td>
                     <td className="px-4 py-2.5">
                       <Badge tone={statusTone(c.status)}>{statusLabel(c.status)}</Badge>
+                    </td>
+                    <td className="hidden px-4 py-2.5 md:table-cell">
+                      {healthByClientId[c.id] ? (
+                        <div className="flex items-center gap-2">
+                          <Badge tone={healthTone(healthByClientId[c.id].state)}>
+                            {healthLabels[healthByClientId[c.id].state]}
+                          </Badge>
+                          <span className="text-xs text-[var(--ink-muted)]">
+                            {healthByClientId[c.id].blockers.length} blocker{healthByClientId[c.id].blockers.length === 1 ? "" : "s"}
+                          </span>
+                        </div>
+                      ) : "—"}
                     </td>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-2">
@@ -202,7 +236,7 @@ export default function DashboardPage() {
                         <span className="text-xs text-[var(--ink-muted)]">{c.progress}%</span>
                       </div>
                     </td>
-                    <td className="px-4 py-2.5 text-[var(--ink-muted)]">{formatDate(c.updatedAt)}</td>
+                    <td className="hidden px-4 py-2.5 text-[var(--ink-muted)] sm:table-cell">{formatDate(c.updatedAt)}</td>
                   </tr>
                 ))}
               </tbody>

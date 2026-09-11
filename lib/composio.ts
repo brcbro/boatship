@@ -37,10 +37,46 @@ export const BOATSHIP_TOOLKITS = [
   },
 ] as const;
 
-/** Primary toolkit for the Agent UI (per signed-in member). */
-export const AGENT_TOOLKITS = ["googledrive"] as const;
+/**
+ * Product-facing onboarding map. This deliberately describes only the
+ * connections configured in this workspace; the remaining categories make
+ * the desired workflow visible without pretending an OAuth connection exists.
+ */
+export const ONBOARDING_INTEGRATION_WORKFLOWS = [
+  {
+    title: "Client assets and delivery",
+    tools: ["Google Drive", "Notion"],
+    outcome: "Keep briefs, assets, client folders, and handover notes in one traceable place.",
+    status: "available",
+  },
+  {
+    title: "Client communication and handoffs",
+    tools: ["Gmail", "Slack", "HubSpot"],
+    outcome: "Send follow-ups, notify the delivery team, and keep client contact records current.",
+    status: "available",
+  },
+  {
+    title: "Kickoff and approvals",
+    tools: ["Google Calendar", "Figma", "DocuSign or PandaDoc"],
+    outcome: "Schedule kickoff calls, collect design approvals, and track signed agreements.",
+    status: "not_enabled",
+  },
+  {
+    title: "Build, billing, and growth",
+    tools: ["GitHub", "Stripe or Razorpay", "Google Ads", "Meta Ads"],
+    outcome: "Follow release progress, payment status, and campaign reporting from the client workspace.",
+    status: "not_enabled",
+  },
+] as const;
+
+/** Every curated integration is available to the universal Agent. */
+export const AGENT_TOOLKITS = BOATSHIP_TOOLKITS.map((toolkit) => toolkit.slug);
 
 export type BoatshipToolkitSlug = (typeof BOATSHIP_TOOLKITS)[number]["slug"];
+
+export function isIntegrationTestTool(toolSlug: string) {
+  return BOATSHIP_TOOLKITS.some((toolkit) => toolkit.testTool === toolSlug);
+}
 
 export type ConnectedToolkit = {
   slug: string;
@@ -100,18 +136,22 @@ export function getAgentComposio(): Composio<VercelProvider> {
 }
 
 /**
- * Session scoped to the signed-in member's Drive connection.
- * Reuses their per-user OAuth; agent can prompt Connect Link if missing.
+ * Session scoped to the signed-in member's connected Boatship integrations.
+ * It exposes the full curated toolkit catalog, so Composio can offer the
+ * relevant connection flow when an account has not yet been linked.
  */
-export async function createDriveAgentSession(boatshipUid: string, req?: Request) {
+export async function createBoatshipAgentSession(boatshipUid: string, req?: Request) {
   const composio = getAgentComposio();
   const userId = composioUserId(boatshipUid);
-  const callbackUrl = `${appBaseUrl(req)}/integrations?connected=googledrive`;
+  const callbackUrl = `${appBaseUrl(req)}/integrations`;
   return composio.create(userId, {
-    toolkits: [...AGENT_TOOLKITS],
+    toolkits: AGENT_TOOLKITS,
     manageConnections: { callbackUrl },
   });
 }
+
+/** @deprecated Use createBoatshipAgentSession. */
+export const createDriveAgentSession = createBoatshipAgentSession;
 
 /** Stable Composio user id scoped to the signed-in Boatship user. */
 export function composioUserId(boatshipUid: string) {

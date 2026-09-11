@@ -3,6 +3,8 @@ import { promises as fs } from "fs";
 import path from "path";
 import type {
   ActivityLog,
+  AgentChatMessage,
+  AgentChatSession,
   AppNotification,
   AppUser,
   Client,
@@ -49,6 +51,8 @@ export type StoreData = {
   webhookDeliveries: WebhookDelivery[];
   integrationRuns: IntegrationRun[];
   smartLists: SavedSmartList[];
+  agentChatMessages: AgentChatMessage[];
+  agentChatSessions: AgentChatSession[];
 };
 
 function now() {
@@ -73,6 +77,8 @@ function emptyStore(): StoreData {
     webhookDeliveries: [],
     integrationRuns: [],
     smartLists: [],
+    agentChatMessages: [],
+    agentChatSessions: [],
   };
 }
 
@@ -237,6 +243,8 @@ async function ensureSeed(data: StoreData) {
   if (!Array.isArray(data.webhookDeliveries)) data.webhookDeliveries = [];
   if (!Array.isArray(data.integrationRuns)) data.integrationRuns = [];
   if (!Array.isArray(data.smartLists)) data.smartLists = [];
+  if (!Array.isArray(data.agentChatMessages)) data.agentChatMessages = [];
+  if (!Array.isArray(data.agentChatSessions)) data.agentChatSessions = [];
 
   data.clients = data.clients.map((c) => migrateClient(c));
   data.tasks = data.tasks.map((t) => migrateTask(t));
@@ -250,20 +258,15 @@ async function ensureSeed(data: StoreData) {
     if (!existing) {
       data.formTemplates.push({
         ...form,
-        mode: form.fields?.length ? "native" : "google",
         createdAt: ts,
         updatedAt: ts,
       });
     } else {
-      if (!existing.mode) {
-        existing.mode = existing.fields?.length ? "native" : "google";
-      }
-      if (!existing.googleFormUrl && form.googleFormUrl) {
-        existing.googleFormUrl = form.googleFormUrl;
-        existing.googleFormEmbedUrl = form.googleFormEmbedUrl;
-      }
-      existing.fields = existing.fields || [];
-      existing.updatedAt = ts;
+      Object.assign(existing, {
+        ...form,
+        createdAt: existing.createdAt || ts,
+        updatedAt: ts,
+      });
     }
   }
 
@@ -277,13 +280,15 @@ async function ensureSeed(data: StoreData) {
           updatedAt: ts,
         })
       );
-    } else if (
-      template.id === "seed_standard" &&
-      existing.taskList.some((item) => !item.section)
-    ) {
-      existing.taskList = template.taskList;
-      existing.description = template.description;
-      existing.updatedAt = ts;
+    } else {
+      Object.assign(
+        existing,
+        migrateTemplate({
+          ...template,
+          createdAt: existing.createdAt || ts,
+          updatedAt: ts,
+        })
+      );
     }
   }
 
@@ -482,6 +487,19 @@ export interface DataStore {
   listSmartLists(ownerId: string): Promise<SavedSmartList[]>;
   upsertSmartList(list: SavedSmartList): Promise<SavedSmartList>;
   deleteSmartList(id: string): Promise<void>;
+
+  listAgentChatSessions(userId: string): Promise<AgentChatSession[]>;
+  getAgentChatSession(id: string, userId: string): Promise<AgentChatSession | null>;
+  createAgentChatSession(userId: string, title?: string): Promise<AgentChatSession>;
+  deleteAgentChatSession(id: string, userId: string): Promise<void>;
+  listAgentChatMessages(
+    userId: string,
+    sessionId: string,
+    limit?: number
+  ): Promise<AgentChatMessage[]>;
+  upsertAgentChatMessage(
+    message: Omit<AgentChatMessage, "createdAt">
+  ): Promise<AgentChatMessage>;
 
   clientProgress(clientId: string): Promise<{
     totalTasks: number;
@@ -1209,6 +1227,79 @@ class LocalStore implements DataStore {
   async deleteSmartList(id: string) {
     await this.mutate((data) => {
       data.smartLists = data.smartLists.filter((s) => s.id !== id);
+    });
+  }
+
+  async listAgentChatSessions(userId: string) {
+    return (await this.read()).agentChatSessions
+      .filter((session) => session.userId === userId)
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+
+  async getAgentChatSession(id: string, userId: string) {
+    return (
+      (await this.read()).agentChatSessions.find(
+        (session) => session.id === id && session.userId === userId
+      ) || null
+    );
+  }
+
+  async createAgentChatSession(userId: string, title = "New chat") {
+    return this.mutate((data) => {
+      const timestamp = now();
+      const session: AgentChatSession = {
+        id: randomUUID(),
+        userId,
+        title: title.trim().slice(0, 80) || "New chat",
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      };
+      data.agentChatSessions.push(session);
+      return session;
+    });
+  }
+
+  async deleteAgentChatSession(id: string, userId: string) {
+    await this.mutate((data) => {
+      data.agentChatSessions = data.agentChatSessions.filter(
+        (session) => session.id !== id || session.userId !== userId
+      );
+      data.agentChatMessages = data.agentChatMessages.filter(
+        (message) => message.sessionId !== id || message.userId !== userId
+      );
+    });
+  }
+
+  async listAgentChatMessages(userId: string, sessionId: string, limit = 40) {
+    return (await this.read()).agentChatMessages
+      .filter((message) => message.userId === userId && message.sessionId === sessionId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      .slice(-limit);
+  }
+
+  async upsertAgentChatMessage(message: Omit<AgentChatMessage, "createdAt">) {
+    return this.mutate((data) => {
+      const messageId = message.id?.trim() || randomUUID();
+      const index = data.agentChatMessages.findIndex(
+        (item) => item.userId === message.userId && item.id === messageId
+      );
+      const record: AgentChatMessage = {
+        ...message,
+        id: messageId,
+        createdAt: index >= 0 ? data.agentChatMessages[index]!.createdAt : now(),
+      };
+      if (index >= 0) data.agentChatMessages[index] = record;
+      else data.agentChatMessages.push(record);
+      const session = data.agentChatSessions.find(
+        (item) => item.id === message.sessionId && item.userId === message.userId
+      );
+      if (session) {
+        session.updatedAt = now();
+        if (session.title === "New chat" && message.role === "user") {
+          session.title = message.text.slice(0, 80);
+        }
+      }
+      return record;
     });
   }
 

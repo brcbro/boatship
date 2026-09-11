@@ -5,6 +5,7 @@ import {
   listBoatshipConnections,
   startToolkitConnect,
   BOATSHIP_TOOLKITS,
+  ONBOARDING_INTEGRATION_WORKFLOWS,
 } from "@/lib/composio";
 
 export const runtime = "nodejs";
@@ -27,6 +28,7 @@ export async function GET(req: Request) {
         })),
         message:
           "Set COMPOSIO_API_KEY to enable integrations. Get a key at https://app.composio.dev",
+        workflows: ONBOARDING_INTEGRATION_WORKFLOWS,
       };
     }
 
@@ -35,6 +37,7 @@ export async function GET(req: Request) {
       configured: true,
       toolkits,
       slackChannel: process.env.COMPOSIO_SLACK_CHANNEL || null,
+      workflows: ONBOARDING_INTEGRATION_WORKFLOWS,
     };
   });
 }
