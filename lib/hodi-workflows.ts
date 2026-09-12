@@ -61,6 +61,36 @@ export const hodiWorkflows: readonly HodiWorkflow[] = [
     unavailableMessage: "Google Calendar is not connected. Hodi can provide suggested time slots for manual scheduling.",
   },
   {
+    id: "sheets-client-report",
+    name: "Prepare a client report or form export",
+    description: "Plans a reviewable Google Sheets report using client, onboarding, or submitted-form information.",
+    requiredConnection: "googlesheets",
+    mode: "action",
+    requiresConfirmation: true,
+    safeOutcome: "A reviewable spreadsheet export plan; writing rows or creating a sheet needs a separate confirmed execution.",
+    unavailableMessage: "Google Sheets is not connected. Hodi can still format the report data for manual export.",
+  },
+  {
+    id: "docs-client-document",
+    name: "Prepare an automatic client document",
+    description: "Plans a client-facing document populated from the client profile, form responses, and project details.",
+    requiredConnection: "googledocs",
+    mode: "action",
+    requiresConfirmation: true,
+    safeOutcome: "A reviewable document-generation plan; creating or updating a Google Doc needs a separate confirmed execution.",
+    unavailableMessage: "Google Docs is not connected. Hodi can still provide the document content for manual copying.",
+  },
+  {
+    id: "telegram-urgent-notification",
+    name: "Prepare an urgent Telegram notification",
+    description: "Creates a concise urgent notification for client blockers, overdue work, or time-sensitive approvals.",
+    requiredConnection: "telegram",
+    mode: "action",
+    requiresConfirmation: true,
+    safeOutcome: "A previewable Telegram notification; sending it needs a separate confirmed execution.",
+    unavailableMessage: "Telegram is not connected. Hodi can provide the urgent notification text for manual sending.",
+  },
+  {
     id: "slack-blocker-alert",
     name: "Prepare an internal blocker alert",
     description: "Creates a concise internal alert with the blocker, owner, due date, and requested decision.",
@@ -120,8 +150,18 @@ export function planHodiWorkflow(
   workflow: HodiWorkflow,
   availableConnections?: readonly string[]
 ): HodiWorkflowPlan {
+  const connectionAliases: Record<string, string> = {
+    googlecalendar: "google_calendar",
+    google_drive: "googledrive",
+    google_sheets: "googlesheets",
+    google_docs: "googledocs",
+    telegram_messaging: "telegram",
+  };
+  const normalizedConnections = availableConnections?.map(
+    (connection) => connectionAliases[connection] || connection
+  );
   const connectionState: HodiConnectionState = availableConnections
-    ? availableConnections.includes(workflow.requiredConnection)
+    ? normalizedConnections?.includes(workflow.requiredConnection)
       ? "connected"
       : "unavailable"
     : "unknown";

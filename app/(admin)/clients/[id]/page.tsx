@@ -818,6 +818,23 @@ export default function ClientDetailPage() {
                 Save tags & fields
               </Button>
             </div>
+            {Object.entries(client.customFields || {}).some(([key]) => key !== "Vessel IMO" && key !== "Flag") ? (
+              <div className="mt-5 border-t border-[var(--border)] pt-4">
+                <p className="mb-3 text-xs font-medium uppercase tracking-wide text-[var(--ink-muted)]">
+                  Details from client forms
+                </p>
+                <dl className="grid gap-3 sm:grid-cols-2">
+                  {Object.entries(client.customFields || {})
+                    .filter(([key]) => key !== "Vessel IMO" && key !== "Flag")
+                    .map(([key, value]) => (
+                      <div key={key}>
+                        <dt className="text-xs text-[var(--ink-muted)]">{key}</dt>
+                        <dd className="text-sm font-medium text-[var(--ink)]">{value || "—"}</dd>
+                      </div>
+                    ))}
+                </dl>
+              </div>
+            ) : null}
           </Card>
         </div>
       ) : null}

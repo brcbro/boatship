@@ -1,11 +1,12 @@
-import { evaluateOnboardingHealth, type OnboardingBlocker } from "@/lib/onboarding-health";
+import { evaluateOnboardingHealth, isCurrentOnboardingTask, type OnboardingBlocker } from "@/lib/onboarding-health";
 import { getStore } from "@/lib/store";
-import type { AppUser, AuthSession, Client, DocumentRecord, FormSubmission, OnboardingTemplate, Task } from "@/types";
+import type { ActivityLog, AppUser, AuthSession, Client, DocumentRecord, FormSubmission, OnboardingTemplate, Task } from "@/types";
 
 export type HodiEvidence = {
   source: string;
   label: string;
   recordedAt?: string;
+  quality?: "strong" | "moderate" | "weak";
 };
 
 export type HodiRecommendation = {
@@ -13,6 +14,10 @@ export type HodiRecommendation = {
   summary: string;
   owner: "client" | "team" | "unassigned";
   evidence: HodiEvidence[];
+  /** Explicit ranking metadata; populated for every generated recommendation. */
+  priority?: "low" | "medium" | "high" | "urgent";
+  confidence?: number;
+  evidenceQuality?: "strong" | "moderate" | "weak";
 };
 
 export type HodiClientProfile = {
@@ -61,14 +66,40 @@ function ownerFor(task: Task) {
   return task.assignedRole === "client" || task.type === "client_facing" ? "client" as const : task.assignedTo ? "team" as const : "unassigned" as const;
 }
 
+function priorityForTask(task: Task): HodiRecommendation["priority"] {
+  return task.priority || (task.status === "blocked" ? "high" : "medium");
+}
+
+function evidenceQuality(evidence: HodiEvidence[]): HodiRecommendation["evidenceQuality"] {
+  if (evidence.some((item) => item.source === "Task" && item.recordedAt)) return "strong";
+  if (evidence.length > 0) return "moderate";
+  return "weak";
+}
+
+function recommendationMeta(evidence: HodiEvidence[], priority: HodiRecommendation["priority"] = "medium") {
+  const quality = evidenceQuality(evidence);
+  return {
+    priority,
+    confidence: quality === "strong" ? 0.95 : quality === "moderate" ? 0.75 : 0.45,
+    evidenceQuality: quality,
+  };
+}
+
 function blockerRecommendation(blocker: OnboardingBlocker, taskById: Map<string, Task>): HodiRecommendation {
   const task = blocker.taskId ? taskById.get(blocker.taskId) : undefined;
-  const verb = blocker.kind === "approval" ? "Review" : blocker.kind === "overdue_task" ? "Resolve overdue" : "Unblock";
+  const verb = blocker.kind === "approval"
+    ? "Review"
+    : blocker.kind === "overdue_task"
+      ? "Resolve overdue"
+      : blocker.kind === "missing_task_definition"
+        ? "Define"
+        : "Unblock";
   return {
     kind: "blocker",
     summary: `${verb}: ${blocker.label}.`,
     owner: blocker.owner,
-    evidence: [{ source: task ? "Task" : "Onboarding health", label: task?.title || blocker.label, recordedAt: task?.createdAt }],
+    evidence: [{ source: task ? "Task" : "Onboarding health", label: task?.title || blocker.label, recordedAt: task?.createdAt, quality: task ? "strong" : "moderate" }],
+    ...recommendationMeta([{ source: task ? "Task" : "Onboarding health", label: task?.title || blocker.label, recordedAt: task?.createdAt }], task?.priority || (blocker.owner === "client" ? "high" : "medium")),
   };
 }
 
@@ -87,7 +118,7 @@ function buildProfile(input: {
   tasks: Task[];
   documents: DocumentRecord[];
   forms: FormSubmission[];
-  activity: Awaited<ReturnType<Awaited<ReturnType<typeof getStore>>["listActivity"]>>;
+  activity: ActivityLog[];
   users: AppUser[];
 }): HodiClientProfile {
   const { client, template, tasks, documents, forms, activity, users } = input;
@@ -123,17 +154,48 @@ function buildProfile(input: {
 export async function buildHodiClientInsights(session: AuthSession, clientId?: string): Promise<HodiClientInsight[]> {
   const store = await getStore();
   const clients = clientId ? [await store.getClient(clientId)].filter(Boolean) as Client[] : await store.listClients();
-  const [users, templates] = await Promise.all([store.listUsers(), store.listTemplates()]);
+  const [users, templates, allTasks, allDocuments, allForms, allActivity] = await Promise.all([
+    store.listUsers(),
+    store.listTemplates(),
+    clientId ? Promise.resolve([] as Task[]) : store.listAllTasks(),
+    clientId ? Promise.resolve([] as DocumentRecord[]) : store.listAllDocuments(),
+    clientId ? Promise.resolve([] as FormSubmission[]) : store.listAllForms(),
+    clientId ? Promise.resolve([] as ActivityLog[]) : store.listAllActivity(),
+  ]);
+  const tasksByClient = new Map<string, Task[]>();
+  const documentsByClient = new Map<string, DocumentRecord[]>();
+  const formsByClient = new Map<string, FormSubmission[]>();
+  const activityByClient = new Map<string, ActivityLog[]>();
+  for (const task of allTasks) tasksByClient.set(task.clientId, [...(tasksByClient.get(task.clientId) || []), task]);
+  for (const document of allDocuments) documentsByClient.set(document.clientId, [...(documentsByClient.get(document.clientId) || []), document]);
+  for (const form of allForms) formsByClient.set(form.clientId, [...(formsByClient.get(form.clientId) || []), form]);
+  for (const entry of allActivity) activityByClient.set(entry.clientId, [...(activityByClient.get(entry.clientId) || []), entry]);
   return Promise.all(clients.map(async (client) => {
-    const [tasks, documents, forms, activity] = await Promise.all([store.listTasks(client.id), store.listDocuments(client.id), store.listForms(client.id), store.listActivity(client.id)]);
+    const [tasks, documents, forms, activity] = clientId
+      ? await Promise.all([store.listTasks(client.id), store.listDocuments(client.id), store.listForms(client.id), store.listActivity(client.id)])
+      : [
+          tasksByClient.get(client.id) || [],
+          documentsByClient.get(client.id) || [],
+          formsByClient.get(client.id) || [],
+          activityByClient.get(client.id) || [],
+        ];
+    const currentTasks = tasks.filter(isCurrentOnboardingTask);
     const health = evaluateOnboardingHealth(client, tasks, forms, documents);
-    const taskById = new Map(tasks.map((task) => [task.id, task]));
+    const taskById = new Map(currentTasks.map((task) => [task.id, task]));
     const recommendations: HodiRecommendation[] = health.blockers.map((blocker) => blockerRecommendation(blocker, taskById));
-    const nextTask = tasks.find((task) => task.status !== "completed" && task.status !== "blocked");
-    if (nextTask) recommendations.push({ kind: "next_action", summary: `Next action: ${nextTask.title}.`, owner: ownerFor(nextTask), evidence: [{ source: "Task", label: nextTask.title, recordedAt: nextTask.createdAt }] });
+    const actionableTaskIds = new Set(health.blockers.map((blocker) => blocker.taskId).filter(Boolean));
+    for (const nextTask of currentTasks.filter((task) => task.status !== "completed" && task.status !== "blocked" && !actionableTaskIds.has(task.id))) {
+      const evidence = [{ source: "Task", label: nextTask.title, recordedAt: nextTask.createdAt }];
+      recommendations.push({ kind: "next_action", summary: `Next action: ${nextTask.title}.`, owner: ownerFor(nextTask), evidence, ...recommendationMeta(evidence, priorityForTask(nextTask)) });
+    }
     const risk = health.overdueTaskCount > 0 || health.blockers.some((blocker) => blocker.kind === "blocked_task") ? "High risk of delay" : health.blockers.length ? "Moderate risk: unresolved onboarding work" : "Low known risk";
-    recommendations.push({ kind: "risk", summary: risk, owner: "team", evidence: health.blockers.length ? health.blockers.map((blocker) => ({ source: "Onboarding health", label: blocker.label })) : [{ source: "Onboarding health", label: "No recorded blockers" }] });
-    for (const blocker of health.blockers.filter((item) => item.kind === "approval")) recommendations.push({ kind: "launch_approval", summary: `Launch approval needed: ${blocker.label}.`, owner: "team", evidence: [{ source: "Onboarding health", label: blocker.label }] });
-    return { profile: buildProfile({ client, template: templates.find((template) => template.id === client.templateId), tasks, documents, forms, activity, users }), health: { state: health.state, score: health.score }, recommendations };
+    const riskEvidence = health.blockers.length ? health.blockers.map((blocker) => ({ source: "Onboarding health", label: blocker.label })) : [{ source: "Onboarding health", label: "No recorded blockers" }];
+    recommendations.push({ kind: "risk", summary: risk, owner: "team", evidence: riskEvidence, ...recommendationMeta(riskEvidence, risk.startsWith("High") ? "high" : "low") });
+    for (const blocker of health.blockers.filter((item) => item.kind === "approval")) {
+      const evidence = [{ source: "Onboarding health", label: blocker.label }];
+      recommendations.push({ kind: "launch_approval", summary: `Launch approval needed: ${blocker.label}.`, owner: "team", evidence, ...recommendationMeta(evidence, "high") });
+    }
+    recommendations.sort((a, b) => ({ urgent: 4, high: 3, medium: 2, low: 1 }[b.priority || "medium"] - ({ urgent: 4, high: 3, medium: 2, low: 1 }[a.priority || "medium"])));
+    return { profile: buildProfile({ client, template: templates.find((template) => template.id === client.templateId), tasks: currentTasks, documents, forms, activity, users }), health: { state: health.state, score: health.score }, recommendations };
   }));
 }

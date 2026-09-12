@@ -26,14 +26,14 @@ export function Button({
   return (
     <button
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-md font-medium transition disabled:opacity-50 disabled:pointer-events-none",
+        "inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg font-medium transition-all duration-200 active:translate-y-px active:scale-[0.985] disabled:pointer-events-none disabled:opacity-50",
         size === "sm" && "min-h-8 px-3 py-1.5 text-sm max-sm:min-h-11",
         size === "md" && "min-h-10 px-4 py-2 text-sm max-sm:min-h-11",
         size === "lg" && "min-h-11 px-5 py-2.5 text-base",
         variant === "primary" &&
-          "bg-[var(--brand)] text-[var(--surface-raised)] hover:bg-[var(--brand-strong)]",
+          "bg-[var(--brand)] text-[var(--surface-raised)] shadow-[0_8px_18px_rgba(20,43,53,0.14)] hover:-translate-y-0.5 hover:bg-[var(--brand-strong)] hover:shadow-[0_12px_24px_rgba(20,43,53,0.18)]",
         variant === "secondary" &&
-          "border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--ink)] hover:bg-[var(--surface-2)]",
+          "border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--ink)] hover:-translate-y-0.5 hover:border-[var(--accent)]/45 hover:bg-[var(--accent-soft)]",
         variant === "ghost" &&
           "text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]",
         variant === "danger" && "bg-[var(--danger)] text-white hover:bg-[#6f1515]",
@@ -51,7 +51,7 @@ export function Input({
   return (
     <input
       className={cn(
-        "min-h-10 w-full rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--ink)] outline-none transition placeholder:text-[var(--ink-muted)]/70 focus:border-[var(--ink)] focus:ring-1 focus:ring-[var(--ink)]/15 max-sm:min-h-11",
+        "min-h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--ink)] outline-none transition-all duration-200 placeholder:text-[var(--ink-muted)]/70 focus:border-[var(--accent)] focus:ring-4 focus:ring-[var(--accent)]/10 max-sm:min-h-11",
         className
       )}
       {...props}
@@ -67,7 +67,7 @@ export const Textarea = forwardRef<
     <textarea
       ref={ref}
       className={cn(
-        "w-full rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--ink)] outline-none transition placeholder:text-[var(--ink-muted)]/70 focus:border-[var(--ink)] focus:ring-1 focus:ring-[var(--ink)]/15",
+        "w-full rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--ink)] outline-none transition-all duration-200 placeholder:text-[var(--ink-muted)]/70 focus:border-[var(--accent)] focus:ring-4 focus:ring-[var(--accent)]/10",
         className
       )}
       {...props}
@@ -84,7 +84,7 @@ export function Select({
   return (
     <select
       className={cn(
-        "boatship-select min-h-10 w-full rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--ink)] outline-none transition focus:border-[var(--ink)] focus:ring-1 focus:ring-[var(--ink)]/15 max-sm:min-h-11",
+        "boatship-select min-h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--ink)] outline-none transition-all duration-200 focus:border-[var(--accent)] focus:ring-4 focus:ring-[var(--accent)]/10 max-sm:min-h-11",
         className
       )}
       {...props}
@@ -137,8 +137,8 @@ export function Dropdown({
         disabled={disabled}
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          "flex min-h-10 w-full items-center justify-between gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-left text-sm outline-none transition max-sm:min-h-11",
-          "hover:border-[var(--ink)]/40 focus:border-[var(--ink)] focus:ring-1 focus:ring-[var(--ink)]/15",
+          "flex min-h-10 w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-left text-sm outline-none transition-all duration-200 max-sm:min-h-11",
+          "hover:border-[var(--accent)]/60 focus:border-[var(--accent)] focus:ring-4 focus:ring-[var(--accent)]/10",
           disabled && "opacity-50",
           open && "border-[var(--ink)] ring-1 ring-[var(--ink)]/15"
         )}
@@ -198,7 +198,7 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-5 shadow-[0_1px_0_rgba(20,20,20,0.04)]",
+        "rounded-2xl border border-[var(--border)]/80 bg-[color-mix(in_srgb,var(--surface-raised)_90%,white)] p-5 shadow-[0_12px_36px_rgba(20,43,53,0.045)] transition-shadow duration-300 hover:shadow-[0_16px_42px_rgba(20,43,53,0.075)]",
         className
       )}
       {...props}
@@ -216,9 +216,9 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium tracking-wide",
+        "inline-flex items-center rounded-md px-2 py-1 text-[11px] font-semibold tracking-wide",
         tone === "neutral" && "bg-[var(--surface-2)] text-[var(--ink)]",
-        tone === "success" && "bg-[#e4efe6] text-[var(--success)]",
+        tone === "success" && "bg-[#dcefe7] text-[var(--success)]",
         tone === "warning" && "bg-[#f3ead2] text-[var(--warning)]",
         tone === "danger" && "bg-[#f3e0e0] text-[var(--danger)]",
         tone === "info" && "bg-[var(--surface-2)] text-[var(--ink-muted)]"
@@ -269,13 +269,13 @@ export function PageHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="mb-9 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        <h1 className="font-[family-name:var(--font-display)] text-3xl tracking-tight text-[var(--ink)]">
+        <h1 className="max-w-3xl font-[family-name:var(--font-display)] text-4xl leading-[1.05] tracking-[-0.035em] text-[var(--ink)] sm:text-[2.65rem]">
           {title}
         </h1>
         {description ? (
-          <p className="mt-1 text-sm text-[var(--ink-muted)]">{description}</p>
+          <p className="mt-2 max-w-2xl text-[0.95rem] leading-6 text-[var(--ink-muted)]">{description}</p>
         ) : null}
       </div>
       {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}

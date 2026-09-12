@@ -1,0 +1,254 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DIRECT_URL")
+}
+
+// The application store is kept as one typed JSON document so the existing
+// domain services remain compatible while Neon/Postgres becomes the only
+// persistence layer. Auth sessions and external connection ownership are
+// relational and indexed separately.
+model StoreSnapshot {
+  id        String   @id
+  data      Json
+  updatedAt DateTime @updatedAt
+}
+
+model AuthSession {
+  tokenHash String   @id
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model ComposioConnection {
+  id                String   @id
+  userId            String
+  toolkitSlug       String
+  connectedAccountId String
+  status            String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([userId, toolkitSlug])
+  @@index([userId])
+}
+
+model McpIdentity {
+  id          String    @id
+  publicId    String    @unique
+  userId      String
+  tokenHash   String    @unique
+  status      String    @default("active")
+  scopes      String[]
+  lastUsedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  projectAccess McpProjectAccess[]
+  auditEvents   McpAuditEvent[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([revokedAt])
+}
+
+model McpProjectAccess {
+  id         String      @id
+  identityId String
+  projectId  String
+  accessLevel String     @default("read")
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  identity McpIdentity @relation(fields: [identityId], references: [id], onDelete: Cascade)
+
+  @@unique([identityId, projectId])
+  @@index([identityId])
+  @@index([projectId])
+}
+
+model McpAuditEvent {
+  id         String      @id
+  identityId String
+  userId     String
+  toolName   String
+  resource   String?
+  action     String?
+  success    Boolean     @default(true)
+  metadata   Json?
+  createdAt  DateTime    @default(now())
+
+  identity McpIdentity @relation(fields: [identityId], references: [id], onDelete: Cascade)
+
+  @@index([identityId, createdAt])
+  @@index([userId, createdAt])
+  @@index([toolName, createdAt])
+}
+
+model GitRepositoryConnection {
+  id              String   @id
+  provider        String
+  name            String
+  owner           String
+  repository      String
+  defaultBranch   String   @default("main")
+  webhookSecretHash String?
+  accessTokenRef  String?
+  active          Boolean  @default(true)
+  createdBy       String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  taskLinks       GitTaskLink[]
+  policies        DefinitionOfDonePolicy[]
+  evidence        GitEvidence[]
+
+  @@index([provider, owner, repository])
+  @@index([createdBy])
+}
+
+model GitTaskLink {
+  id             String   @id
+  taskId         String
+  repositoryId   String
+  branch         String?
+  pullRequestUrl String?
+  pullRequestId  String?
+  baseSha        String?
+  headSha        String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  repository GitRepositoryConnection @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, repositoryId])
+  @@index([taskId])
+  @@index([repositoryId])
+  @@index([pullRequestId])
+}
+
+model DefinitionOfDonePolicy {
+  id              String   @id
+  projectId       String
+  repositoryId    String?
+  taskType        String?
+  requiredFiles   String[]
+  requiredChecks  String[]
+  requiredBuild   Boolean  @default(false)
+  requiredScreenshot Boolean @default(false)
+  requiredApproval Boolean  @default(false)
+  allowedPaths    String[]
+  maxStaleHours   Int      @default(72)
+  createdBy       String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  repository GitRepositoryConnection? @relation(fields: [repositoryId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([repositoryId])
+}
+
+model GitValidationRun {
+  id            String   @id
+  taskId        String
+  status        String
+  reason        String?
+  evidence      Json
+  triggeredBy   String?
+  source        String   @default("manual")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([taskId, createdAt])
+  @@index([status, createdAt])
+}
+
+model GitEvidence {
+  id             String   @id
+  taskId         String?
+  repositoryId   String
+  kind           String
+  title          String
+  externalId     String?
+  url            String?
+  payload        Json
+  createdAt      DateTime @default(now())
+
+  repository GitRepositoryConnection @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, createdAt])
+  @@index([repositoryId, createdAt])
+  @@index([kind, createdAt])
+}
+
+model TaskManagerApproval {
+  id          String   @id
+  taskId      String
+  reviewerId  String
+  status      String   @default("pending")
+  note        String?
+  createdAt   DateTime @default(now())
+  reviewedAt  DateTime?
+
+  @@unique([taskId])
+  @@index([reviewerId])
+  @@index([status])
+}
+
+model HodiQueueItem {
+  id            String    @id
+  dedupeKey     String    @unique
+  clientId      String?
+  taskId        String?
+  kind          String
+  source        String
+  title         String
+  summary       String
+  ownerId       String?
+  priority      String    @default("medium")
+  status        String    @default("open")
+  dueAt         DateTime?
+  snoozedUntil  DateTime?
+  dismissedAt   DateTime?
+  metadata      Json?
+  evidence      Json?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([status, priority, updatedAt])
+  @@index([ownerId, status])
+  @@index([clientId, status])
+  @@index([taskId, status])
+  @@index([snoozedUntil])
+}
+
+model HodiActionProposal {
+  id             String    @id
+  approvalToken  String    @unique
+  action         String
+  payload        Json
+  payloadHash    String
+  userId         String
+  status         String    @default("pending")
+  preview        Json
+  expiresAt      DateTime
+  approvedBy     String?
+  approvedAt     DateTime?
+  rejectedReason String?
+  consumedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([userId, status, createdAt])
+  @@index([status, expiresAt])
+  @@index([action, createdAt])
+}

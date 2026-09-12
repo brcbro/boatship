@@ -1,6 +1,7 @@
 import { Composio } from "@composio/core";
 import { VercelProvider } from "@composio/vercel";
 import { appBaseUrl } from "@/lib/client-status";
+import { getPrisma } from "@/lib/prisma";
 
 /** Curated onboarding-relevant toolkits (Composio catalog has 250+). */
 export const BOATSHIP_TOOLKITS = [
@@ -10,6 +11,24 @@ export const BOATSHIP_TOOLKITS = [
     description:
       "Each team member connects their own Drive. Create client folders, list files, and share links from the Agent.",
     testTool: "GOOGLEDRIVE_LIST_FILES",
+  },
+  {
+    slug: "googlecalendar",
+    name: "Google Calendar",
+    description: "Schedule client meetings, kickoff calls, and follow-up reminders from the onboarding workspace.",
+    testTool: "GOOGLECALENDAR_CREATE_EVENT",
+  },
+  {
+    slug: "googlesheets",
+    name: "Google Sheets",
+    description: "Export client onboarding data and keep shared reporting sheets current for the team.",
+    testTool: "GOOGLESHEETS_APPEND_ROW",
+  },
+  {
+    slug: "googledocs",
+    name: "Google Docs",
+    description: "Create client briefs, meeting notes, and handover documents from onboarding data.",
+    testTool: "GOOGLEDOCS_CREATE_DOCUMENT",
   },
   {
     slug: "slack",
@@ -35,6 +54,12 @@ export const BOATSHIP_TOOLKITS = [
     description: "Push onboarding notes and checklists into Notion.",
     testTool: null,
   },
+  {
+    slug: "telegram",
+    name: "Telegram",
+    description: "Send urgent onboarding notifications to the connected Telegram chat or team channel.",
+    testTool: "TELEGRAM_BOT_SEND_MESSAGE",
+  },
 ] as const;
 
 /**
@@ -45,21 +70,33 @@ export const BOATSHIP_TOOLKITS = [
 export const ONBOARDING_INTEGRATION_WORKFLOWS = [
   {
     title: "Client assets and delivery",
-    tools: ["Google Drive", "Notion"],
-    outcome: "Keep briefs, assets, client folders, and handover notes in one traceable place.",
+    tools: ["Google Drive", "Google Docs", "Notion"],
+    outcome: "Keep briefs, client documents, assets, folders, and handover notes in one traceable place.",
     status: "available",
   },
   {
     title: "Client communication and handoffs",
-    tools: ["Gmail", "Slack", "HubSpot"],
-    outcome: "Send follow-ups, notify the delivery team, and keep client contact records current.",
+    tools: ["Gmail", "Slack", "Telegram", "HubSpot"],
+    outcome: "Send follow-ups, urgent notifications, team handoffs, and keep client contact records current.",
     status: "available",
   },
   {
-    title: "Kickoff and approvals",
-    tools: ["Google Calendar", "Figma", "DocuSign or PandaDoc"],
-    outcome: "Schedule kickoff calls, collect design approvals, and track signed agreements.",
+    title: "Design approvals and agreements",
+    tools: ["Figma", "DocuSign or PandaDoc"],
+    outcome: "Collect design approvals and track signed agreements once those integrations are enabled.",
     status: "not_enabled",
+  },
+  {
+    title: "Kickoff meetings and client documents",
+    tools: ["Google Calendar", "Google Docs"],
+    outcome: "Schedule kickoff calls and generate meeting briefs or client documents from onboarding data.",
+    status: "available",
+  },
+  {
+    title: "Reporting and form exports",
+    tools: ["Google Sheets"],
+    outcome: "Export client form responses and keep onboarding reports current for the team.",
+    status: "available",
   },
   {
     title: "Build, billing, and growth",
@@ -96,8 +133,12 @@ const TOOLKIT_VERSIONS = {
   slack: "latest",
   gmail: "latest",
   googledrive: "latest",
+  googlecalendar: "latest",
+  googlesheets: "latest",
+  googledocs: "latest",
   hubspot: "latest",
   notion: "latest",
+  telegram: "latest",
 } as const;
 
 let client: Composio | null = null;
@@ -171,6 +212,20 @@ export async function listBoatshipConnections(boatshipUid: string): Promise<Conn
     const slug = (item.toolkit?.slug || "").toLowerCase();
     if (!slug) continue;
     byToolkit.set(slug, { id: item.id, status: String(item.status || "ACTIVE") });
+    await getPrisma().composioConnection.upsert({
+      where: { userId_toolkitSlug: { userId: boatshipUid, toolkitSlug: slug } },
+      create: {
+        id: item.id,
+        userId: boatshipUid,
+        toolkitSlug: slug,
+        connectedAccountId: item.id,
+        status: String(item.status || "ACTIVE"),
+      },
+      update: {
+        connectedAccountId: item.id,
+        status: String(item.status || "ACTIVE"),
+      },
+    });
   }
 
   return BOATSHIP_TOOLKITS.map((tk) => {
@@ -202,6 +257,20 @@ export async function startToolkitConnect(
     manageConnections: { callbackUrl },
   });
   const connectionRequest = await session.authorize(toolkitSlug);
+  await getPrisma().composioConnection.upsert({
+    where: { userId_toolkitSlug: { userId: boatshipUid, toolkitSlug } },
+    create: {
+      id: connectionRequest.id,
+      userId: boatshipUid,
+      toolkitSlug,
+      connectedAccountId: connectionRequest.id,
+      status: "PENDING",
+    },
+    update: {
+      connectedAccountId: connectionRequest.id,
+      status: "PENDING",
+    },
+  });
   return {
     redirectUrl: connectionRequest.redirectUrl,
     connectionId: connectionRequest.id,

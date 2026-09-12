@@ -1,5 +1,4 @@
 import { handleApi, jsonError } from "@/lib/api";
-import { isFirebaseAdminConfigured } from "@/lib/firebase-admin";
 import { hashPassword } from "@/lib/password";
 import { getStore } from "@/lib/store";
 
@@ -13,13 +12,6 @@ const MIN_PASSWORD_LENGTH = 8;
  */
 export async function POST(req: Request) {
   return handleApi(async () => {
-    if (isFirebaseAdminConfigured() && process.env.FORCE_LOCAL_AUTH !== "1") {
-      throw jsonError(
-        "Use Firebase Auth password reset when Firebase is configured",
-        400
-      );
-    }
-
     const body = (await req.json().catch(() => ({}))) as {
       token?: string;
       password?: string;

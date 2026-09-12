@@ -182,6 +182,35 @@ export default function PortalDashboardPage() {
         <ProgressBar value={progressPct} />
       </Card>
 
+      <Card className="mb-6">
+        <div className="mb-3">
+          <p className="text-sm font-medium text-[var(--ink)]">Your client details</p>
+          <p className="mt-1 text-xs text-[var(--ink-muted)]">
+            These details are updated automatically when you submit a native onboarding form.
+          </p>
+        </div>
+        <dl className="grid gap-3 text-sm sm:grid-cols-2">
+          <div>
+            <dt className="text-xs text-[var(--ink-muted)]">Name</dt>
+            <dd className="font-medium text-[var(--ink)]">{client.name || "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-[var(--ink-muted)]">Company</dt>
+            <dd className="font-medium text-[var(--ink)]">{client.companyName || "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-[var(--ink-muted)]">Email</dt>
+            <dd className="font-medium text-[var(--ink)]">{client.primaryContactEmail || "—"}</dd>
+          </div>
+          {Object.entries(client.customFields || {}).map(([key, value]) => (
+            <div key={key}>
+              <dt className="text-xs text-[var(--ink-muted)]">{key}</dt>
+              <dd className="font-medium text-[var(--ink)]">{value || "—"}</dd>
+            </div>
+          ))}
+        </dl>
+      </Card>
+
       {nextTasks.length > 0 ? (
         <Card className="mb-6">
           <div className="mb-3 flex items-center justify-between gap-3">

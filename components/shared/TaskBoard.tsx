@@ -14,6 +14,7 @@ import {
   Textarea,
 } from "@/components/shared/ui";
 import { TaskComments } from "@/components/shared/TaskComments";
+import { TaskEvidencePanel } from "@/components/shared/TaskEvidencePanel";
 import { cn, formatDate, statusLabel } from "@/lib/utils";
 import type { Task, TaskPriority, TaskStatus, TaskSubtask, TaskType } from "@/types";
 
@@ -965,6 +966,8 @@ export function TaskDetailModal({
           </div>
 
           <TaskComments taskId={task.id} users={users} defaultOpen collapsible />
+
+          <TaskEvidencePanel taskId={task.id} canValidate={mode === "admin"} />
 
           {mode === "client" ? (
             <div className="flex flex-wrap gap-2">

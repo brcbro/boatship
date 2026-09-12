@@ -11,7 +11,6 @@ import {
   ClipboardCheck,
   FileText,
   Gauge,
-  Handshake,
   LayoutDashboard,
   MessageSquare,
   Menu,
@@ -20,6 +19,7 @@ import {
   Users,
   UsersRound,
   Webhook,
+  KeyRound,
   X,
 } from "lucide-react";
 import { useAuth } from "@/components/shared/AuthProvider";
@@ -33,6 +33,8 @@ const NAV = [
   { href: "/clients", label: "Clients", icon: Users },
   { href: "/team", label: "Team", icon: UsersRound },
   { href: "/workload", label: "Workload", icon: Gauge },
+  { href: "/projects", label: "Projects", icon: ClipboardCheck },
+  { href: "/workspace", label: "Workspace", icon: UsersRound },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/messages", label: "Messages", icon: MessageSquare },
   { href: "/templates", label: "Templates", icon: ClipboardCheck },
@@ -40,6 +42,7 @@ const NAV = [
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/integrations", label: "Integrations", icon: Plug },
   { href: "/webhooks", label: "Webhooks", icon: Webhook },
+  { href: "/mcp", label: "MCP access", icon: KeyRound },
   { href: "/compliance", label: "Compliance", icon: ShieldCheck },
   { href: "/hodi", label: "Hodi dashboard", icon: Bot },
   { href: "/automations", label: "Automations", icon: Sparkles },
@@ -100,11 +103,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             onClick={() => setOpen(false)}
             title={compact ? item.label : undefined}
             className={cn(
-              "flex items-center rounded-md py-2 text-sm font-medium transition",
+              "group flex items-center rounded-lg py-2.5 text-sm font-medium transition-all duration-200",
               compact ? "justify-center px-2" : "gap-3 px-3",
               isActive(pathname, item.href)
-                ? "bg-white/10 text-white"
-                : "text-slate-300 hover:bg-white/5 hover:text-white"
+                ? "bg-white/[0.14] text-white shadow-[inset_3px_0_0_var(--accent)]"
+                : "text-slate-300 hover:translate-x-0.5 hover:bg-white/[0.07] hover:text-white"
             )}
           >
             <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -147,12 +150,15 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen lg:flex lg:h-screen lg:overflow-hidden">
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-white focus:px-4 focus:py-3 focus:text-sm focus:font-semibold focus:text-[var(--brand)]">
+        Skip to content
+      </a>
       {/* Desktop sidebar */}
-      <aside className={cn("hidden shrink-0 flex-col bg-[var(--brand)] py-6 text-white transition-[width] duration-200 lg:flex lg:overflow-y-auto lg:overscroll-contain", collapsed ? "w-20 px-3" : "w-64 px-4")}>
+      <aside className={cn("hidden shrink-0 flex-col bg-[linear-gradient(180deg,var(--brand),#0d222b)] py-6 text-white transition-[width] duration-300 lg:flex lg:overflow-y-auto lg:overscroll-contain", collapsed ? "w-20 px-3" : "w-64 px-4")}>
         <div className={cn("mb-8 flex items-center", collapsed ? "justify-center" : "justify-between px-2")}>
           {collapsed ? null : (
             <Link href="/dashboard" className="flex items-center gap-2.5">
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 text-sm font-semibold">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--accent)] text-sm font-semibold shadow-[0_8px_24px_rgba(32,125,120,0.28)]">
                 B
               </span>
               <span className="font-[family-name:var(--font-display)] text-xl tracking-tight">Boatship</span>
@@ -227,7 +233,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </div>
       ) : null}
 
-      <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:px-8 lg:py-8">
+      <main id="main-content" className="page-enter min-w-0 flex-1 px-4 py-6 sm:px-6 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:px-10 lg:py-9">
         {children}
       </main>
       <CommandPalette variant="admin" />

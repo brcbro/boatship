@@ -29,7 +29,7 @@ export function encodeLocalSession(session: AuthSession) {
 /** Edge-safe session decode for local/demo tokens (and opaque passthrough shape checks). */
 export function decodeLocalSession(token: string): AuthSession | null {
   try {
-    const parsed = JSON.parse(base64UrlToString(token)) as AuthSession;
+    const parsed = JSON.parse(base64UrlToString(token.split(".")[0]!)) as AuthSession;
     if (!parsed?.uid || !parsed?.role) return null;
     const role = parsed.role as UserRole;
     if (!["admin", "team", "client"].includes(role)) return null;

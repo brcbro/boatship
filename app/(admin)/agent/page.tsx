@@ -290,9 +290,9 @@ export default function AgentPage() {
             <details className="group relative">
               <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 text-sm font-medium text-[var(--ink)] hover:bg-[var(--surface-2)]">
                 <PlugZap className="h-4 w-4" />
-                Connectors
+                Connected apps
                 <span className="rounded-full bg-[var(--surface-2)] px-1.5 py-0.5 text-xs text-[var(--ink-muted)]">
-                  {connectedConnectorCount}/{status?.connectors.length ?? 0}
+                  {connectedConnectorCount} connected
                 </span>
               </summary>
               <div className="absolute right-0 z-30 mt-2 w-72 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-2 shadow-[0_16px_40px_rgba(20,20,20,0.14)]">

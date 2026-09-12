@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { Prisma } from "@prisma/client";
 import { promises as fs } from "fs";
 import path from "path";
 import type {
@@ -28,8 +29,9 @@ import type {
   WebhookEndpoint,
 } from "@/types";
 import { calcProgress } from "@/lib/utils";
-import { isFirebaseAdminConfigured, getAdminDb } from "@/lib/firebase-admin";
 import { SEED_FORM_TEMPLATES, SEED_ONBOARDING_TEMPLATES } from "@/lib/seed-templates";
+import { getPrisma } from "@/lib/prisma";
+import { hashPassword } from "@/lib/password";
 
 const DATA_DIR = path.join(process.cwd(), ".data");
 const DATA_FILE = path.join(DATA_DIR, "store.json");
@@ -53,6 +55,8 @@ export type StoreData = {
   smartLists: SavedSmartList[];
   agentChatMessages: AgentChatMessage[];
   agentChatSessions: AgentChatSession[];
+  /** Feature-slice data that is intentionally kept in the Neon StoreSnapshot. */
+  projectOps: Record<string, unknown>;
 };
 
 function now() {
@@ -79,6 +83,7 @@ function emptyStore(): StoreData {
     smartLists: [],
     agentChatMessages: [],
     agentChatSessions: [],
+    projectOps: {},
   };
 }
 
@@ -180,8 +185,9 @@ function migrateDocument(
               contentType: raw.contentType || "application/octet-stream",
               size: raw.size || 0,
             },
-          ]
+        ]
         : [],
+    contentBase64: raw.contentBase64 ?? null,
   };
 }
 
@@ -245,6 +251,7 @@ async function ensureSeed(data: StoreData) {
   if (!Array.isArray(data.smartLists)) data.smartLists = [];
   if (!Array.isArray(data.agentChatMessages)) data.agentChatMessages = [];
   if (!Array.isArray(data.agentChatSessions)) data.agentChatSessions = [];
+  if (!data.projectOps || typeof data.projectOps !== "object") data.projectOps = {};
 
   data.clients = data.clients.map((c) => migrateClient(c));
   data.tasks = data.tasks.map((t) => migrateTask(t));
@@ -300,6 +307,7 @@ async function ensureSeed(data: StoreData) {
       role: "admin",
       clientId: null,
       createdAt: ts,
+      passwordHash: hashPassword("admin123"),
       digestEnabled: true,
     });
   }
@@ -312,6 +320,7 @@ async function ensureSeed(data: StoreData) {
       role: "team",
       clientId: null,
       createdAt: ts,
+      passwordHash: hashPassword("team123"),
       digestEnabled: true,
     });
   }
@@ -419,6 +428,7 @@ export interface DataStore {
       | "documentType"
       | "expiresAt"
       | "expiryAlertSentAt"
+      | "contentBase64"
     > & {
       status?: DocumentRecord["status"];
       reviewNote?: string;
@@ -426,6 +436,7 @@ export interface DataStore {
       expiresAt?: string | null;
       expiryAlertSentAt?: string | null;
       versions?: DocumentRecord["versions"];
+      contentBase64?: string | null;
     }
   ): Promise<DocumentRecord>;
   updateDocument(id: string, patch: Partial<DocumentRecord>): Promise<DocumentRecord>;
@@ -501,6 +512,9 @@ export interface DataStore {
     message: Omit<AgentChatMessage, "createdAt">
   ): Promise<AgentChatMessage>;
 
+  readProjectOps<T = Record<string, unknown>>(): Promise<T>;
+  mutateProjectOps<T = Record<string, unknown>>(fn: (data: T) => void | T | Promise<void | T>): Promise<T>;
+
   clientProgress(clientId: string): Promise<{
     totalTasks: number;
     completedTasks: number;
@@ -509,10 +523,10 @@ export interface DataStore {
 }
 
 class LocalStore implements DataStore {
-  private cache: StoreData | null = null;
+  protected cache: StoreData | null = null;
   private writeChain: Promise<void> = Promise.resolve();
 
-  private async read(): Promise<StoreData> {
+  protected async read(): Promise<StoreData> {
     if (this.cache) return this.cache;
     try {
       await fs.mkdir(DATA_DIR, { recursive: true });
@@ -526,7 +540,7 @@ class LocalStore implements DataStore {
     return this.cache;
   }
 
-  private async persist(data: StoreData) {
+  protected async persist(data: StoreData) {
     this.cache = data;
     this.writeChain = this.writeChain.then(async () => {
       await fs.mkdir(DATA_DIR, { recursive: true });
@@ -535,7 +549,7 @@ class LocalStore implements DataStore {
     await this.writeChain;
   }
 
-  private async mutate<T>(fn: (data: StoreData) => T | Promise<T>): Promise<T> {
+  protected async mutate<T>(fn: (data: StoreData) => T | Promise<T>): Promise<T> {
     const data = await this.read();
     const result = await fn(data);
     await this.persist(data);
@@ -923,6 +937,7 @@ class LocalStore implements DataStore {
               size: doc.size,
             },
           ],
+        contentBase64: doc.contentBase64 ?? null,
       };
       data.documents.push(record);
       return record;
@@ -1303,6 +1318,19 @@ class LocalStore implements DataStore {
     });
   }
 
+  async readProjectOps<T = Record<string, unknown>>() {
+    return (await this.read()).projectOps as T;
+  }
+
+  async mutateProjectOps<T = Record<string, unknown>>(fn: (data: T) => void | T | Promise<void | T>) {
+    return this.mutate(async (data) => {
+      const current = data.projectOps as T;
+      const result = await fn(current);
+      data.projectOps = current as unknown as Record<string, unknown>;
+      return (result === undefined ? current : result) as T;
+    });
+  }
+
   async clientProgress(clientId: string) {
     const tasks = await this.listTasks(clientId);
     const totalTasks = tasks.length;
@@ -1311,22 +1339,40 @@ class LocalStore implements DataStore {
   }
 }
 
-class FirestoreStore extends LocalStore {}
+class PrismaStore extends LocalStore {
+  protected override async read(): Promise<StoreData> {
+    const prisma = getPrisma();
+    const snapshot = await prisma.storeSnapshot.findUnique({ where: { id: "main" } });
+    if (!snapshot) {
+      const data = emptyStore();
+      await ensureSeed(data);
+      await this.persist(data);
+      return data;
+    }
+
+    return { ...emptyStore(), ...(snapshot.data as Partial<StoreData>) };
+  }
+
+  protected override async persist(data: StoreData) {
+    this.cache = data;
+    await getPrisma().storeSnapshot.upsert({
+      where: { id: "main" },
+      create: { id: "main", data: data as unknown as Prisma.InputJsonValue },
+      update: { data: data as unknown as Prisma.InputJsonValue },
+    });
+  }
+}
 
 let storePromise: Promise<DataStore> | null = null;
 
 export async function getStore(): Promise<DataStore> {
   if (!storePromise) {
     storePromise = (async () => {
-      if (isFirebaseAdminConfigured()) {
-        try {
-          getAdminDb();
-        } catch {
-          // ignore
-        }
-        return new FirestoreStore();
-      }
-      return new LocalStore();
+      if (process.env.DATABASE_URL?.trim()) return new PrismaStore();
+      if (process.env.ALLOW_LOCAL_STORE === "1") return new LocalStore();
+      throw new Error(
+        "Neon is not configured. Set DATABASE_URL and DIRECT_URL, or explicitly set ALLOW_LOCAL_STORE=1 for demo-only mode."
+      );
     })();
   }
   return storePromise;

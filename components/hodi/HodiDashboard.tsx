@@ -1,120 +1,38 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowRight, BellRing, CalendarClock, CircleAlert, FileCheck2, Filter, ListChecks, LoaderCircle, ShieldCheck, Sparkles, UsersRound } from "lucide-react";
-import { ActionPreview, type ActionPreviewData } from "@/components/hodi/ActionPreview";
-import { Badge, Button, Card, PageHeader } from "@/components/shared/ui";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowRight, BellRing, ClipboardCheck, Filter, LoaderCircle, RefreshCw, ShieldCheck, Sparkles, UserRound, type LucideIcon } from "lucide-react";
+import { ActionPreview, type ActionPreviewData, type QueueItemState } from "@/components/hodi/ActionPreview";
+import { Badge, Button, Card, Input, PageHeader } from "@/components/shared/ui";
 
-type Evidence = { source: string; label: string };
-type Recommendation = { kind: "blocker" | "next_action" | "risk" | "launch_approval"; summary: string; owner: string; evidence: Evidence[] };
-type Insight = { profile: { clientId: string; clientName: string; deadline?: { value?: string | null }; phase?: { value?: string | null } }; health: { state: string; score: number }; recommendations: Recommendation[] };
-type Reminder = { title?: string; subject?: string; body?: string; clientName?: string; type?: string; [key: string]: unknown };
-type Workflow = { id: string; name: string; description: string; requiredConnection: string; mode: "read" | "draft" | "action"; requiresConfirmation: boolean; safeOutcome: string };
-type Category = "all" | "attention" | "blocked" | "approvals" | "drafts" | "milestones" | "recommended";
-type QueueItem = ActionPreviewData & { category: Category; action?: string; payload?: Record<string, unknown>; approvalToken?: string };
-
-const filters: Array<{ id: Category; label: string }> = [
-  { id: "all", label: "All work" }, { id: "attention", label: "Needs attention" }, { id: "blocked", label: "Blocked" },
-  { id: "approvals", label: "Approvals waiting" }, { id: "drafts", label: "Drafts ready" }, { id: "milestones", label: "Milestones" }, { id: "recommended", label: "Recommended" },
-];
+type QueueCategory = "recommendation" | "approval" | "reminder" | "report" | "blocked" | "milestone";
+type QueueItem = ActionPreviewData & { category: QueueCategory; action?: string; payload?: Record<string, unknown>; approvalToken?: string };
+type QueueResponse = { items?: unknown[]; queue?: unknown[]; data?: { items?: unknown[]; queue?: unknown[] }; meta?: { generatedAt?: string } };
+type Tab = "all" | QueueCategory | "attention";
+const tabs: Array<{ id: Tab; label: string }> = [{ id: "all", label: "All work" }, { id: "attention", label: "Needs attention" }, { id: "recommendation", label: "Recommendations" }, { id: "approval", label: "Approvals" }, { id: "reminder", label: "Reminders" }, { id: "report", label: "Reports" }];
 const failText = (value: unknown) => value instanceof Error ? value.message : "Hodi could not complete that request.";
-const evidence = (item: Recommendation) => item.evidence[0] ? `${item.evidence[0].source}: ${item.evidence[0].label}` : "Onboarding workspace";
-const risk = (kind: Recommendation["kind"]): "Low" | "Moderate" | "High" => kind === "blocker" || kind === "risk" ? "High" : kind === "launch_approval" ? "Moderate" : "Low";
+const risk = (value: unknown): ActionPreviewData["risk"] => value === "High" || value === "Moderate" ? value : "Low";
+const stringOrNull = (value: unknown) => typeof value === "string" && value ? value : null;
+
+function normalizeItem(raw: unknown): QueueItem | null {
+  if (!raw || typeof raw !== "object") return null;
+  const value = raw as Record<string, unknown>;
+  const category = value.category === "approval" || value.category === "reminder" || value.category === "report" || value.category === "blocked" || value.category === "milestone" ? value.category : "recommendation";
+  const state = value.state === "in_progress" || value.state === "pending_approval" || value.state === "snoozed" || value.state === "dismissed" || value.state === "completed" ? value.state : "open";
+  return { id: String(value.id || value.queueItemId || ""), title: String(value.title || "Untitled work item"), description: String(value.description || value.summary || "No description provided."), source: String(value.source || "Boatship workspace"), evidence: String(value.evidence || "Recorded project context"), risk: risk(value.risk), confirmation: value.confirmation === "Approved" || value.confirmation === "Awaiting approval" ? value.confirmation : "Not required", category, state: state as QueueItemState, assignee: stringOrNull(value.assignee || value.assigneeName), dueAt: stringOrNull(value.dueAt || value.dueDate), snoozedUntil: stringOrNull(value.snoozedUntil), integration: stringOrNull(value.integration) || undefined, unavailable: value.unavailable === true, resultLabel: stringOrNull(value.resultLabel) || undefined, mode: value.mode === "internal" || value.mode === "external" || value.mode === "draft" ? value.mode : "read", changes: Array.isArray(value.changes) ? value.changes.map(String) : undefined, status: value.status === "planning" || value.status === "ready" || value.status === "executing" || value.status === "complete" || value.status === "error" ? value.status : "idle", result: stringOrNull(value.result) || undefined, error: stringOrNull(value.error) || undefined, action: stringOrNull(value.action) || undefined, payload: value.payload && typeof value.payload === "object" ? value.payload as Record<string, unknown> : undefined, approvalToken: stringOrNull(value.approvalToken) || undefined };
+}
+
+function extractItems(data: QueueResponse) { const raw = data.items || data.queue || data.data?.items || data.data?.queue || []; return Array.isArray(raw) ? raw.map(normalizeItem).filter((item): item is QueueItem => Boolean(item?.id)) : []; }
 
 export function HodiDashboard() {
-  const [insights, setInsights] = useState<Insight[]>([]);
-  const [reminders, setReminders] = useState<Reminder[]>([]);
-  const [workflows, setWorkflows] = useState<Workflow[]>([]);
-  const [state, setState] = useState<QueueItem[]>([]);
-  const [filter, setFilter] = useState<Category>("all");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const refresh = useCallback(async () => {
-    setLoading(true); setError(null);
-    const responses = await Promise.allSettled([
-      fetch("/api/agent/insights").then((r) => r.ok ? r.json() : Promise.reject(new Error("Could not load onboarding insights."))),
-      fetch("/api/reminders").then((r) => r.ok ? r.json() : Promise.reject(new Error("Could not load reminder drafts."))),
-      fetch("/api/agent/workflows").then((r) => r.ok ? r.json() : Promise.reject(new Error("Could not load workflow plans."))),
-    ]);
-    if (responses[0].status === "fulfilled") setInsights(responses[0].value.insights || []);
-    if (responses[1].status === "fulfilled") setReminders(responses[1].value.reminders || []);
-    if (responses[2].status === "fulfilled") setWorkflows(responses[2].value.workflows || []);
-    if (responses.some((result) => result.status === "rejected")) setError(responses.every((result) => result.status === "rejected") ? "Hodi’s live queue is unavailable right now. Try refreshing." : "Some Hodi signals could not be loaded. Available work is still shown.");
-    setLoading(false);
-  }, []);
-  useEffect(() => { void refresh(); }, [refresh]);
-
-  const queue = useMemo<QueueItem[]>(() => {
-    const recommendations = insights.flatMap((insight) => insight.recommendations.map((recommendation, index) => ({
-      id: `${insight.profile.clientId}-${recommendation.kind}-${index}`,
-      category: recommendation.kind === "blocker" ? "blocked" : recommendation.kind === "launch_approval" ? "approvals" : "recommended" as Category,
-      title: `${insight.profile.clientName}: ${recommendation.summary}`, description: `Owner: ${recommendation.owner}. Health: ${insight.health.state} (${insight.health.score}/100).`,
-      source: insight.profile.phase?.value || "Client onboarding workspace", evidence: evidence(recommendation), risk: risk(recommendation.kind), confirmation: "Not required" as const, mode: "read" as const,
-    })));
-    const reports = insights.map((insight) => ({
-      id: `report-${insight.profile.clientId}`, category: "recommended" as Category, title: `Prepare weekly status report for ${insight.profile.clientName}`,
-      description: "Generate an internal report covering work, blockers, progress, and next steps.", source: "Client project memory", evidence: `Health score: ${insight.health.score}/100`,
-      risk: "Low" as const, confirmation: "Awaiting approval" as const, mode: "internal" as const, action: "weekly_status_report", payload: { clientId: insight.profile.clientId }, status: "idle" as const,
-    }));
-    const drafts = reminders.map((reminder, index) => ({
-      id: `reminder-${index}`, category: "drafts" as Category, title: String(reminder.subject || reminder.title || reminder.type || "Review follow-up draft"),
-      description: String(reminder.body || "A client follow-up draft is ready for review. It has not been sent."), source: String(reminder.clientName || "Onboarding reminder queue"), evidence: String(reminder.type || "Missing input or overdue onboarding work"),
-      risk: "Moderate" as const, confirmation: "Not required" as const, mode: "draft" as const, integration: "Email", status: "idle" as const,
-    }));
-    const integrations = workflows.map((workflow) => ({
-      id: `workflow-${workflow.id}`, category: (workflow.mode === "draft" ? "drafts" : "attention") as Category, title: workflow.name, description: workflow.description,
-      source: "Hodi integration workflow", evidence: workflow.safeOutcome, risk: workflow.requiresConfirmation ? "Moderate" as const : "Low" as const, confirmation: workflow.requiresConfirmation ? "Awaiting approval" as const : "Not required" as const,
-      mode: workflow.mode === "action" ? "external" as const : workflow.mode, integration: workflow.requiredConnection, status: "idle" as const,
-    }));
-    return [...reports, ...recommendations, ...drafts, ...integrations];
-  }, [insights, reminders, workflows]);
-
-  const update = (id: string, patch: Partial<QueueItem>) => setState((items) => {
-    const current = items.find((item) => item.id === id);
-    return current ? items.map((item) => item.id === id ? { ...item, ...patch } : item) : [...items, { ...queue.find((item) => item.id === id)!, ...patch }];
-  });
-  const liveQueue = queue.map((item) => ({ ...item, ...state.find((change) => change.id === item.id) }));
-  const shown = filter === "all" ? liveQueue : liveQueue.filter((item) => item.category === filter || filter === "attention" && item.category === "recommended");
-  const counts = {
-    attention: insights.filter((item) => item.health.state !== "On track").length,
-    blocked: insights.reduce((total, item) => total + item.recommendations.filter((rec) => rec.kind === "blocker").length, 0),
-    approvals: insights.reduce((total, item) => total + item.recommendations.filter((rec) => rec.kind === "launch_approval").length, 0),
-    drafts: reminders.length, milestones: insights.filter((item) => item.profile.deadline?.value).length,
-  };
-  const metrics = [
-    { label: "Needs attention", value: counts.attention, detail: "Projects with an open onboarding signal", icon: UsersRound, tone: "warning" as const },
-    { label: "Blocked", value: counts.blocked, detail: "Work waiting on a decision or input", icon: CircleAlert, tone: "danger" as const },
-    { label: "Approvals waiting", value: counts.approvals, detail: "Launch or delivery reviews to resolve", icon: FileCheck2, tone: "info" as const },
-    { label: "Drafts ready", value: counts.drafts, detail: "Reviewable, never sent automatically", icon: BellRing, tone: "success" as const },
-  ];
-
-  async function preview(item: QueueItem) {
-    if (item.mode !== "internal" || !item.action || !item.payload) return;
-    update(item.id, { status: "planning", error: undefined });
-    try {
-      const response = await fetch("/api/agent/actions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "propose", action: item.action, payload: item.payload }) });
-      const data = await response.json(); if (!response.ok) throw new Error(data.error || "Hodi could not prepare this action.");
-      update(item.id, { status: "ready", approvalToken: data.approvalToken, changes: data.preview?.changes || [], description: data.preview?.title || item.description });
-    } catch (reason) { update(item.id, { status: "error", error: failText(reason) }); }
-  }
-  async function approve(item: QueueItem) {
-    if (!item.action || !item.payload || !item.approvalToken) return;
-    update(item.id, { status: "executing", error: undefined });
-    try {
-      const response = await fetch("/api/agent/actions/execute", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: item.action, payload: item.payload, approvalToken: item.approvalToken }) });
-      const data = await response.json(); if (!response.ok) throw new Error(data.error || "Hodi could not execute this action.");
-      update(item.id, { status: "complete", confirmation: "Approved", result: "Completed and recorded in the client activity timeline." });
-    } catch (reason) { update(item.id, { status: "error", error: failText(reason) }); }
-  }
-
-  return <div className="mx-auto max-w-7xl space-y-8">
-    <PageHeader title="Hodi work queue" description="Live onboarding signals, reviewable drafts, and approval-gated internal work." actions={<><Button variant="secondary" onClick={() => void refresh()} disabled={loading}>{loading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}{loading ? "Refreshing" : "Refresh queue"}</Button><Link href="/agent" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand-strong)]">Open Hodi <ArrowRight className="h-4 w-4" /></Link></>} />
-    <div className="rounded-2xl border border-[var(--brand)]/20 bg-[linear-gradient(120deg,var(--surface-raised),var(--surface-2))] p-5 sm:p-6"><div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--brand)] text-white"><Sparkles className="h-5 w-5" /></span><div><p className="font-[family-name:var(--font-display)] text-xl text-[var(--ink)]">Today&apos;s onboarding pulse</p><p className="mt-1 text-sm text-[var(--ink-muted)]">Hodi monitors the workspace, prepares the next step, and keeps external work review-only.</p></div></div><Badge tone="info">{loading ? "Syncing live data" : "Live work queue"}</Badge></div></div>
-    {error ? <div className="rounded-xl border border-[var(--warning)]/30 bg-[#f3ead2]/55 p-4 text-sm text-[var(--ink)]">{error}</div> : null}
-    <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{metrics.map(({ label, value, detail, icon: Icon, tone }) => <Card key={label} className="p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-sm text-[var(--ink-muted)]">{label}</p><p className="mt-2 font-[family-name:var(--font-display)] text-3xl text-[var(--ink)]">{loading ? "—" : value}</p></div><span className="rounded-lg bg-[var(--surface-2)] p-2 text-[var(--brand)]"><Icon className="h-4 w-4" /></span></div><div className="mt-3"><Badge tone={tone}>{detail}</Badge></div></Card>)}</section>
-    <section className="grid gap-6 xl:grid-cols-[1.1fr_.9fr]"><Card><div className="flex items-center justify-between gap-3"><div><h2 className="font-[family-name:var(--font-display)] text-xl text-[var(--ink)]">Recommended now</h2><p className="mt-1 text-sm text-[var(--ink-muted)]">Ordered from recorded onboarding evidence.</p></div><ListChecks className="h-5 w-5 text-[var(--brand)]" /></div><ol className="mt-5 space-y-1">{insights.flatMap((item) => item.recommendations.filter((rec) => rec.kind !== "risk").slice(0, 1).map((rec) => ({ client: item.profile.clientName, rec }))).slice(0, 4).map(({ client, rec }, index) => <li key={`${client}-${rec.summary}`} className="flex gap-3 border-b border-[var(--border)] py-4 last:border-0"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--surface-2)] text-xs font-semibold text-[var(--ink)]">{index + 1}</span><div><p className="font-medium text-[var(--ink)]">{client}</p><p className="mt-1 text-sm text-[var(--ink-muted)]">{rec.summary}</p></div></li>)}{!loading && !insights.length ? <li className="py-8 text-sm text-[var(--ink-muted)]">No recommendations are available yet.</li> : null}</ol></Card><Card><div className="flex items-center justify-between gap-3"><div><h2 className="font-[family-name:var(--font-display)] text-xl text-[var(--ink)]">Upcoming milestones</h2><p className="mt-1 text-sm text-[var(--ink-muted)]">Deadlines recorded in each client&apos;s project memory.</p></div><CalendarClock className="h-5 w-5 text-[var(--brand)]" /></div><div className="mt-5 space-y-4">{insights.filter((item) => item.profile.deadline?.value).slice(0, 4).map((item) => <div key={item.profile.clientId} className="border-l-2 border-[var(--brand)] pl-3"><p className="font-medium text-[var(--ink)]">{item.profile.clientName}</p><p className="mt-1 text-sm text-[var(--ink-muted)]">{item.profile.deadline?.value} · {item.profile.phase?.value || "Onboarding"}</p></div>)}{!loading && !counts.milestones ? <p className="py-8 text-sm text-[var(--ink-muted)]">No client milestones are recorded yet.</p> : null}</div></Card></section>
-    <section className="space-y-4"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="font-[family-name:var(--font-display)] text-2xl text-[var(--ink)]">Actionable queue</h2><p className="mt-1 text-sm text-[var(--ink-muted)]">Internal actions need explicit approval. External actions remain a reviewable plan or draft.</p></div><div className="flex items-center gap-2 text-sm text-[var(--ink-muted)]"><ShieldCheck className="h-4 w-4 text-[var(--success)]" /> Safety controls active</div></div><div className="flex flex-wrap gap-2"><Filter className="mt-2 h-4 w-4 text-[var(--ink-muted)]" />{filters.map((item) => <Button key={item.id} size="sm" variant={filter === item.id ? "primary" : "secondary"} onClick={() => setFilter(item.id)}>{item.label}</Button>)}</div>{loading ? <Card className="flex items-center gap-3 p-8 text-sm text-[var(--ink-muted)]"><LoaderCircle className="h-5 w-5 animate-spin text-[var(--brand)]" />Building Hodi&apos;s work queue…</Card> : shown.length ? <div className="grid gap-4 lg:grid-cols-2">{shown.map((item) => <ActionPreview key={item.id} action={{ ...item, onPreview: item.mode === "internal" ? () => void preview(item) : undefined, onApprove: item.mode === "internal" ? () => void approve(item) : undefined }} />)}</div> : <Card className="p-8 text-center"><p className="font-medium text-[var(--ink)]">Nothing needs attention in this view.</p><p className="mt-1 text-sm text-[var(--ink-muted)]">Try another filter or refresh the queue.</p></Card>}</section>
-  </div>;
+  const [items, setItems] = useState<QueueItem[]>([]); const [tab, setTab] = useState<Tab>("all"); const [search, setSearch] = useState(""); const [loading, setLoading] = useState(true); const [error, setError] = useState<string | null>(null); const [lastSync, setLastSync] = useState<string | null>(null); const requestVersion = useRef(0);
+  const refresh = useCallback(async () => { const version = ++requestVersion.current; setLoading(true); setError(null); try { const response = await fetch("/api/hodi/queue", { cache: "no-store", headers: { Accept: "application/json" } }); const data = await response.json().catch(() => ({})) as QueueResponse & { error?: string }; if (!response.ok) throw new Error(data.error || "Could not load the persistent Hodi queue."); if (version !== requestVersion.current) return; setItems(extractItems(data)); setLastSync(data.meta?.generatedAt || new Date().toISOString()); } catch (reason) { if (version === requestVersion.current) setError(failText(reason)); } finally { if (version === requestVersion.current) setLoading(false); } }, []);
+  useEffect(() => { const timer = window.setTimeout(() => { void refresh(); }, 0); return () => window.clearTimeout(timer); }, [refresh]);
+  const mutate = useCallback(async (id: string, patch: Record<string, unknown>) => { setItems((current) => current.map((item) => item.id === id ? { ...item, ...patch, status: "executing" } : item)); try { const response = await fetch(`/api/hodi/queue/${encodeURIComponent(id)}`, { method: "PATCH", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(patch) }); const data = await response.json().catch(() => ({})) as QueueResponse & { item?: unknown; error?: string }; if (!response.ok) throw new Error(data.error || "Could not update this queue item."); const updated = normalizeItem(data.item || (data.items && data.items[0])); if (updated) setItems((current) => current.map((item) => item.id === id ? updated : item)); else await refresh(); } catch (reason) { setError(failText(reason)); await refresh(); } }, [refresh]);
+  const visible = useMemo(() => items.filter((item) => { const attention = item.category === "approval" || item.category === "reminder" || item.category === "blocked" || item.state === "pending_approval"; const matchesTab = tab === "all" || (tab === "attention" ? attention : item.category === tab); const needle = search.trim().toLowerCase(); const matchesSearch = !needle || `${item.title} ${item.description} ${item.source} ${item.assignee || ""}`.toLowerCase().includes(needle); return matchesTab && matchesSearch && item.state !== "dismissed"; }), [items, search, tab]);
+  const counts = useMemo(() => ({ all: items.filter((item) => item.state !== "dismissed").length, attention: items.filter((item) => item.state !== "dismissed" && (item.category === "approval" || item.category === "reminder" || item.category === "blocked" || item.state === "pending_approval")).length, recommendation: items.filter((item) => item.category === "recommendation" && item.state !== "dismissed").length, approval: items.filter((item) => item.category === "approval" && item.state !== "dismissed").length, reminder: items.filter((item) => item.category === "reminder" && item.state !== "dismissed").length, report: items.filter((item) => item.category === "report" && item.state !== "dismissed").length, blocked: items.filter((item) => item.category === "blocked" && item.state !== "dismissed").length, milestone: items.filter((item) => item.category === "milestone" && item.state !== "dismissed").length }), [items]);
+  const actionProps = (item: QueueItem): ActionPreviewData => ({ ...item, onApprove: () => void mutate(item.id, { state: "completed", decision: "approved" }), onReject: item.category === "approval" ? () => void mutate(item.id, { state: "open", decision: "rejected" }) : undefined, onEdit: () => void mutate(item.id, { state: "in_progress" }), onSnooze: () => void mutate(item.id, { state: "snoozed", snoozedUntil: new Date(Date.now() + 86400000).toISOString() }), onDismiss: () => void mutate(item.id, { state: "dismissed" }), onReassign: () => void mutate(item.id, { state: "in_progress", reassignRequested: true }) });
+  const summaryCards: Array<[string, number, string, LucideIcon]> = [["All work", counts.all, "Persisted queue items", ClipboardCheck], ["Needs attention", counts.attention, "Blocked, overdue, or waiting", BellRing], ["Approvals", counts.approval, "Decisions waiting", ShieldCheck], ["Reminders", counts.reminder, "Follow-up signals", UserRound]];
+  return <div className="mx-auto max-w-7xl space-y-8"><PageHeader title="Hodi work queue" description="One persistent view of recommendations, approvals, reminders, and reports." actions={<><Button variant="secondary" onClick={() => void refresh()} disabled={loading}><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />{loading ? "Refreshing" : "Refresh queue"}</Button><Link href="/agent" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--surface-raised)] hover:bg-[var(--brand-strong)]">Open Hodi <ArrowRight className="h-4 w-4" /></Link></>} /><div className="rounded-2xl border border-[var(--brand)]/20 bg-[linear-gradient(120deg,var(--surface-raised),var(--surface-2))] p-5 sm:p-6"><div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--brand)] text-white"><Sparkles className="h-5 w-5" /></span><div><p className="font-[family-name:var(--font-display)] text-xl text-[var(--ink)]">Today&apos;s delivery pulse</p><p className="mt-1 text-sm text-[var(--ink-muted)]">Every item is persisted, evidence-linked, and safe to pause or reassign.</p></div></div><Badge tone={error ? "warning" : "info"}>{loading ? "Syncing live data" : lastSync ? `Synced ${new Date(lastSync).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Live work queue"}</Badge></div></div>{error ? <div role="alert" className="rounded-xl border border-[var(--warning)]/30 bg-[#f3ead2]/55 p-4 text-sm text-[var(--ink)]">{error} <button className="ml-2 underline" onClick={() => void refresh()}>Try again</button></div> : null}<section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{summaryCards.map(([label, value, detail, Icon]) => <Card key={label} className="p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-sm text-[var(--ink-muted)]">{label}</p><p className="mt-2 font-[family-name:var(--font-display)] text-3xl text-[var(--ink)]">{loading ? "..." : value}</p></div><Icon className="h-5 w-5 text-[var(--brand)]" /></div><p className="mt-3 text-xs text-[var(--ink-muted)]">{detail}</p></Card>)}</section><section className="space-y-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="font-[family-name:var(--font-display)] text-2xl text-[var(--ink)]">Work queue</h2><p className="mt-1 text-sm text-[var(--ink-muted)]">Counts always reflect the visible, non-dismissed dataset.</p></div><div className="flex items-center gap-2 text-sm text-[var(--ink-muted)]"><ShieldCheck className="h-4 w-4 text-[var(--success)]" /> Safety controls active</div></div><div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div className="flex flex-wrap gap-2" role="tablist" aria-label="Queue views"><Filter className="mt-2 h-4 w-4 text-[var(--ink-muted)]" />{tabs.map((item) => <Button key={item.id} size="sm" variant={tab === item.id ? "primary" : "secondary"} onClick={() => setTab(item.id)}>{item.label} <span className="opacity-70">{counts[item.id === "all" ? "all" : item.id === "attention" ? "attention" : item.id]}</span></Button>)}</div><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search queue" aria-label="Search queue" className="lg:max-w-xs" /></div>{loading ? <Card className="flex items-center gap-3 p-8 text-sm text-[var(--ink-muted)]"><LoaderCircle className="h-5 w-5 animate-spin text-[var(--brand)]" />Loading persisted queue…</Card> : visible.length ? <div className="grid gap-4 lg:grid-cols-2">{visible.map((item) => <ActionPreview key={item.id} action={actionProps(item)} />)}</div> : <Card className="p-10 text-center"><p className="font-medium text-[var(--ink)]">Nothing in this view</p><p className="mt-1 text-sm text-[var(--ink-muted)]">Try another queue view or clear your search.</p></Card>}</section></div>;
 }

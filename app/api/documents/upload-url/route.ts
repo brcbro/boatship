@@ -1,6 +1,5 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireSession } from "@/lib/auth";
-import { isFirebaseAdminConfigured } from "@/lib/firebase-admin";
 import { canAccessClient } from "@/lib/rbac";
 import { getStore } from "@/lib/store";
 
@@ -46,11 +45,6 @@ export async function POST(req: Request) {
 
     const safeName = body.fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
     const storagePath = `clients/${body.clientId}/documents/${Date.now()}_${safeName}`;
-    const uploadMode =
-      isFirebaseAdminConfigured() && process.env.FORCE_LOCAL_UPLOAD !== "1"
-        ? "client"
-        : "local";
-
-    return { storagePath, uploadMode, maxBytes: MAX_BYTES };
+    return { storagePath, uploadMode: "database", maxBytes: MAX_BYTES };
   });
 }

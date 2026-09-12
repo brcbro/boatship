@@ -149,6 +149,8 @@ export interface Task {
   escalatedAt: string | null;
   createdAt: string;
   completedAt: string | null;
+  /** Optional workflow metadata used by automation and legacy-data safeguards. */
+  metadata?: Record<string, string | number | boolean | null>;
 }
 
 export interface TaskComment {
@@ -169,6 +171,7 @@ export interface DocumentVersion {
   uploadedBy: string;
   contentType: string;
   size: number;
+  contentBase64?: string | null;
 }
 
 export interface DocumentRecord {
@@ -187,6 +190,7 @@ export interface DocumentRecord {
   expiresAt: string | null;
   expiryAlertSentAt: string | null;
   versions: DocumentVersion[];
+  contentBase64?: string | null;
 }
 
 export interface FormFieldShowIf {

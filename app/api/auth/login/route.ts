@@ -1,6 +1,5 @@
 import { jsonError, jsonOk } from "@/lib/api";
-import { encodeLocalSession, SESSION_COOKIE } from "@/lib/auth";
-import { isFirebaseAdminConfigured } from "@/lib/firebase-admin";
+import { createDatabaseSession, SESSION_COOKIE } from "@/lib/auth";
 import { verifyPassword } from "@/lib/password";
 import { getStore } from "@/lib/store";
 import type { AuthSession } from "@/types";
@@ -69,14 +68,6 @@ export async function POST(req: Request) {
       return jsonError("Too many login attempts. Try again in 15 minutes.", 429);
     }
 
-    // Firebase Auth mode: sign in on the client and send the ID token.
-    if (isFirebaseAdminConfigured() && process.env.FORCE_LOCAL_AUTH !== "1") {
-      return jsonError(
-        "Use Firebase Auth sign-in, then pass the ID token as Bearer authorization",
-        400
-      );
-    }
-
     const store = await getStore();
     const user = await store.getUserByEmail(email);
     if (!user) {
@@ -110,7 +101,7 @@ export async function POST(req: Request) {
       clientId: user.clientId,
       permissions: user.permissions,
     };
-    const token = encodeLocalSession(session);
+    const token = await createDatabaseSession(session);
 
     const response = jsonOk({ token, session });
     response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions());

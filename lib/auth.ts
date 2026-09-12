@@ -1,34 +1,61 @@
 import { cookies } from "next/headers";
+import { createHash, randomBytes } from "crypto";
 import type { AuthSession, UserRole } from "@/types";
-import { getAdminAuth, isFirebaseAdminConfigured } from "@/lib/firebase-admin";
 import { getStore } from "@/lib/store";
+import { getPrisma } from "@/lib/prisma";
 import {
   SESSION_COOKIE,
-  decodeLocalSession,
   encodeLocalSession,
 } from "@/lib/session";
 
 export { SESSION_COOKIE, encodeLocalSession };
 
-export async function verifyIdToken(idToken: string): Promise<AuthSession | null> {
-  const local = decodeLocalSession(idToken);
-  if (local) return local;
+const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 14;
 
-  if (isFirebaseAdminConfigured()) {
-    try {
-      const decoded = await getAdminAuth().verifyIdToken(idToken);
-      const role = (decoded.role as UserRole) || "client";
-      return {
-        uid: decoded.uid,
-        email: decoded.email || "",
-        name: (decoded.name as string) || decoded.email || "User",
-        role,
-        clientId: (decoded.clientId as string) || null,
-      };
-    } catch {
-      return null;
-    }
+function tokenHash(token: string) {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+export async function createDatabaseSession(session: AuthSession) {
+  const token = `${encodeLocalSession(session)}.${randomBytes(32).toString("base64url")}`;
+  await getPrisma().authSession.create({
+    data: {
+      tokenHash: tokenHash(token),
+      userId: session.uid,
+      expiresAt: new Date(Date.now() + SESSION_TTL_MS),
+    },
+  });
+  return token;
+}
+
+export async function revokeDatabaseSession(token: string | null | undefined) {
+  if (!token) return;
+  await getPrisma().authSession.deleteMany({ where: { tokenHash: tokenHash(token) } });
+}
+
+async function getDatabaseSession(token: string): Promise<AuthSession | null> {
+  const record = await getPrisma().authSession.findUnique({ where: { tokenHash: tokenHash(token) } });
+  if (!record) return null;
+  if (record.expiresAt.getTime() <= Date.now()) {
+    await revokeDatabaseSession(token);
+    return null;
   }
+
+  const user = await (await getStore()).getUser(record.userId);
+  if (!user) return null;
+  return {
+    uid: user.uid,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    clientId: user.clientId,
+    permissions: user.permissions,
+  };
+}
+
+export async function verifyIdToken(idToken: string): Promise<AuthSession | null> {
+  const database = await getDatabaseSession(idToken);
+  if (database) return database;
 
   return null;
 }

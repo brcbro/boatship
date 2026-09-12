@@ -1,6 +1,84 @@
-import type { FormField, FormSubmission } from "@/types";
+import type { Client, FormField, FormSubmission } from "@/types";
 
 export type FormResponses = FormSubmission["responses"];
+
+function normalizedFieldName(value: string) {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+}
+
+function responseText(value: FormResponses[string]) {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  return String(value).trim();
+}
+
+/**
+ * Turn native form answers into the client record's canonical identity fields
+ * and custom fields. Empty answers are ignored so a partially completed form
+ * never erases details already on the client record.
+ */
+export function clientDetailsFromForm(
+  client: Client,
+  fields: FormField[],
+  responses: FormResponses
+): Partial<Client> {
+  const customFields: Record<string, string> = { ...(client.customFields || {}) };
+  let name = client.name;
+  let companyName = client.companyName;
+  let primaryContactEmail = client.primaryContactEmail;
+  let firstName = "";
+  let lastName = "";
+
+  for (const field of fields) {
+    const value = responseText(responses[field.key]);
+    if (!value) continue;
+
+    const key = normalizedFieldName(field.key);
+    const label = normalizedFieldName(field.label);
+    const aliases = new Set([key, label]);
+
+    if (aliases.has("first_name") || aliases.has("given_name")) firstName = value;
+    else if (aliases.has("last_name") || aliases.has("surname") || aliases.has("family_name")) {
+      lastName = value;
+    } else if (
+      aliases.has("name") ||
+      aliases.has("full_name") ||
+      aliases.has("client_name") ||
+      aliases.has("contact_name") ||
+      aliases.has("primary_contact")
+    ) {
+      name = value;
+    } else if (
+      aliases.has("company") ||
+      aliases.has("company_name") ||
+      aliases.has("business_name") ||
+      aliases.has("organization") ||
+      aliases.has("organisation")
+    ) {
+      companyName = value;
+    } else if (
+      aliases.has("email") ||
+      aliases.has("email_address") ||
+      aliases.has("contact_email") ||
+      aliases.has("primary_contact_email")
+    ) {
+      primaryContactEmail = value.toLowerCase();
+    }
+
+    customFields[field.label.trim() || field.key.trim()] = value;
+  }
+
+  if ((firstName || lastName) && !(name && name !== client.name)) {
+    name = [firstName, lastName].filter(Boolean).join(" ");
+  }
+
+  return {
+    name: name.trim(),
+    companyName: companyName.trim(),
+    primaryContactEmail: primaryContactEmail.trim().toLowerCase(),
+    customFields,
+  };
+}
 
 export function isNativeTemplate(template: {
   mode?: "google" | "native";

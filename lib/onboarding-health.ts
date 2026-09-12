@@ -7,7 +7,7 @@ export type OnboardingHealthState =
   | "ready_to_launch";
 
 export type OnboardingBlocker = {
-  kind: "missing_form" | "missing_upload" | "approval" | "overdue_task" | "blocked_task";
+  kind: "missing_form" | "missing_upload" | "approval" | "overdue_task" | "blocked_task" | "missing_task_definition";
   taskId?: string;
   label: string;
   owner: "client" | "team";
@@ -35,6 +35,31 @@ export type OnboardingHealth = {
   reminders: ReminderCandidate[];
 };
 
+// These task titles are retained only as a compatibility fallback for old
+// records that pre-date task metadata. New records should use metadata.origin
+// or metadata.legacy instead of relying on names.
+const LEGACY_MARITIME_TASKS = new Set([
+  "company information form",
+  "upload signed contract",
+  "upload government id",
+  "msa / contract upload",
+  "nda upload",
+  "compliance questionnaire",
+  "banking & billing form",
+  "executive sponsor intro",
+]);
+
+export function isCurrentOnboardingTask(task: Task) {
+  const metadata = task.metadata;
+  if (metadata?.legacy === true || metadata?.origin === "legacy" || metadata?.workflow === "maritime-onboarding") {
+    return false;
+  }
+  if (metadata?.legacy === false || metadata?.origin === "current" || metadata?.origin === "template" || metadata?.origin === "manual") {
+    return true;
+  }
+  return !LEGACY_MARITIME_TASKS.has(task.title.trim().toLowerCase());
+}
+
 function isOverdue(dueDate: string | null, now: Date) {
   return Boolean(dueDate && new Date(dueDate).getTime() < now.getTime());
 }
@@ -47,7 +72,11 @@ export function evaluateOnboardingHealth(
   now = new Date()
 ): OnboardingHealth {
   const blockers: OnboardingBlocker[] = [];
-  const incompleteTasks = tasks.filter((task) => task.status !== "completed");
+  const currentTasks = tasks.filter(isCurrentOnboardingTask);
+  const currentTaskIds = new Set(currentTasks.map((task) => task.id));
+  const currentForms = forms.filter((form) => !form.taskId || currentTaskIds.has(form.taskId));
+  const currentDocuments = documents.filter((document) => !document.taskId || currentTaskIds.has(document.taskId));
+  const incompleteTasks = currentTasks.filter((task) => task.status !== "completed");
   const clientOwned = (task: Task) => task.assignedRole === "client" || task.type === "client_facing";
 
   for (const task of incompleteTasks) {
@@ -60,20 +89,20 @@ export function evaluateOnboardingHealth(
     }
     if (
       task.formTemplateId &&
-      !forms.some(
+      !currentForms.some(
         (form) =>
           form.taskId === task.id && (form.status === "submitted" || form.status === "reviewed")
       )
     ) {
       blockers.push({ kind: "missing_form", taskId: task.id, label: task.title, owner });
     }
-    if (task.requiresUpload && !documents.some((document) => document.taskId === task.id)) {
+    if (task.requiresUpload && !currentDocuments.some((document) => document.taskId === task.id)) {
       blockers.push({ kind: "missing_upload", taskId: task.id, label: task.title, owner });
     }
   }
 
-  for (const form of forms.filter((form) => form.status === "submitted")) {
-    const task = tasks.find((item) => item.id === form.taskId);
+  for (const form of currentForms.filter((form) => form.status === "submitted")) {
+    const task = currentTasks.find((item) => item.id === form.taskId);
     blockers.push({
       kind: "approval",
       taskId: form.taskId || undefined,
@@ -81,8 +110,8 @@ export function evaluateOnboardingHealth(
       owner: "team",
     });
   }
-  for (const document of documents.filter((item) => item.status === "pending_review")) {
-    const task = tasks.find((item) => item.id === document.taskId);
+  for (const document of currentDocuments.filter((item) => item.status === "pending_review")) {
+    const task = currentTasks.find((item) => item.id === document.taskId);
     blockers.push({
       kind: "approval",
       taskId: document.taskId || undefined,
@@ -91,17 +120,24 @@ export function evaluateOnboardingHealth(
     });
   }
 
+  // A project with no current work is not healthy by default. Keep the
+  // existing state vocabulary for compatibility, but expose a concrete,
+  // actionable blocker so Hodi can ask the team to define the work first.
+  if (currentTasks.length === 0) {
+    blockers.push({ kind: "missing_task_definition", label: "Define the onboarding work for this client", owner: "team" });
+  }
+
   const missingFormCount = blockers.filter((blocker) => blocker.kind === "missing_form").length;
   const missingUploadCount = blockers.filter((blocker) => blocker.kind === "missing_upload").length;
   const pendingApprovalCount = blockers.filter((blocker) => blocker.kind === "approval").length;
   const overdueTaskCount = blockers.filter((blocker) => blocker.kind === "overdue_task").length;
-  const completedCount = tasks.length - incompleteTasks.length;
-  const progress = tasks.length ? Math.round((completedCount / tasks.length) * 100) : 0;
-  const score = Math.max(0, Math.min(100, progress - overdueTaskCount * 10 - blockers.filter((b) => b.kind === "blocked_task").length * 15));
+  const completedCount = currentTasks.length - incompleteTasks.length;
+  const progress = currentTasks.length ? Math.round((completedCount / currentTasks.length) * 100) : 0;
+  const score = Math.max(0, Math.min(100, progress - overdueTaskCount * 10 - blockers.filter((b) => b.kind === "blocked_task").length * 15 - (currentTasks.length === 0 ? 20 : 0)));
   const clientBlockers = blockers.filter((blocker) => blocker.owner === "client");
 
   let state: OnboardingHealthState = "on_track";
-  if (tasks.length > 0 && incompleteTasks.length === 0 && blockers.length === 0) {
+  if (currentTasks.length > 0 && incompleteTasks.length === 0 && blockers.length === 0) {
     state = "ready_to_launch";
   } else if (clientBlockers.length > 0) {
     state = "waiting_on_client";

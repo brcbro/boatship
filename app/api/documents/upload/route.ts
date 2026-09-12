@@ -1,5 +1,3 @@
-import { promises as fs } from "fs";
-import path from "path";
 import { handleApi, jsonError } from "@/lib/api";
 import { requireSession } from "@/lib/auth";
 import { canAccessClient } from "@/lib/rbac";
@@ -15,7 +13,6 @@ const ALLOWED_TYPES = new Set([
   "image/webp",
 ]);
 const MAX_BYTES = 10 * 1024 * 1024;
-const UPLOAD_ROOT = path.join(process.cwd(), ".data", "uploads");
 
 export async function POST(req: Request) {
   return handleApi(async () => {
@@ -70,12 +67,8 @@ export async function POST(req: Request) {
       throw jsonError("storagePath must be under the client documents folder", 400);
     }
 
-    const absPath = path.join(UPLOAD_ROOT, ...normalized.split("/"));
-    await fs.mkdir(path.dirname(absPath), { recursive: true });
-    await fs.writeFile(absPath, buffer);
-
     const store = await getStore();
-    const storagePath = `local://${normalized}`;
+    const storagePath = `db://${normalized}`;
 
     if (body.documentId) {
       const existing = await store.getDocument(body.documentId);
@@ -89,6 +82,7 @@ export async function POST(req: Request) {
         uploadedBy: existing.uploadedBy,
         contentType: existing.contentType,
         size: existing.size,
+        contentBase64: existing.contentBase64 ?? null,
       };
       const uploadedAt = new Date().toISOString();
       const document = await store.updateDocument(body.documentId, {
@@ -101,6 +95,7 @@ export async function POST(req: Request) {
         reviewNote: "",
         uploadedAt,
         uploadedBy: session.uid,
+        contentBase64: raw,
       });
 
       await store.addActivity({
@@ -122,6 +117,7 @@ export async function POST(req: Request) {
       uploadedBy: session.uid,
       contentType: body.contentType,
       size: buffer.byteLength,
+      contentBase64: raw,
     });
 
     await store.addActivity({

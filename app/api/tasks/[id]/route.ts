@@ -5,6 +5,8 @@ import { notifyIntegrations } from "@/lib/composio";
 import { canAccessClient, isStaff } from "@/lib/rbac";
 import { getStore } from "@/lib/store";
 import { dispatchWebhooks } from "@/lib/webhooks";
+import { getPolicy } from "@/lib/git-quality";
+import { getPrisma } from "@/lib/prisma";
 import type {
   AssignedRole,
   TaskPriority,
@@ -175,6 +177,15 @@ export async function PATCH(req: Request, { params }: Params) {
           existing.dependsOnTaskIds || []
         );
       }
+      if (clientPatch.status === "completed") {
+        const policy = await getPolicy(existing.clientId, existing.type);
+        if (policy?.requiredApproval) {
+          const approval = await getPrisma().taskManagerApproval.findUnique({ where: { taskId: id } });
+          if (approval?.status !== "approved") {
+            throw jsonError("Manager approval is required before completing this task", 409);
+          }
+        }
+      }
       const task = await store.updateTask(id, clientPatch);
       await store.addActivity({
         clientId: existing.clientId,
@@ -235,6 +246,16 @@ export async function PATCH(req: Request, { params }: Params) {
         existing.dependsOnTaskIds ??
         [];
       await assertDependenciesComplete(store, existing.clientId, deps);
+    }
+
+    if (patch.status === "completed") {
+      const policy = await getPolicy(existing.clientId, existing.type);
+      if (policy?.requiredApproval) {
+        const approval = await getPrisma().taskManagerApproval.findUnique({ where: { taskId: id } });
+        if (approval?.status !== "approved") {
+          throw jsonError("Manager approval is required before completing this task", 409);
+        }
+      }
     }
 
     const task = await store.updateTask(id, patch);

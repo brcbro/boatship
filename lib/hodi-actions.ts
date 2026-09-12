@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "crypto";
 import type { AuthSession, Task, TaskPriority, TaskStatus, TaskType } from "@/types";
 import { hasPermission } from "@/lib/rbac";
 import { getStore } from "@/lib/store";
+import { consumeHodiActionProposal, createHodiActionProposal } from "@/lib/hodi-queue";
 
 export type HodiAction =
   | "create_client"
@@ -14,14 +15,6 @@ export type HodiAction =
 
 type ActionPayload = Record<string, unknown>;
 
-type StoredProposal = {
-  action: HodiAction;
-  payloadHash: string;
-  userId: string;
-  expiresAt: number;
-};
-
-const proposals = new Map<string, StoredProposal>();
 const PROPOSAL_TTL_MS = 15 * 60 * 1000;
 
 function text(value: unknown) {
@@ -220,7 +213,8 @@ export async function proposeHodiAction(action: HodiAction, payload: ActionPaylo
   assertAction(action);
   const actionPreview = await preview(action, payload, session);
   const approvalToken = randomUUID();
-  proposals.set(approvalToken, { action, payloadHash: payloadHash(payload), userId: session.uid, expiresAt: Date.now() + PROPOSAL_TTL_MS });
+  const expiresAt = new Date(Date.now() + PROPOSAL_TTL_MS);
+  await createHodiActionProposal({ approvalToken, action, payload, payloadHash: payloadHash(payload), userId: session.uid, preview: actionPreview, expiresAt });
   return { action, preview: actionPreview, approvalToken, expiresAt: new Date(Date.now() + PROPOSAL_TTL_MS).toISOString(), approvalRequired: true };
 }
 
@@ -251,11 +245,7 @@ export async function executeHodiAction(
   session: AuthSession
 ) {
   assertAction(action);
-  const proposal = proposals.get(approvalToken);
-  if (!proposal || proposal.expiresAt < Date.now() || proposal.userId !== session.uid || proposal.action !== action || proposal.payloadHash !== payloadHash(payload)) {
-    throw new Error("Approval token is missing, expired, or does not match this action");
-  }
-  proposals.delete(approvalToken);
+  await consumeHodiActionProposal({ approvalToken, action, payloadHash: payloadHash(payload), userId: session.uid });
   await preview(action, payload, session);
   const store = await getStore();
 

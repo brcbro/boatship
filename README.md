@@ -5,8 +5,7 @@ Web app for managing client onboarding: team/admin manage clients, tasks, docume
 ## Stack
 
 - Next.js (App Router) + Tailwind CSS
-- Local durable store (`.data/`) for full demo without Firebase
-- Optional Firebase Auth / Firestore / Storage when env vars are set
+- Neon PostgreSQL + Prisma ORM for application data, users, sessions, and integration ownership
 - Resend for transactional email (logs to console without `RESEND_API_KEY`)
 - Composio for 250+ app integrations (Slack, Gmail, Drive, HubSpot, …)
 - Cloudflare Pages via OpenNext (`@opennextjs/cloudflare`)
@@ -20,7 +19,7 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-### Demo accounts
+### Initial accounts
 
 | Role  | Email                   | Password     |
 |-------|-------------------------|--------------|
@@ -39,7 +38,11 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Environment
 
-Copy `.env.example` to `.env.local`. All Firebase/Resend/Composio/OpenAI vars are optional for local demo mode.
+Copy `.env.example` to `.env.local` and set the pooled Neon `DATABASE_URL` plus direct `DIRECT_URL`.
+Run `npm run db:push` once to create the Prisma schema in Neon. The application refuses to use the local file store unless `ALLOW_LOCAL_STORE=1` is explicitly set for demo-only work.
+If you have existing demo data, run `npm run db:import-local` once after `db:push` to move `.data/store.json` into Neon.
+
+Passwords are stored as scrypt hashes, and login sessions are opaque database records with hashed tokens.
 
 ### Composio + Hodi
 
@@ -61,4 +64,4 @@ Configure the same secrets in Cloudflare Pages / Workers.
 
 ## Security rules
 
-When using Firebase, deploy `firestore.rules` and `storage.rules`. Server API routes enforce RBAC regardless of mode.
+Server API routes enforce RBAC. Each authenticated Boatship user gets an isolated Composio user namespace (`boatship_<userId>`), and connected-account ownership is also recorded in Neon.

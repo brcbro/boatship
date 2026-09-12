@@ -1,6 +1,7 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireSession } from "@/lib/auth";
 import {
+  clientDetailsFromForm,
   computeRiskScore,
   isNativeTemplate,
   missingRequiredFields,
@@ -59,6 +60,17 @@ export async function POST(req: Request, { params }: Params) {
       status: "submitted",
       submittedAt: new Date().toISOString(),
     });
+
+    // Keep the client profile in sync with the answers they just submitted.
+    // This is intentionally done server-side so both the client portal and
+    // staff view read from the same persisted client record.
+    if (template && fields.length > 0) {
+      await store.updateClient(form.clientId, clientDetailsFromForm(
+        (await store.getClient(form.clientId))!,
+        fields,
+        responses
+      ));
+    }
 
     await store.addActivity({
       clientId: form.clientId,
