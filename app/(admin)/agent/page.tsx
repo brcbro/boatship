@@ -9,19 +9,26 @@ import remarkGfm from "remark-gfm";
 import {
   Bot,
   ArrowUp,
+  Check,
   CircleStop,
+  Copy,
   HardDrive,
   LoaderCircle,
+  MessageSquare,
+  Pencil,
   Plus,
   PlugZap,
+  RotateCcw,
   Sparkles,
+  ThumbsDown,
+  ThumbsUp,
   Trash2,
   Wrench,
 } from "lucide-react";
 import { useAuth } from "@/components/shared/AuthProvider";
-import { Badge, Button, Card, PageHeader, Textarea } from "@/components/shared/ui";
+import { Badge, Button, Card, Textarea } from "@/components/shared/ui";
 import { apiFetch } from "@/lib/api-client";
-import { HodiActionCards } from "@/components/hodi/chat/HodiActionCards";
+import { HodiActionCards, type HodiActionArtifact } from "@/components/hodi/chat/HodiActionCards";
 
 type AgentStatus = {
   composioConfigured: boolean;
@@ -136,6 +143,17 @@ function toolStateLabel(state?: string) {
   return "Calling";
 }
 
+function evidenceLinks(text: string) {
+  const urls = text.match(/https?:\/\/[^\s)<]+/g) ?? [];
+  return [...new Set(urls)].slice(0, 3);
+}
+
+function safeToolError(state?: string) {
+  if (state === "output-denied") return "This action was not approved.";
+  if (state === "output-error") return "Hodi could not complete this action. Try again or adjust the request.";
+  return null;
+}
+
 export default function AgentPage() {
   const { token } = useAuth();
   const [status, setStatus] = useState<AgentStatus | null>(null);
@@ -143,6 +161,8 @@ export default function AgentPage() {
   const [input, setInput] = useState("");
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<Record<string, "helpful" | "not_helpful">>({});
   const transcriptRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
 
@@ -163,7 +183,8 @@ export default function AgentPage() {
   });
 
   const busy = chatStatus === "submitted" || chatStatus === "streaming";
-  const connectedConnectorCount = status?.connectors.filter((connector) => connector.connected).length ?? 0;
+  const connectedConnectors = status?.connectors.filter((connector) => connector.connected) ?? [];
+  const connectedConnectorCount = connectedConnectors.length;
 
   useEffect(() => {
     if (!token) return;
@@ -256,6 +277,30 @@ export default function AgentPage() {
     textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
   }
 
+  async function copyMessage(messageId: string, text: string) {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedMessageId(messageId);
+      window.setTimeout(() => setCopiedMessageId((current) => current === messageId ? null : current), 1600);
+    } catch {
+      // Clipboard access may be unavailable in an embedded or non-secure context.
+    }
+  }
+
+  function editAndResend(text: string) {
+    setInput(text);
+    window.requestAnimationFrame(() => {
+      composerRef.current?.focus();
+      if (composerRef.current) resizeComposer(composerRef.current);
+    });
+  }
+
+  function improveResponse() {
+    if (busy || !status?.ready || !activeSessionId) return;
+    void sendMessage({ text: "Improve your previous response. Keep it concise, cite the workspace evidence you used, and state any assumptions or next action clearly." });
+  }
+
   async function newChat() {
     if (!token || busy) return;
     try {
@@ -281,58 +326,83 @@ export default function AgentPage() {
   }
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-8rem)] max-w-5xl min-h-[30rem] flex-col gap-4 overflow-hidden lg:h-[calc(100dvh-4rem)]">
-      <PageHeader
-        title="Hodi"
-        description="Your onboarding coordinator for blockers, next steps, project assets, and connected apps."
-        actions={
-          <>
-            <details className="group relative">
-              <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 text-sm font-medium text-[var(--ink)] hover:bg-[var(--surface-2)]">
-                <PlugZap className="h-4 w-4" />
-                Connected apps
-                <span className="rounded-full bg-[var(--surface-2)] px-1.5 py-0.5 text-xs text-[var(--ink-muted)]">
-                  {connectedConnectorCount} connected
-                </span>
-              </summary>
-              <div className="absolute right-0 z-30 mt-2 w-72 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-2 shadow-[0_16px_40px_rgba(20,20,20,0.14)]">
-                <p className="px-2 py-1 text-xs font-medium uppercase tracking-wide text-[var(--ink-muted)]">Connections</p>
-                {status?.connectors.length ? status.connectors.map((connector) => (
-                  <div key={connector.slug} className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 text-sm">
-                    <span className="flex min-w-0 items-center gap-2 truncate text-[var(--ink)]">
-                      <span className={`h-2 w-2 shrink-0 rounded-full ${connector.connected ? "bg-[var(--success)]" : "bg-[var(--border)]"}`} />
-                      <span className="truncate">{connector.name}</span>
-                    </span>
-                    <span className="shrink-0 text-xs text-[var(--ink-muted)]">{connector.connected ? "Connected" : "Not connected"}</span>
-                  </div>
-                )) : (
-                  <p className="px-2 py-3 text-sm text-[var(--ink-muted)]">Checking connectors…</p>
-                )}
-                <Link href="/integrations" className="mt-1 flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-[var(--brand)] hover:bg-[var(--surface-2)]">
-                  <HardDrive className="h-4 w-4" /> Manage integrations
-                </Link>
+    <div className="mx-auto flex h-full w-full max-w-6xl flex-col overflow-hidden">
+      <Card className="flex min-h-0 flex-1 overflow-hidden p-0 shadow-[0_18px_50px_rgba(20,20,20,0.08)]">
+        <aside className="hidden w-60 shrink-0 flex-col border-r border-[var(--border)] bg-[color-mix(in_srgb,var(--surface-raised)_80%,var(--surface))] md:flex">
+          <div className="p-3">
+            <Button type="button" className="w-full" onClick={() => void newChat()} disabled={busy || !token}>
+              <Plus className="h-4 w-4" /> New chat
+            </Button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-3">
+            <p className="px-2 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--ink-muted)]">Recent</p>
+            <div className="space-y-1">
+              {sessions.map((session) => (
+                <button
+                  key={session.id}
+                  type="button"
+                  onClick={() => setActiveSessionId(session.id)}
+                  disabled={busy}
+                  aria-current={session.id === activeSessionId ? "page" : undefined}
+                  className={`w-full rounded-xl px-3 py-2.5 text-left text-sm transition duration-200 ${session.id === activeSessionId ? "bg-[var(--surface-2)] font-medium text-[var(--ink)] shadow-[inset_2px_0_0_var(--brand)]" : "text-[var(--ink-muted)] hover:bg-[var(--surface)] hover:text-[var(--ink)]"}`}
+                >
+                  <span className="block truncate">{session.title}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </aside>
+
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-[var(--surface)]">
+          <header className="relative z-30 flex shrink-0 items-center justify-between gap-3 border-b border-[var(--border)]/80 bg-[var(--surface-raised)]/85 px-4 py-3 backdrop-blur sm:px-5">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--brand)] text-white shadow-[0_6px_16px_rgba(20,20,20,0.14)]" aria-hidden="true">
+                <Bot className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <p className="font-[family-name:var(--font-display)] text-base text-[var(--ink)]">Hodi</p>
+                <p className="flex items-center gap-1.5 truncate text-xs text-[var(--ink-muted)]">
+                  <span className={`h-1.5 w-1.5 rounded-full ${status?.ready ? "bg-[var(--success)]" : "bg-[var(--warning)]"}`} aria-hidden="true" />
+                  {busy ? "Working" : status?.ready ? "Ready" : "Setup required"}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <details className="group relative">
+                <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 rounded-lg px-2.5 text-sm font-medium text-[var(--ink-muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--ink)]">
+                  <PlugZap className="h-4 w-4" aria-hidden="true" />
+                  <span className="hidden sm:inline">{connectedConnectorCount} apps</span>
+                  <span className="sr-only">Connected apps</span>
+                </summary>
+                <div className="absolute right-0 z-40 mt-2 max-h-[min(26rem,calc(100dvh-7rem))] w-64 overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-2 shadow-[0_16px_40px_rgba(20,20,20,0.14)]">
+                  {connectedConnectors.length ? connectedConnectors.map((connector) => (
+                    <div key={connector.slug} className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 text-sm">
+                      <span className="flex min-w-0 items-center gap-2 truncate text-[var(--ink)]"><span className={`h-2 w-2 shrink-0 rounded-full ${connector.connected ? "bg-[var(--success)]" : "bg-[var(--border)]"}`} /><span className="truncate">{connector.name}</span></span>
+                      <span className="shrink-0 text-xs text-[var(--ink-muted)]">On</span>
+                    </div>
+                  )) : <p className="px-2 py-3 text-sm text-[var(--ink-muted)]">No connected apps</p>}
+                  <Link href="/integrations" className="mt-1 flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-[var(--brand)] hover:bg-[var(--surface-2)]"><HardDrive className="h-4 w-4" /> Manage apps</Link>
+                </div>
+              </details>
+              {activeSessionId ? <button type="button" aria-label="Delete chat" title="Delete chat" onClick={() => void deleteActiveChat()} disabled={busy} className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--ink-muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--danger)] disabled:opacity-50"><Trash2 className="h-4 w-4" /></button> : null}
+            </div>
+          </header>
+
+          <div className="shrink-0 border-b border-[var(--border)] bg-[var(--surface-raised)] p-2 md:hidden">
+            <details>
+              <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-lg px-2 text-sm font-medium text-[var(--ink)]"><MessageSquare className="h-4 w-4" /> Chats</summary>
+              <div className="mt-1 max-h-48 space-y-1 overflow-y-auto rounded-lg bg-[var(--surface-2)] p-1.5">
+                <Button type="button" size="sm" className="mb-1 w-full" onClick={() => void newChat()} disabled={busy || !token}><Plus className="h-4 w-4" /> New chat</Button>
+                {sessions.map((session) => <button key={session.id} type="button" onClick={() => setActiveSessionId(session.id)} disabled={busy} className={`w-full rounded-md px-3 py-2 text-left text-sm ${session.id === activeSessionId ? "bg-[var(--surface-raised)] font-medium text-[var(--ink)]" : "text-[var(--ink-muted)]"}`}>{session.title}</button>)}
               </div>
             </details>
-            <Link
-              href="/integrations"
-              className="inline-flex items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-1.5 text-sm font-medium text-[var(--ink)] hover:bg-[var(--surface-2)]"
-            >
-              <HardDrive className="h-4 w-4" />
-              Integrations
-            </Link>
-          </>
-        }
-      />
+          </div>
 
-      {statusLoading ? (
-        <p className="text-sm text-[var(--ink-muted)]">Checking Hodi…</p>
-      ) : status && !status.ready ? (
-        <Card className="space-y-3 p-5">
+          {statusLoading ? <div className="flex flex-1 items-center justify-center text-sm text-[var(--ink-muted)]"><LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Preparing Hodi</div> : status && !status.ready ? (
+            <div className="flex flex-1 items-center justify-center p-5"><Card className="w-full max-w-md space-y-3 p-5">
           <div className="flex flex-wrap items-center gap-2">
             <Sparkles className="h-4 w-4 text-[var(--brand)]" />
-            <h2 className="font-[family-name:var(--font-display)] text-lg text-[var(--brand)]">
-              Setup required
-            </h2>
+            <h2 className="font-[family-name:var(--font-display)] text-lg text-[var(--brand)]">Finish setup</h2>
           </div>
           <p className="text-sm text-[var(--ink-muted)]">{status.message}</p>
           <ul className="space-y-2 text-sm text-[var(--ink)]">
@@ -361,104 +431,25 @@ export default function AgentPage() {
           <Button variant="secondary" size="sm" onClick={() => void loadStatus()}>
             Refresh status
           </Button>
-        </Card>
-      ) : null}
-
-      <Card className="flex min-h-0 flex-1 overflow-hidden p-0 shadow-[0_12px_40px_rgba(20,20,20,0.08)]">
-        <aside className="hidden w-64 shrink-0 flex-col border-r border-[var(--border)] bg-[var(--surface-raised)] md:flex">
-          <div className="p-3">
-            <Button type="button" className="w-full" onClick={() => void newChat()} disabled={busy || !token}>
-              <Plus className="h-4 w-4" /> New chat
-            </Button>
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-3">
-            <p className="px-2 py-2 text-xs font-medium uppercase tracking-wide text-[var(--ink-muted)]">Chats</p>
-            <div className="space-y-1">
-              {sessions.map((session) => (
-                <button
-                  key={session.id}
-                  type="button"
-                  onClick={() => setActiveSessionId(session.id)}
-                  disabled={busy}
-                  className={`w-full rounded-lg px-3 py-2 text-left text-sm transition ${session.id === activeSessionId ? "bg-[var(--surface-2)] font-medium text-[var(--ink)]" : "text-[var(--ink-muted)] hover:bg-[var(--surface)] hover:text-[var(--ink)]"}`}
-                >
-                  <span className="block truncate">{session.title}</span>
-                  <span className="mt-0.5 block text-xs font-normal text-[var(--ink-muted)]">
-                    {new Date(session.updatedAt).toLocaleDateString()}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </aside>
-
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <div className="flex shrink-0 gap-2 overflow-x-auto border-b border-[var(--border)] bg-[var(--surface-raised)] p-2 md:hidden">
-            <Button type="button" size="sm" onClick={() => void newChat()} disabled={busy || !token}>
-              <Plus className="h-4 w-4" /> New
-            </Button>
-            {sessions.map((session) => (
-              <button
-                key={session.id}
-                type="button"
-                onClick={() => setActiveSessionId(session.id)}
-                disabled={busy}
-                className={`max-w-44 shrink-0 truncate rounded-md px-3 py-2 text-sm transition ${session.id === activeSessionId ? "bg-[var(--surface-2)] font-medium text-[var(--ink)]" : "text-[var(--ink-muted)] hover:bg-[var(--surface)]"}`}
-              >
-                {session.title}
-              </button>
-            ))}
-          </div>
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3 sm:px-5">
-          <div className="flex min-w-0 items-center gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--brand)] text-white">
-              <Bot className="h-5 w-5" />
-            </span>
-            <div className="min-w-0">
-              <p className="font-[family-name:var(--font-display)] text-base text-[var(--ink)]">Hodi</p>
-              <p className="truncate text-xs text-[var(--ink-muted)]">
-                {busy ? "Working on your request…" : status?.ready ? "Onboarding health + connected apps" : "Setup required"}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="hidden items-center gap-1.5 text-xs text-[var(--ink-muted)] sm:flex">
-              <span className={`h-2 w-2 rounded-full ${status?.ready ? "bg-[var(--success)]" : "bg-[var(--warning)]"}`} />
-              {status?.ready ? "Ready" : "Offline"}
-            </span>
-            {activeSessionId ? (
-              <button
-                type="button"
-                aria-label="Delete chat"
-                title="Delete chat"
-                onClick={() => void deleteActiveChat()}
-                disabled={busy}
-                className="flex h-9 w-9 items-center justify-center rounded-md text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--danger)] disabled:opacity-50"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            ) : null}
-          </div>
-        </div>
-
-        <div ref={transcriptRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[var(--surface)] px-4 py-5 sm:px-6">
+        </Card></div>
+          ) : <>
+        <div ref={transcriptRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-6 [scroll-padding-bottom:8rem] sm:px-8">
           {messages.length === 0 ? (
-            <div className="mx-auto flex h-full max-w-2xl flex-col justify-center space-y-5 py-6">
-              <div className="space-y-1 text-center">
-                <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--brand)] text-white shadow-sm">
+            <div className="mx-auto flex h-full max-w-xl flex-col justify-center space-y-6 py-8">
+              <div className="space-y-2 text-center agent-message-enter">
+                <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--brand)] text-white shadow-[0_10px_24px_rgba(20,20,20,0.14)]">
                   <Bot className="h-6 w-6" />
                 </span>
-                <p className="font-[family-name:var(--font-display)] text-xl text-[var(--ink)]">What can I help you find?</p>
-                <p className="text-sm text-[var(--ink-muted)]">Find blockers, prepare follow-ups, organize client assets, and keep every onboarding moving.</p>
+                <p className="font-[family-name:var(--font-display)] text-2xl tracking-[-0.02em] text-[var(--ink)]">What can I help with?</p>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="grid gap-2 sm:grid-cols-2">
                 {SUGGESTIONS.map((s) => (
                   <button
                     key={s}
                     type="button"
                     disabled={!status?.ready || busy}
                     onClick={() => runSuggestion(s)}
-                    className="rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-left text-sm text-[var(--ink)] transition hover:border-[var(--brand)]/40 hover:bg-[var(--surface-2)] disabled:opacity-50"
+                    className="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3.5 py-3 text-left text-sm leading-snug text-[var(--ink)] transition duration-200 hover:-translate-y-0.5 hover:border-[var(--brand)]/40 hover:shadow-[0_8px_18px_rgba(20,20,20,0.06)] disabled:opacity-50"
                   >
                     {s}
                   </button>
@@ -466,7 +457,7 @@ export default function AgentPage() {
               </div>
             </div>
           ) : (
-            <div className="mx-auto flex max-w-3xl flex-col gap-4">
+            <div className="mx-auto flex max-w-3xl flex-col gap-6">
             {messages.map((m) => {
               const parts = m.parts as AgentMessagePart[];
               const text = messageText(parts);
@@ -474,26 +465,41 @@ export default function AgentPage() {
               const toolParts = parts.filter(
                 (p) => p.type.startsWith("tool-") || p.type === "dynamic-tool"
               );
+              const actionArtifacts: HodiActionArtifact[] = toolParts.map((part, index) => ({
+                id: part.toolCallId || `${part.type}-${index}`,
+                name: humanizeToolName(part),
+                state: part.state,
+                error: Boolean(part.errorText),
+              }));
+              const sources = m.role === "assistant" ? evidenceLinks(text) : [];
               return (
                 <div
                   key={m.id}
                   className={
                     m.role === "user"
-                      ? "max-w-[88%] self-end rounded-2xl rounded-br-md bg-[var(--brand)] px-4 py-3 text-sm leading-relaxed text-white sm:max-w-[78%]"
-                      : "max-w-[92%] self-start space-y-2 rounded-2xl rounded-bl-md border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3 text-sm leading-relaxed text-[var(--ink)] sm:max-w-[82%]"
+                      ? "agent-message-enter max-w-[88%] self-end rounded-2xl rounded-br-md bg-[var(--brand)] px-4 py-3 text-sm leading-relaxed text-white shadow-[0_8px_20px_rgba(20,20,20,0.09)] sm:max-w-[78%]"
+                      : "agent-message-enter w-full max-w-3xl self-start space-y-3 text-sm leading-7 text-[var(--ink)]"
                   }
                 >
                   {text ? (
                     m.role === "assistant" ? <AgentMarkdown text={text} /> : <p className="break-words whitespace-pre-wrap">{text}</p>
                   ) : null}
-                  {m.role === "assistant" && text ? (
-                    <HodiActionCards text={text} token={token} connectors={status?.connectors ?? []} onRun={runSuggestion} />
+                  {m.role === "assistant" ? <HodiActionCards actions={actionArtifacts} /> : null}
+                  {sources.length ? (
+                    <div className="flex flex-wrap items-center gap-1.5" aria-label="Sources cited by Hodi">
+                      <span className="mr-1 text-[11px] font-medium text-[var(--ink-muted)]">Sources</span>
+                      {sources.map((source, index) => {
+                        let hostname = source;
+                        try { hostname = new URL(source).hostname.replace(/^www\./, ""); } catch {}
+                        return <a key={source} href={source} target="_blank" rel="noreferrer" className="max-w-44 truncate rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-2 py-1 text-[11px] font-medium text-[var(--brand)] transition hover:border-[var(--brand)]/40" title={source}>Source {index + 1}: {hostname}</a>;
+                      })}
+                    </div>
                   ) : null}
                   {reasoningParts.length > 0 || toolParts.length > 0 ? (
-                    <details className="group rounded-md border border-[var(--border)] bg-[var(--surface-raised)]/70 text-[var(--ink)]">
+                    <details className="group rounded-xl border border-[var(--border)] bg-[var(--surface-raised)]/70 text-[var(--ink)]">
                       <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs font-medium marker:hidden">
                         <Wrench className="h-3.5 w-3.5 text-[var(--ink-muted)]" />
-                        Activity
+                        Hodi activity
                         <span className="text-[var(--ink-muted)]">
                           {reasoningParts.length > 0 ? "Thinking" : ""}
                           {reasoningParts.length > 0 && toolParts.length > 0 ? " · " : ""}
@@ -504,14 +510,7 @@ export default function AgentPage() {
                         <span className="ml-auto text-[var(--ink-muted)] transition group-open:rotate-180">⌄</span>
                       </summary>
                       <div className="space-y-3 border-t border-[var(--border)] px-3 py-3">
-                        {reasoningParts.map((part, index) => (
-                          <div key={`reasoning-${part.type}-${index}`}>
-                            <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--ink-muted)]">
-                              Thinking{part.state === "streaming" ? "…" : ""}
-                            </p>
-                            <p className="whitespace-pre-wrap text-xs leading-relaxed">{part.text}</p>
-                          </div>
-                        ))}
+                        {reasoningParts.length > 0 ? <p className="rounded-lg bg-[var(--surface)]/70 px-2.5 py-2 text-xs leading-relaxed text-[var(--ink-muted)]">Hodi reviewed the available workspace context before responding.</p> : null}
                         {toolParts.map((part, index) => (
                           <div key={part.toolCallId || `${part.type}-${index}`} className="rounded border border-[var(--border)] bg-[var(--surface)]/70 p-2.5">
                             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -520,23 +519,24 @@ export default function AgentPage() {
                                 {toolStateLabel(part.state)}
                               </span>
                             </div>
-                            {part.input !== undefined ? (
-                              <details className="mt-2">
-                                <summary className="cursor-pointer text-[11px] text-[var(--ink-muted)] hover:text-[var(--ink)]">
-                                  View request details
-                                </summary>
-                                <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-[var(--surface-raised)] p-2 text-[10px] leading-relaxed text-[var(--ink-muted)]">
-                                  {JSON.stringify(part.input, null, 2)}
-                                </pre>
-                              </details>
-                            ) : null}
-                            {part.errorText ? (
-                              <p className="mt-2 text-xs text-[var(--danger)]">{part.errorText}</p>
-                            ) : null}
+                            {safeToolError(part.state) || part.errorText ? <p className="mt-2 text-xs text-[var(--danger)]">{safeToolError(part.state) || "Hodi could not complete this action. Try again or adjust the request."}</p> : null}
                           </div>
                         ))}
                       </div>
                     </details>
+                  ) : null}
+                  {text ? (
+                    <div className={`flex items-center gap-1 ${m.role === "user" ? "justify-end text-white/80" : "text-[var(--ink-muted)]"}`}>
+                      <button type="button" onClick={() => void copyMessage(m.id, text)} className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium transition hover:bg-black/5 hover:text-[var(--ink)]" title="Copy message">
+                        {copiedMessageId === m.id ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}{copiedMessageId === m.id ? "Copied" : "Copy"}
+                      </button>
+                      {m.role === "user" ? <button type="button" onClick={() => editAndResend(text)} disabled={busy} className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium transition hover:bg-white/15 disabled:opacity-50" title="Edit message"><Pencil className="h-3.5 w-3.5" />Edit</button> : <>
+                        <button type="button" onClick={improveResponse} disabled={busy} className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium transition hover:bg-[var(--surface-2)] hover:text-[var(--ink)] disabled:opacity-50" title="Ask Hodi to improve this response"><RotateCcw className="h-3.5 w-3.5" />Improve</button>
+                        <span className="mx-0.5 h-4 w-px bg-[var(--border)]" aria-hidden="true" />
+                        <button type="button" onClick={() => setFeedback((current) => ({ ...current, [m.id]: "helpful" }))} aria-label="This response was helpful" aria-pressed={feedback[m.id] === "helpful"} className={`flex h-7 w-7 items-center justify-center rounded-md transition hover:bg-[var(--surface-2)] hover:text-[var(--ink)] ${feedback[m.id] === "helpful" ? "bg-[var(--surface-2)] text-[var(--brand)]" : ""}`}><ThumbsUp className="h-3.5 w-3.5" /></button>
+                        <button type="button" onClick={() => setFeedback((current) => ({ ...current, [m.id]: "not_helpful" }))} aria-label="This response was not helpful" aria-pressed={feedback[m.id] === "not_helpful"} className={`flex h-7 w-7 items-center justify-center rounded-md transition hover:bg-[var(--surface-2)] hover:text-[var(--ink)] ${feedback[m.id] === "not_helpful" ? "bg-[var(--surface-2)] text-[var(--danger)]" : ""}`}><ThumbsDown className="h-3.5 w-3.5" /></button>
+                      </>}
+                    </div>
                   ) : null}
                 </div>
               );
@@ -544,8 +544,8 @@ export default function AgentPage() {
             </div>
           )}
           {busy ? (
-            <p className="mx-auto mt-4 flex max-w-3xl items-center gap-2 text-sm text-[var(--ink-muted)]">
-              <LoaderCircle className="h-4 w-4 animate-spin" /> Hodi is working…
+            <p className="mx-auto mt-5 flex max-w-3xl items-center gap-2 text-sm text-[var(--ink-muted)]" aria-live="polite">
+              <LoaderCircle className="h-4 w-4 animate-spin" /> Hodi is working
             </p>
           ) : null}
           {error ? (
@@ -557,9 +557,9 @@ export default function AgentPage() {
 
         <form
           onSubmit={(e) => void onSubmit(e)}
-          className="shrink-0 border-t border-[var(--border)] bg-[var(--surface-raised)] p-3 sm:p-4"
+          className="shrink-0 border-t border-[var(--border)]/80 bg-[var(--surface-raised)]/90 p-3 backdrop-blur sm:px-6 sm:py-4"
         >
-          <div className="relative">
+          <div className="relative mx-auto max-w-3xl">
             <Textarea
               ref={composerRef}
               rows={1}
@@ -580,7 +580,7 @@ export default function AgentPage() {
                   void onSubmit(e);
                 }
               }}
-              className="h-11 min-h-11 max-h-[84px] resize-none overflow-y-auto rounded-xl pr-14"
+              className="block h-12 min-h-12 max-h-[112px] resize-none overflow-y-auto rounded-2xl border-[var(--border)] bg-[var(--surface-raised)] py-3 pl-4 pr-14 shadow-[0_8px_22px_rgba(20,20,20,0.05)]"
             />
             {busy ? (
               <button
@@ -588,7 +588,7 @@ export default function AgentPage() {
                 onClick={() => void stop()}
                 aria-label="Stop generating"
                 title="Stop generating"
-                className="absolute bottom-3 right-3 flex h-9 w-9 items-center justify-center rounded-full bg-[var(--ink)] text-white transition hover:bg-[var(--brand-strong)]"
+                className="absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-xl bg-[var(--ink)] text-white transition hover:scale-105 hover:bg-[var(--brand-strong)]"
               >
                 <CircleStop className="h-4 w-4" />
               </button>
@@ -598,13 +598,14 @@ export default function AgentPage() {
                 disabled={!status?.ready || !input.trim()}
                 aria-label="Send message"
                 title="Send message"
-                className="absolute bottom-3 right-3 flex h-9 w-9 items-center justify-center rounded-full bg-[var(--brand)] text-white transition hover:bg-[var(--brand-strong)] disabled:cursor-not-allowed disabled:bg-[var(--surface-2)] disabled:text-[var(--ink-muted)]"
+                className="absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-xl bg-[var(--brand)] text-white transition hover:scale-105 hover:bg-[var(--brand-strong)] disabled:cursor-not-allowed disabled:bg-[var(--surface-2)] disabled:text-[var(--ink-muted)]"
               >
                 <ArrowUp className="h-4 w-4" />
               </button>
             )}
           </div>
         </form>
+          </>}
         </div>
       </Card>
     </div>

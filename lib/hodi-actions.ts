@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "crypto";
 import type { AuthSession, Task, TaskPriority, TaskStatus, TaskType } from "@/types";
 import { hasPermission } from "@/lib/rbac";
 import { getStore } from "@/lib/store";
-import { consumeHodiActionProposal, createHodiActionProposal } from "@/lib/hodi-queue";
+import { consumeHodiActionProposal, createHodiActionProposal, finishHodiActionProposal, releaseHodiActionProposal } from "@/lib/hodi-queue";
 
 export type HodiAction =
   | "create_client"
@@ -69,6 +69,21 @@ function validateDueDate(value: unknown) {
     throw new Error("dueDate must be a valid date");
   }
   return dueDate;
+}
+
+function displayValue(value: unknown) {
+  if (value === null || value === undefined || value === "") return "Not set";
+  if (typeof value === "string") return value;
+  return JSON.stringify(value);
+}
+
+function taskDiff(task: Task, payload: ActionPayload) {
+  const labels: Record<string, string> = {
+    title: "Title", description: "Description", status: "Status", dueDate: "Due date", assignedTo: "Assignee", priority: "Priority",
+  };
+  return Object.keys(labels)
+    .filter((key) => payload[key] !== undefined)
+    .map((key) => ({ field: key, label: labels[key], before: displayValue(task[key as keyof Task]), after: displayValue(payload[key]) }));
 }
 
 async function requireClient(clientId: string) {
@@ -155,6 +170,11 @@ async function preview(action: HodiAction, payload: ActionPayload, session: Auth
           `Assign ${assignee?.name || "the signed-in staff member"}`,
           template ? `Apply ${template.name} and create ${template.taskList.length} onboarding tasks` : "Create without a service template",
         ],
+        diff: [
+          { field: "client", label: "Client", before: "Does not exist", after: companyName },
+          { field: "contact", label: "Primary contact", before: "Not set", after: `${name} (${primaryContactEmail})` },
+          { field: "assignee", label: "Owner", before: "Not set", after: assignee?.name || "The signed-in staff member" },
+        ],
       };
     }
     case "apply_template": {
@@ -162,7 +182,7 @@ async function preview(action: HodiAction, payload: ActionPayload, session: Auth
       const templateId = text(payload.templateId);
       if (!clientId || !templateId) throw new Error("clientId and templateId are required");
       const [client, template] = await Promise.all([requireClient(clientId), requireTemplate(templateId)]);
-      return { title: `Apply ${template.name} to ${client.companyName}`, changes: [`Update the client service template`, `Create ${template.taskList.length} template tasks`] };
+      return { title: `Apply ${template.name} to ${client.companyName}`, changes: [`Update the client service template`, `Create ${template.taskList.length} template tasks`], diff: [{ field: "template", label: "Service template", before: client.templateId || "Not set", after: template.name }, { field: "tasks", label: "Onboarding tasks", before: "No new tasks", after: `${template.taskList.length} tasks created` }] };
     }
     case "create_task": {
       assertCanManage(session);
@@ -170,7 +190,7 @@ async function preview(action: HodiAction, payload: ActionPayload, session: Auth
       if (!clientId || !title) throw new Error("clientId and title are required");
       const [client, assignee] = await Promise.all([requireClient(clientId), requireStaff(optionalText(payload.assignedTo))]);
       const dueDate = validateDueDate(payload.dueDate);
-      return { title: `Create task for ${client.companyName}`, changes: [`Create “${title}”`, assignee ? `Assign ${assignee.name}` : "Leave unassigned", dueDate ? `Set due date to ${dueDate}` : "No due date"] };
+      return { title: `Create task for ${client.companyName}`, changes: [`Create “${title}”`, assignee ? `Assign ${assignee.name}` : "Leave unassigned", dueDate ? `Set due date to ${dueDate}` : "No due date"], diff: [{ field: "task", label: "Task", before: "Does not exist", after: title }, { field: "assignee", label: "Assignee", before: "Not set", after: assignee?.name || "Unassigned" }, { field: "dueDate", label: "Due date", before: "Not set", after: dueDate || "Not set" }] };
     }
     case "update_task":
     case "assign_task":
@@ -185,26 +205,25 @@ async function preview(action: HodiAction, payload: ActionPayload, session: Auth
       if (action === "assign_task") {
         const assignee = await requireStaff(optionalText(payload.assignedTo));
         if (!assignee) throw new Error("assignedTo is required");
-        return { title: `Assign ${task.title}`, changes: [`Assign ${task.title} to ${assignee.name}`, `Client: ${client.companyName}`] };
+        return { title: `Assign ${task.title}`, changes: [`Assign ${task.title} to ${assignee.name}`, `Client: ${client.companyName}`], diff: [{ field: "assignedTo", label: "Assignee", before: displayValue(task.assignedTo), after: assignee.name }] };
       }
       if (action === "block_task") {
         const note = text(payload.note);
         if (!note) throw new Error("A blocker note is required");
-        return { title: `Mark ${task.title} blocked`, changes: [`Change task status to blocked`, `Add internal note: ${note}`] };
+        return { title: `Mark ${task.title} blocked`, changes: [`Change task status to blocked`, `Add internal note: ${note}`], diff: [{ field: "status", label: "Status", before: task.status, after: "blocked" }, { field: "internalNotes", label: "Internal note", before: displayValue(task.internalNotes), after: note }] };
       }
-      const updates = ["title", "description", "status", "dueDate", "assignedTo", "priority"]
-        .filter((key) => payload[key] !== undefined)
-        .map((key) => `${key}: ${String(payload[key])}`);
+      const diff = taskDiff(task, payload);
+      const updates = diff.map((change) => `${change.label}: ${change.before} → ${change.after}`);
       if (updates.length === 0) throw new Error("Provide at least one supported task update");
       validateDueDate(payload.dueDate);
       if (payload.assignedTo !== undefined) await requireStaff(optionalText(payload.assignedTo));
-      return { title: `Update ${task.title}`, changes: updates };
+      return { title: `Update ${task.title}`, changes: updates, diff };
     }
     case "weekly_status_report": {
       assertCanView(session);
       if (!clientId) throw new Error("clientId is required");
       const report = await buildWeeklyReport(clientId);
-      return { title: `Generate weekly status report for ${report.client.companyName}`, changes: ["Generate a read-only report", `Includes ${report.summary.tasks.blocked} blockers and ${report.summary.tasks.overdue} overdue tasks`], report };
+      return { title: `Generate weekly status report for ${report.client.companyName}`, changes: ["Generate a read-only report", `Includes ${report.summary.tasks.blocked} blockers and ${report.summary.tasks.overdue} overdue tasks`], diff: [{ field: "report", label: "Weekly status report", before: "Not generated", after: "Generated for review" }], report };
     }
   }
 }
@@ -245,11 +264,20 @@ export async function executeHodiAction(
   session: AuthSession
 ) {
   assertAction(action);
-  await consumeHodiActionProposal({ approvalToken, action, payloadHash: payloadHash(payload), userId: session.uid });
-  await preview(action, payload, session);
-  const store = await getStore();
+  const claim = await consumeHodiActionProposal({ approvalToken, action, payloadHash: payloadHash(payload), userId: session.uid });
+  try {
+    await preview(action, payload, session);
+    const store = await getStore();
+    const complete = async <T>(result: T) => {
+      await finishHodiActionProposal(claim.proposal.id);
+      return result;
+    };
 
-  if (action === "weekly_status_report") return { report: await buildWeeklyReport(text(payload.clientId)) };
+  if (action === "weekly_status_report") {
+    const report = await buildWeeklyReport(text(payload.clientId));
+    await store.addActivity({ clientId: report.client.id, actorId: session.uid, actorName: session.name, action: "hodi.weekly_status_report_generated", meta: { proposalId: claim.proposal.id, summary: report.summary } });
+    return complete({ report });
+  }
 
   if (action === "create_client") {
     const templateId = optionalText(payload.templateId);
@@ -260,8 +288,8 @@ export async function executeHodiAction(
       customFields: payload.discoveryBrief && typeof payload.discoveryBrief === "object" ? Object.fromEntries(Object.entries(payload.discoveryBrief as Record<string, unknown>).map(([key, value]) => [key, text(value)]).filter(([key, value]) => key && value)) : {},
     });
     const tasks = templateId ? await store.generateTasksFromTemplate(client.id, templateId, client.assignedTeamMemberId) : [];
-    await store.addActivity({ clientId: client.id, actorId: session.uid, actorName: session.name, action: "hodi.client_created", meta: { templateId, taskCount: tasks.length } });
-    return { client, tasks };
+    await store.addActivity({ clientId: client.id, actorId: session.uid, actorName: session.name, action: "hodi.client_created", meta: { proposalId: claim.proposal.id, templateId, taskCount: tasks.length } });
+    return complete({ client, tasks });
   }
 
   if (action === "apply_template") {
@@ -269,8 +297,8 @@ export async function executeHodiAction(
     const templateId = text(payload.templateId);
     const client = await store.updateClient(clientId, { templateId });
     const tasks = await store.generateTasksFromTemplate(clientId, templateId, optionalText(payload.assignedTeamMemberId) || client.assignedTeamMemberId);
-    await store.addActivity({ clientId, actorId: session.uid, actorName: session.name, action: "hodi.template_applied", meta: { templateId, taskCount: tasks.length } });
-    return { client, tasks };
+    await store.addActivity({ clientId, actorId: session.uid, actorName: session.name, action: "hodi.template_applied", meta: { proposalId: claim.proposal.id, templateId, taskCount: tasks.length } });
+    return complete({ client, tasks });
   }
 
   if (action === "create_task") {
@@ -284,8 +312,8 @@ export async function executeHodiAction(
       priority: (text(payload.priority) || "medium") as TaskPriority, internalNotes: text(payload.internalNotes), section: optionalText(payload.section) || undefined,
       formTemplateId: optionalText(payload.formTemplateId), requiresUpload: Boolean(payload.requiresUpload),
     });
-    await store.addActivity({ clientId, actorId: session.uid, actorName: session.name, action: "hodi.task_created", meta: { taskId: task.id, title: task.title } });
-    return { task };
+    await store.addActivity({ clientId, actorId: session.uid, actorName: session.name, action: "hodi.task_created", meta: { proposalId: claim.proposal.id, taskId: task.id, title: task.title } });
+    return complete({ task });
   }
 
   const taskId = text(payload.taskId);
@@ -305,6 +333,10 @@ export async function executeHodiAction(
     activityAction = "hodi.task_updated";
   }
   const task = await store.updateTask(taskId, patch);
-  await store.addActivity({ clientId: task.clientId, actorId: session.uid, actorName: session.name, action: activityAction, meta: { taskId: task.id, changes: patch } });
-  return { task };
+  await store.addActivity({ clientId: task.clientId, actorId: session.uid, actorName: session.name, action: activityAction, meta: { proposalId: claim.proposal.id, taskId: task.id, changes: patch } });
+  return complete({ task });
+  } catch (error) {
+    await releaseHodiActionProposal(claim.proposal.id, claim.previousStatus);
+    throw error;
+  }
 }

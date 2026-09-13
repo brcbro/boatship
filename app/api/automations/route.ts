@@ -1,37 +1,46 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
 import {
-  generateHodiAutomationReview,
-  getHodiAutomationRule,
-  hodiAutomationRules,
+  listHodiAutomationRules,
+  listHodiAutomationRuns,
+  runHodiAutomationReview,
+  setHodiAutomationRuleEnabled,
 } from "@/lib/hodi-automations";
 
 export const runtime = "nodejs";
 
 export async function GET(req: Request) {
   return handleApi(async () => {
-    await requireRoles(req, ["admin", "team"]);
+    const session = await requireRoles(req, ["admin", "team"]);
+    const ruleId = new URL(req.url).searchParams.get("ruleId") || undefined;
     return {
-      rules: hodiAutomationRules,
-      persistence: "session_local",
-      note: "Enabled rules are saved only in this browser session. Runs create reviewable results and never send external communication.",
+      rules: await listHodiAutomationRules(),
+      runs: await listHodiAutomationRuns(session, ruleId),
+      persistence: "database",
+      execution: "manual_review_only",
+      note: "Rule state and review runs are stored in Boatship. No unmanaged scheduler or external action is enabled.",
     };
   });
 }
 
 export async function POST(req: Request) {
   return handleApi(async () => {
-    await requireRoles(req, ["admin", "team"]);
+    const session = await requireRoles(req, ["admin", "team"]);
     const body = (await req.json().catch(() => ({}))) as { ruleId?: string; clientName?: string };
     if (!body.ruleId) throw jsonError("ruleId is required", 400);
 
-    const rule = getHodiAutomationRule(body.ruleId);
-    if (!rule) throw jsonError("Unknown automation rule", 404);
-
     const clientName = body.clientName?.trim().slice(0, 120) || "this client";
-    return {
-      review: generateHodiAutomationReview(rule, clientName),
-      note: "This is a reviewable result only. No email, message, calendar event, or external action has been sent.",
-    };
+    return runHodiAutomationReview(body.ruleId, clientName, session);
+  });
+}
+
+export async function PATCH(req: Request) {
+  return handleApi(async () => {
+    const session = await requireRoles(req, ["admin", "team"]);
+    const body = (await req.json().catch(() => ({}))) as { ruleId?: unknown; enabled?: unknown };
+    if (typeof body.ruleId !== "string" || !body.ruleId.trim() || typeof body.enabled !== "boolean") {
+      throw jsonError("ruleId and enabled are required", 400);
+    }
+    return { state: await setHodiAutomationRuleEnabled(body.ruleId, body.enabled, session) };
   });
 }

@@ -9,7 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { AuthSession } from "@/types";
 import {
   apiFetch,
@@ -33,6 +33,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [session, setSession] = useState<AuthSession | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -40,6 +41,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async () => {
     try {
       const data = await apiFetch<{ session: AuthSession | null }>("/api/auth/session");
+      if (!data.session) {
+        setSession(null);
+        setStoredSession(null);
+        setStoredToken(null);
+        setToken(null);
+        if (pathname !== "/login") router.replace("/login");
+        return;
+      }
       setSession(data.session);
       setStoredSession(data.session);
       const t = getStoredToken();
@@ -48,10 +57,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(null);
       setStoredSession(null);
       setToken(null);
+      if (pathname !== "/login") router.replace("/login");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [pathname, router]);
 
   useEffect(() => {
     setSession(getStoredSession());

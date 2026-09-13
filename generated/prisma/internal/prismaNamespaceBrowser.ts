@@ -33,7 +33,10 @@ export const ModelName = {
   GitEvidence: 'GitEvidence',
   TaskManagerApproval: 'TaskManagerApproval',
   HodiQueueItem: 'HodiQueueItem',
-  HodiActionProposal: 'HodiActionProposal'
+  HodiActionProposal: 'HodiActionProposal',
+  HodiCommunicationProposal: 'HodiCommunicationProposal',
+  HodiAutomationRuleState: 'HodiAutomationRuleState',
+  HodiAutomationRun: 'HodiAutomationRun'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -282,6 +285,60 @@ export const HodiActionProposalScalarFieldEnum = {
 } as const
 
 export type HodiActionProposalScalarFieldEnum = (typeof HodiActionProposalScalarFieldEnum)[keyof typeof HodiActionProposalScalarFieldEnum]
+
+
+export const HodiCommunicationProposalScalarFieldEnum = {
+  id: 'id',
+  approvalToken: 'approvalToken',
+  type: 'type',
+  channel: 'channel',
+  recipient: 'recipient',
+  subject: 'subject',
+  body: 'body',
+  payload: 'payload',
+  payloadHash: 'payloadHash',
+  plan: 'plan',
+  userId: 'userId',
+  status: 'status',
+  expiresAt: 'expiresAt',
+  approvedBy: 'approvedBy',
+  approvedAt: 'approvedAt',
+  handoffReadyAt: 'handoffReadyAt',
+  rejectedReason: 'rejectedReason',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type HodiCommunicationProposalScalarFieldEnum = (typeof HodiCommunicationProposalScalarFieldEnum)[keyof typeof HodiCommunicationProposalScalarFieldEnum]
+
+
+export const HodiAutomationRuleStateScalarFieldEnum = {
+  id: 'id',
+  ruleId: 'ruleId',
+  enabled: 'enabled',
+  config: 'config',
+  updatedBy: 'updatedBy',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type HodiAutomationRuleStateScalarFieldEnum = (typeof HodiAutomationRuleStateScalarFieldEnum)[keyof typeof HodiAutomationRuleStateScalarFieldEnum]
+
+
+export const HodiAutomationRunScalarFieldEnum = {
+  id: 'id',
+  ruleId: 'ruleId',
+  clientName: 'clientName',
+  triggeredBy: 'triggeredBy',
+  trigger: 'trigger',
+  status: 'status',
+  review: 'review',
+  externalAction: 'externalAction',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type HodiAutomationRunScalarFieldEnum = (typeof HodiAutomationRunScalarFieldEnum)[keyof typeof HodiAutomationRunScalarFieldEnum]
 
 
 export const SortOrder = {

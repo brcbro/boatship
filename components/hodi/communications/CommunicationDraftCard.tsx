@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { CheckCircle2, Copy, Mail, MessageCircleMore, ShieldAlert, Smartphone, Unplug } from "lucide-react";
 import { Button, Card } from "@/components/shared/ui";
 import type { HodiCommunicationChannel, HodiCommunicationPlan, HodiCommunicationType } from "@/lib/hodi-communications";
@@ -22,6 +22,8 @@ const channelLabels: Record<HodiCommunicationChannel, string> = {
 const channelIcons = { email: Mail, slack: MessageCircleMore, sms: Smartphone, whatsapp: Smartphone };
 
 export function CommunicationDraftCard({ plan, onChange, onApprove, approving = false }: Props) {
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const resizingBodyRef = useRef(false);
   const [channel, setChannel] = useState(plan.channel);
   const [recipient, setRecipient] = useState(plan.recipient);
   const [subject, setSubject] = useState(plan.subject || "");
@@ -41,6 +43,20 @@ export function CommunicationDraftCard({ plan, onChange, onApprove, approving = 
   async function copyDraft() {
     const content = [subject ? `Subject: ${subject}` : "", body].filter(Boolean).join("\n\n");
     await navigator.clipboard?.writeText(content);
+  }
+
+  function handleBodyPointerDown(event: React.PointerEvent<HTMLTextAreaElement>) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    resizingBodyRef.current =
+      event.clientX >= rect.right - 24 && event.clientY >= rect.bottom - 24;
+  }
+
+  function handleBodyPointerUp() {
+    if (!resizingBodyRef.current) return;
+    resizingBodyRef.current = false;
+    requestAnimationFrame(() => {
+      if (bodyRef.current) bodyRef.current.style.height = "";
+    });
   }
 
   return (
@@ -81,7 +97,15 @@ export function CommunicationDraftCard({ plan, onChange, onApprove, approving = 
 
       <label className="grid gap-1.5 text-sm font-medium text-[var(--ink)]">
         Draft message
-        <textarea value={body} onChange={(event) => update({ body: event.target.value })} rows={8} className="resize-y rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm font-normal leading-6 text-[var(--ink)]" />
+        <textarea
+          ref={bodyRef}
+          value={body}
+          onChange={(event) => update({ body: event.target.value })}
+          onPointerDown={handleBodyPointerDown}
+          onPointerUp={handleBodyPointerUp}
+          rows={8}
+          className="max-h-[28rem] min-h-[12rem] resize-y rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm font-normal leading-6 text-[var(--ink)]"
+        />
       </label>
 
       <div className="flex gap-2 rounded-lg border border-[var(--warning)]/30 bg-[#f3ead2]/60 p-3 text-sm text-[var(--ink)]">

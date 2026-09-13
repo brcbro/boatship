@@ -118,8 +118,8 @@ function LoginContent() {
     <div className="flex min-h-screen items-center justify-center px-4 py-10">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--brand)] text-xl font-semibold text-white shadow-lg shadow-slate-900/10">
-            B
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--brand)] p-3 shadow-lg shadow-slate-900/10">
+            <img src="/brand/boatship-b-white.png" alt="Boatship" className="h-full w-full object-contain" />
           </div>
           <h1 className="font-[family-name:var(--font-display)] text-4xl text-[var(--brand)]">
             {title}

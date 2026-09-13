@@ -272,3 +272,64 @@ model HodiActionProposal {
   @@index([status, expiresAt])
   @@index([action, createdAt])
 }
+
+// Communication proposals are intentionally separate from internal Hodi actions.
+// An approved proposal records a handoff only; it never permits direct delivery to
+// an external channel until a verified channel contract exists.
+model HodiCommunicationProposal {
+  id             String   @id
+  approvalToken  String   @unique
+  type           String
+  channel        String
+  recipient      String
+  subject        String?
+  body           String
+  payload        Json
+  payloadHash    String
+  plan           Json
+  userId         String
+  status         String   @default("pending")
+  expiresAt      DateTime
+  approvedBy     String?
+  approvedAt     DateTime?
+  handoffReadyAt DateTime?
+  rejectedReason String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId, status, createdAt])
+  @@index([status, expiresAt])
+  @@index([type, createdAt])
+}
+
+// Rules persist their enabled state only. They are never scheduled by the web
+// process: runs are created explicitly by an authorized user or future managed
+// scheduler.
+model HodiAutomationRuleState {
+  id          String   @id
+  ruleId      String   @unique
+  enabled     Boolean  @default(false)
+  config      Json?
+  updatedBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([enabled, updatedAt])
+}
+
+model HodiAutomationRun {
+  id          String   @id
+  ruleId      String
+  clientName  String
+  triggeredBy String
+  trigger     String   @default("manual")
+  status      String
+  review      Json
+  externalAction Boolean @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([ruleId, createdAt])
+  @@index([triggeredBy, createdAt])
+  @@index([status, createdAt])
+}

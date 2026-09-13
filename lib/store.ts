@@ -299,7 +299,7 @@ async function ensureSeed(data: StoreData) {
     }
   }
 
-  if (!data.users.find((u) => u.email === "admin@boatship.local")) {
+  if (data.users.length === 0) {
     data.users.push({
       uid: "seed_admin",
       email: "admin@boatship.local",
@@ -310,9 +310,7 @@ async function ensureSeed(data: StoreData) {
       passwordHash: hashPassword("admin123"),
       digestEnabled: true,
     });
-  }
 
-  if (!data.users.find((u) => u.email === "team@boatship.local")) {
     data.users.push({
       uid: "seed_team",
       email: "team@boatship.local",

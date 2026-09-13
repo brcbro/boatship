@@ -11,7 +11,11 @@ export async function GET(req: Request) {
     const clientId = params.get("clientId") || undefined;
     if (params.get("refresh") === "1") await generateHodiQueue(session, clientId);
     const status = params.get("status") || undefined;
+    if (status && !["open", "in_progress", "snoozed", "dismissed", "completed"].includes(status)) {
+      throw jsonError("Invalid queue status", 400);
+    }
     const ownerId = params.get("ownerId") || undefined;
+    if (session.role === "client" && ownerId) throw jsonError("Clients cannot filter work by owner", 403);
     const includeDismissed = params.get("includeDismissed") === "1";
     return { items: await listHodiQueue(session, { clientId, status, ownerId, includeDismissed }) };
   });

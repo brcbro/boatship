@@ -44,13 +44,8 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--surface-raised)]/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
           <div className="flex items-center gap-6">
-            <Link href="/portal" className="flex items-center gap-2.5">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--brand)] text-sm font-semibold text-white">
-                B
-              </span>
-              <span className="font-[family-name:var(--font-display)] text-lg tracking-tight text-[var(--brand)]">
-                Boatship Workspace
-              </span>
+            <Link href="/portal" className="flex items-center gap-2.5 rounded-lg bg-[var(--brand)] px-2.5 py-1.5">
+              <img src="/brand/boatship-logo-white.png" alt="Boatship Workspace" className="h-6 w-auto max-w-[10rem] object-contain" />
             </Link>
 
             <nav className="hidden items-center gap-1 md:flex">

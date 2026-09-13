@@ -8,6 +8,9 @@ export async function GET(req: Request) {
   return handleApi(async () => {
     const session = await requireSession(req);
     const value = new URL(req.url).searchParams.get("status") || "pending";
+    if (![
+      "pending", "approved", "rejected", "executing", "consumed", "expired",
+    ].includes(value)) throw jsonError("Invalid action proposal status", 400);
     return { proposals: await listHodiActionProposals(session, value) };
   });
 }

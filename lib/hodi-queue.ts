@@ -6,6 +6,8 @@ import { buildHodiClientInsights } from "@/lib/hodi-insights";
 import type { AuthSession } from "@/types";
 
 export type HodiQueueStatus = "open" | "in_progress" | "snoozed" | "dismissed" | "completed";
+export const HODI_PRIORITY_RANK = { urgent: 4, high: 3, medium: 2, low: 1 } as const;
+export type HodiPriority = keyof typeof HODI_PRIORITY_RANK;
 export type HodiQueueItemInput = {
   dedupeKey: string; clientId?: string | null; taskId?: string | null; kind: string; source: string;
   title: string; summary: string; ownerId?: string | null; priority?: string; dueAt?: string | null;
@@ -14,12 +16,31 @@ export type HodiQueueItemInput = {
 
 function json(value: unknown) { return value as Prisma.InputJsonValue; }
 function canSee(session: AuthSession, clientId: string | null) { return session.role !== "client" || Boolean(session.clientId && clientId && session.clientId === clientId); }
+function normalisePriority(value: string | undefined): HodiPriority {
+  return value && value in HODI_PRIORITY_RANK ? value as HodiPriority : "medium";
+}
+
+function queueOrder<T extends { priority: string; dueAt: Date | null; updatedAt: Date }>(items: T[]) {
+  return items.sort((left, right) => {
+    const priority = HODI_PRIORITY_RANK[normalisePriority(right.priority)] - HODI_PRIORITY_RANK[normalisePriority(left.priority)];
+    if (priority) return priority;
+    const due = (left.dueAt?.getTime() ?? Number.MAX_SAFE_INTEGER) - (right.dueAt?.getTime() ?? Number.MAX_SAFE_INTEGER);
+    if (due) return due;
+    return right.updatedAt.getTime() - left.updatedAt.getTime();
+  });
+}
+
+function assertQueueDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) throw new Error("snoozedUntil must be a valid date");
+  return date;
+}
 
 export async function upsertHodiQueueItem(input: HodiQueueItemInput) {
   const db = getPrisma();
   const data = {
     clientId: input.clientId ?? null, taskId: input.taskId ?? null, kind: input.kind, source: input.source,
-    title: input.title, summary: input.summary, ownerId: input.ownerId ?? null, priority: input.priority || "medium",
+    title: input.title, summary: input.summary, ownerId: input.ownerId ?? null, priority: normalisePriority(input.priority),
     dueAt: input.dueAt ? new Date(input.dueAt) : null, metadata: input.metadata === undefined ? undefined : json(input.metadata),
     evidence: input.evidence === undefined ? undefined : json(input.evidence),
   };
@@ -30,12 +51,15 @@ export async function listHodiQueue(session: AuthSession, filters: { status?: st
   if (session.role === "client" && !session.clientId) return [];
   const clientId = filters.clientId || (session.role === "client" ? session.clientId || undefined : undefined);
   if (clientId && !canSee(session, clientId)) throw new Error("Forbidden");
-  return getPrisma().hodiQueueItem.findMany({ where: {
+  const items = await getPrisma().hodiQueueItem.findMany({ where: {
     ...(clientId ? { clientId } : {}), ...(filters.ownerId ? { ownerId: filters.ownerId } : {}),
     ...(filters.status ? { status: filters.status } : {}),
     ...(filters.includeDismissed ? {} : { dismissedAt: null }),
     AND: [{ OR: [{ snoozedUntil: null }, { snoozedUntil: { lte: new Date() } }] }],
-  }, orderBy: [{ priority: "desc" }, { dueAt: "asc" }, { updatedAt: "desc" }] });
+  }, orderBy: [{ dueAt: "asc" }, { updatedAt: "desc" }] });
+  // Prisma sorts this legacy string column lexically. Rank it explicitly so urgent
+  // work consistently appears before high, medium, and low priority work.
+  return queueOrder(items);
 }
 
 export async function getHodiQueueItem(id: string, session: AuthSession) {
@@ -51,13 +75,22 @@ export async function updateHodiQueueItem(id: string, session: AuthSession, inpu
     const owner = await (await getStore()).getUser(input.ownerId);
     if (!owner || (owner.role !== "admin" && owner.role !== "team")) throw new Error("Queue owner must be an active staff member");
   }
+  if (input.snoozedUntil && input.status && input.status !== "snoozed") throw new Error("A snoozed item must have snoozed status");
+  if (input.snoozedUntil && assertQueueDate(input.snoozedUntil).getTime() <= Date.now()) throw new Error("snoozedUntil must be in the future");
   const status = input.dismissed ? "dismissed" : input.status;
+  if (status === "snoozed" && !input.snoozedUntil && (!current.snoozedUntil || current.snoozedUntil.getTime() <= Date.now())) {
+    throw new Error("A snoozed item needs a future snoozedUntil time");
+  }
+  const reopening = status === "open" || status === "in_progress";
+  const closingOrCompleting = status === "completed" || status === "dismissed";
   const updated = await getPrisma().hodiQueueItem.update({ where: { id: current.id }, data: {
     ...(status ? { status } : {}), ...(input.ownerId !== undefined ? { ownerId: input.ownerId } : {}),
-    ...(input.snoozedUntil !== undefined ? { snoozedUntil: input.snoozedUntil ? new Date(input.snoozedUntil) : null, status: input.snoozedUntil ? "snoozed" : (status || "open") } : {}),
+    ...(input.snoozedUntil !== undefined ? { snoozedUntil: input.snoozedUntil ? assertQueueDate(input.snoozedUntil) : null, status: input.snoozedUntil ? "snoozed" : (status || "open") } : {}),
     ...(input.dismissed ? { dismissedAt: new Date() } : {}),
+    ...(reopening ? { dismissedAt: null } : {}),
+    ...(reopening || closingOrCompleting ? { snoozedUntil: null } : {}),
   } });
-  if (current.clientId) await (await getStore()).addActivity({ clientId: current.clientId, actorId: session.uid, actorName: session.name, action: `hodi.queue.${input.dismissed ? "dismissed" : "updated"}`, meta: { queueItemId: id, status: updated.status } });
+  if (current.clientId) await (await getStore()).addActivity({ clientId: current.clientId, actorId: session.uid, actorName: session.name, action: `hodi.queue.${input.dismissed ? "dismissed" : "updated"}`, meta: { queueItemId: id, previousStatus: current.status, status: updated.status, previousOwnerId: current.ownerId, ownerId: updated.ownerId, snoozedUntil: updated.snoozedUntil?.toISOString() ?? null } });
   return updated;
 }
 
@@ -80,12 +113,16 @@ export async function generateHodiQueue(session: AuthSession, clientId?: string)
       }));
     }
   }
-  const pending = await getPrisma().hodiActionProposal.findMany({ where: { status: "pending", expiresAt: { gt: new Date() } } });
+  const now = new Date();
+  await getPrisma().hodiActionProposal.updateMany({ where: { status: { in: ["pending", "approved", "executing"] }, expiresAt: { lte: now } }, data: { status: "expired" } });
+  const pending = await getPrisma().hodiActionProposal.findMany({ where: { status: { in: ["pending", "approved"] }, expiresAt: { gt: now } } });
   for (const proposal of pending) generated.push(await upsertHodiQueueItem({ dedupeKey: `proposal:${proposal.id}`, kind: "approval", source: "hodi-action", title: `Approve ${proposal.action}`, summary: `Hodi action ${proposal.action} is waiting for approval.`, ownerId: proposal.userId, priority: "high", metadata: { proposalId: proposal.id } }));
   return generated;
 }
 
 export async function listHodiActionProposals(session: AuthSession, status = "pending") {
+  const now = new Date();
+  await getPrisma().hodiActionProposal.updateMany({ where: { status: { in: ["pending", "approved", "executing"] }, expiresAt: { lte: now } }, data: { status: "expired" } });
   const where = session.role === "admin" || session.role === "team" ? { status } : { userId: session.uid, status };
   return getPrisma().hodiActionProposal.findMany({ where, orderBy: { createdAt: "desc" } });
 }
@@ -98,9 +135,19 @@ export async function consumeHodiActionProposal(input: { approvalToken: string; 
   const db = getPrisma();
   const proposal = await db.hodiActionProposal.findUnique({ where: { approvalToken: input.approvalToken } });
   if (!proposal || !["pending", "approved"].includes(proposal.status) || proposal.expiresAt.getTime() <= Date.now() || proposal.userId !== input.userId || proposal.action !== input.action || proposal.payloadHash !== input.payloadHash) throw new Error("Approval token is missing, expired, or does not match this action");
-  const updated = await db.hodiActionProposal.updateMany({ where: { id: proposal.id, status: { in: ["pending", "approved"] } }, data: { status: "consumed", consumedAt: new Date() } });
-  if (updated.count !== 1) throw new Error("Approval token has already been used");
-  return proposal;
+  const previousStatus: "pending" | "approved" = proposal.status === "approved" ? "approved" : "pending";
+  const updated = await db.hodiActionProposal.updateMany({ where: { id: proposal.id, status: previousStatus }, data: { status: "executing" } });
+  if (updated.count !== 1) throw new Error("This action is already being executed or has been used");
+  return { proposal, previousStatus };
+}
+
+export async function finishHodiActionProposal(id: string) {
+  const updated = await getPrisma().hodiActionProposal.updateMany({ where: { id, status: "executing" }, data: { status: "consumed", consumedAt: new Date() } });
+  if (updated.count !== 1) throw new Error("Action proposal could not be finalized");
+}
+
+export async function releaseHodiActionProposal(id: string, status: "pending" | "approved") {
+  await getPrisma().hodiActionProposal.updateMany({ where: { id, status: "executing" }, data: { status } });
 }
 
 export async function reviewHodiActionProposal(id: string, reviewer: AuthSession, status: "approved" | "rejected", reason?: string) {

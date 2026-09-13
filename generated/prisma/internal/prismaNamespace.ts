@@ -403,7 +403,10 @@ export const ModelName = {
   GitEvidence: 'GitEvidence',
   TaskManagerApproval: 'TaskManagerApproval',
   HodiQueueItem: 'HodiQueueItem',
-  HodiActionProposal: 'HodiActionProposal'
+  HodiActionProposal: 'HodiActionProposal',
+  HodiCommunicationProposal: 'HodiCommunicationProposal',
+  HodiAutomationRuleState: 'HodiAutomationRuleState',
+  HodiAutomationRun: 'HodiAutomationRun'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -419,7 +422,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "storeSnapshot" | "authSession" | "composioConnection" | "userProviderSecret" | "mcpIdentity" | "mcpProjectAccess" | "mcpAuditEvent" | "gitRepositoryConnection" | "gitTaskLink" | "definitionOfDonePolicy" | "gitValidationRun" | "gitEvidence" | "taskManagerApproval" | "hodiQueueItem" | "hodiActionProposal"
+    modelProps: "storeSnapshot" | "authSession" | "composioConnection" | "userProviderSecret" | "mcpIdentity" | "mcpProjectAccess" | "mcpAuditEvent" | "gitRepositoryConnection" | "gitTaskLink" | "definitionOfDonePolicy" | "gitValidationRun" | "gitEvidence" | "taskManagerApproval" | "hodiQueueItem" | "hodiActionProposal" | "hodiCommunicationProposal" | "hodiAutomationRuleState" | "hodiAutomationRun"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1533,6 +1536,228 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    HodiCommunicationProposal: {
+      payload: Prisma.$HodiCommunicationProposalPayload<ExtArgs>
+      fields: Prisma.HodiCommunicationProposalFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.HodiCommunicationProposalFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HodiCommunicationProposalPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.HodiCommunicationProposalFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HodiCommunicationProposalPayload>
+        }
+        findFirst: {
+          args: Prisma.HodiCommunicationProposalFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HodiCommunicationProposalPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.HodiCommunicationProposalFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HodiCommunicationProposalPayload>
+        }
+        findMany: {
+          args: Prisma.HodiCommunicationProposalFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HodiCommunicationProposalPayload>[]
+        }
+        create: {
+          args: Prisma.HodiCommunicationProposalCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HodiCommunicationProposalPayload>
+        }
+        createMany: {
+          args: Prisma.HodiCommunicationProposalCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.HodiCommunicationProposalCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HodiCommunicationProposalPayload>[]
+        }
+        delete: {
+          args: Prisma.HodiCommunicationProposalDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HodiCommunicationProposalPayload>
+        }
+        update: {
+          args: Prisma.HodiCommunicationProposalUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HodiCommunicationProposalPayload>
+        }
+        deleteMany: {
+          args: Prisma.HodiCommunicationProposalDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.HodiCommunicationProposalUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.HodiCommunicationProposalUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HodiCommunicationProposalPayload>[]
+        }
+        upsert: {
+          args: Prisma.HodiCommunicationProposalUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HodiCommunicationProposalPayload>
+        }
+        aggregate: {
+          args: Prisma.HodiCommunicationProposalAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateHodiCommunicationProposal>
+        }
+        groupBy: {
+          args: Prisma.HodiCommunicationProposalGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.HodiCommunicationProposalGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.HodiCommunicationProposalCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.HodiCommunicationProposalCountAggregateOutputType> | number
+        }
+      }
+    }
+    HodiAutomationRuleState: {
+      payload: Prisma.$HodiAutomationRuleStatePayload<ExtArgs>
+      fields: Prisma.HodiAutomationRuleStateFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.HodiAutomationRuleStateFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HodiAutomationRuleStatePayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.HodiAutomationRuleStateFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HodiAutomationRuleStatePayload>
+        }
+        findFirst: {
+          args: Prisma.HodiAutomationRuleStateFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HodiAutomationRuleStatePayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.HodiAutomationRuleStateFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HodiAutomationRuleStatePayload>
+        }
+        findMany: {
+          args: Prisma.HodiAutomationRuleStateFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HodiAutomationRuleStatePayload>[]
+        }
+        create: {
+          args: Prisma.HodiAutomationRuleStateCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HodiAutomationRuleStatePayload>
+        }
+        createMany: {
+          args: Prisma.HodiAutomationRuleStateCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.HodiAutomationRuleStateCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HodiAutomationRuleStatePayload>[]
+        }
+        delete: {
+          args: Prisma.HodiAutomationRuleStateDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HodiAutomationRuleStatePayload>
+        }
+        update: {
+          args: Prisma.HodiAutomationRuleStateUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HodiAutomationRuleStatePayload>
+        }
+        deleteMany: {
+          args: Prisma.HodiAutomationRuleStateDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.HodiAutomationRuleStateUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.HodiAutomationRuleStateUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HodiAutomationRuleStatePayload>[]
+        }
+        upsert: {
+          args: Prisma.HodiAutomationRuleStateUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HodiAutomationRuleStatePayload>
+        }
+        aggregate: {
+          args: Prisma.HodiAutomationRuleStateAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateHodiAutomationRuleState>
+        }
+        groupBy: {
+          args: Prisma.HodiAutomationRuleStateGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.HodiAutomationRuleStateGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.HodiAutomationRuleStateCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.HodiAutomationRuleStateCountAggregateOutputType> | number
+        }
+      }
+    }
+    HodiAutomationRun: {
+      payload: Prisma.$HodiAutomationRunPayload<ExtArgs>
+      fields: Prisma.HodiAutomationRunFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.HodiAutomationRunFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HodiAutomationRunPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.HodiAutomationRunFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HodiAutomationRunPayload>
+        }
+        findFirst: {
+          args: Prisma.HodiAutomationRunFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HodiAutomationRunPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.HodiAutomationRunFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HodiAutomationRunPayload>
+        }
+        findMany: {
+          args: Prisma.HodiAutomationRunFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HodiAutomationRunPayload>[]
+        }
+        create: {
+          args: Prisma.HodiAutomationRunCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HodiAutomationRunPayload>
+        }
+        createMany: {
+          args: Prisma.HodiAutomationRunCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.HodiAutomationRunCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HodiAutomationRunPayload>[]
+        }
+        delete: {
+          args: Prisma.HodiAutomationRunDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HodiAutomationRunPayload>
+        }
+        update: {
+          args: Prisma.HodiAutomationRunUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HodiAutomationRunPayload>
+        }
+        deleteMany: {
+          args: Prisma.HodiAutomationRunDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.HodiAutomationRunUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.HodiAutomationRunUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HodiAutomationRunPayload>[]
+        }
+        upsert: {
+          args: Prisma.HodiAutomationRunUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HodiAutomationRunPayload>
+        }
+        aggregate: {
+          args: Prisma.HodiAutomationRunAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateHodiAutomationRun>
+        }
+        groupBy: {
+          args: Prisma.HodiAutomationRunGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.HodiAutomationRunGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.HodiAutomationRunCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.HodiAutomationRunCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -1805,6 +2030,60 @@ export const HodiActionProposalScalarFieldEnum = {
 export type HodiActionProposalScalarFieldEnum = (typeof HodiActionProposalScalarFieldEnum)[keyof typeof HodiActionProposalScalarFieldEnum]
 
 
+export const HodiCommunicationProposalScalarFieldEnum = {
+  id: 'id',
+  approvalToken: 'approvalToken',
+  type: 'type',
+  channel: 'channel',
+  recipient: 'recipient',
+  subject: 'subject',
+  body: 'body',
+  payload: 'payload',
+  payloadHash: 'payloadHash',
+  plan: 'plan',
+  userId: 'userId',
+  status: 'status',
+  expiresAt: 'expiresAt',
+  approvedBy: 'approvedBy',
+  approvedAt: 'approvedAt',
+  handoffReadyAt: 'handoffReadyAt',
+  rejectedReason: 'rejectedReason',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type HodiCommunicationProposalScalarFieldEnum = (typeof HodiCommunicationProposalScalarFieldEnum)[keyof typeof HodiCommunicationProposalScalarFieldEnum]
+
+
+export const HodiAutomationRuleStateScalarFieldEnum = {
+  id: 'id',
+  ruleId: 'ruleId',
+  enabled: 'enabled',
+  config: 'config',
+  updatedBy: 'updatedBy',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type HodiAutomationRuleStateScalarFieldEnum = (typeof HodiAutomationRuleStateScalarFieldEnum)[keyof typeof HodiAutomationRuleStateScalarFieldEnum]
+
+
+export const HodiAutomationRunScalarFieldEnum = {
+  id: 'id',
+  ruleId: 'ruleId',
+  clientName: 'clientName',
+  triggeredBy: 'triggeredBy',
+  trigger: 'trigger',
+  status: 'status',
+  review: 'review',
+  externalAction: 'externalAction',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type HodiAutomationRunScalarFieldEnum = (typeof HodiAutomationRunScalarFieldEnum)[keyof typeof HodiAutomationRunScalarFieldEnum]
+
+
 export const SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -2037,6 +2316,9 @@ export type GlobalOmitConfig = {
   taskManagerApproval?: Prisma.TaskManagerApprovalOmit
   hodiQueueItem?: Prisma.HodiQueueItemOmit
   hodiActionProposal?: Prisma.HodiActionProposalOmit
+  hodiCommunicationProposal?: Prisma.HodiCommunicationProposalOmit
+  hodiAutomationRuleState?: Prisma.HodiAutomationRuleStateOmit
+  hodiAutomationRun?: Prisma.HodiAutomationRunOmit
 }
 
 /* Types for Logging */

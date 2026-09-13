@@ -91,3 +91,18 @@ export type HodiQueueItem = Prisma.HodiQueueItemModel
  * 
  */
 export type HodiActionProposal = Prisma.HodiActionProposalModel
+/**
+ * Model HodiCommunicationProposal
+ * 
+ */
+export type HodiCommunicationProposal = Prisma.HodiCommunicationProposalModel
+/**
+ * Model HodiAutomationRuleState
+ * 
+ */
+export type HodiAutomationRuleState = Prisma.HodiAutomationRuleStateModel
+/**
+ * Model HodiAutomationRun
+ * 
+ */
+export type HodiAutomationRun = Prisma.HodiAutomationRunModel

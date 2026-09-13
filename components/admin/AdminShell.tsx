@@ -56,6 +56,7 @@ function isActive(pathname: string, href: string) {
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const isAgentWorkspace = pathname === "/agent";
   const { session, logout, loading } = useAuth();
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -149,7 +150,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen lg:flex lg:h-screen lg:overflow-hidden">
+    <div className={cn(
+      isAgentWorkspace
+        ? "flex h-dvh min-h-0 flex-col overflow-hidden lg:flex-row"
+        : "min-h-screen lg:flex lg:h-screen lg:overflow-hidden"
+    )}>
       <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-white focus:px-4 focus:py-3 focus:text-sm focus:font-semibold focus:text-[var(--brand)]">
         Skip to content
       </a>
@@ -158,10 +163,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         <div className={cn("mb-8 flex items-center", collapsed ? "justify-center" : "justify-between px-2")}>
           {collapsed ? null : (
             <Link href="/dashboard" className="flex items-center gap-2.5">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--accent)] text-sm font-semibold shadow-[0_8px_24px_rgba(32,125,120,0.28)]">
-                B
-              </span>
-              <span className="font-[family-name:var(--font-display)] text-xl tracking-tight">Boatship</span>
+              <img src="/brand/boatship-logo-white.png" alt="Boatship" className="h-8 w-auto max-w-[9.5rem] object-contain" />
             </Link>
           )}
           <button
@@ -181,12 +183,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       {/* Mobile top bar */}
       <div className="sticky top-0 z-40 flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3 lg:hidden">
         <Link href="/dashboard" className="flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--brand)] text-sm font-semibold text-white">
-            B
-          </span>
-          <span className="font-[family-name:var(--font-display)] text-lg text-[var(--brand)]">
-            Boatship
-          </span>
+          <img src="/brand/boatship-logo-black.png" alt="Boatship" className="h-8 w-auto max-w-[10rem] object-contain" />
         </Link>
         <div className="flex items-center gap-1">
           <NotificationBell tone="light" />
@@ -217,7 +214,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             className="absolute inset-y-0 left-0 flex w-[min(18rem,calc(100vw-2rem))] flex-col overflow-y-auto bg-[var(--brand)] px-4 py-6 text-white shadow-xl"
           >
             <div className="mb-8 flex items-center justify-between px-2">
-              <span className="font-[family-name:var(--font-display)] text-xl">Boatship</span>
+              <img src="/brand/boatship-logo-white.png" alt="Boatship" className="h-7 w-auto max-w-[9rem] object-contain" />
               <button
                 type="button"
                 aria-label="Close"
@@ -233,7 +230,15 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </div>
       ) : null}
 
-      <main id="main-content" className="page-enter min-w-0 flex-1 px-4 py-6 sm:px-6 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:px-10 lg:py-9">
+      <main
+        id="main-content"
+        className={cn(
+          "page-enter min-w-0 flex-1",
+          isAgentWorkspace
+            ? "min-h-0 overflow-hidden"
+            : "px-4 py-6 sm:px-6 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:px-10 lg:py-9"
+        )}
+      >
         {children}
       </main>
       <CommandPalette variant="admin" />
