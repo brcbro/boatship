@@ -1341,16 +1341,31 @@ class LocalStore implements DataStore {
 
 class PrismaStore extends LocalStore {
   protected override async read(): Promise<StoreData> {
+    // A StoreSnapshot contains the complete application store. Re-reading and
+    // decoding it for every collection lookup can exceed Cloudflare's CPU
+    // limit on pages such as global search and notifications. Reuse the
+    // in-memory snapshot for this Worker isolate; persist() refreshes it after
+    // every mutation.
+    if (this.cache) return this.cache;
+
     const prisma = getPrisma();
     const snapshot = await prisma.storeSnapshot.findUnique({ where: { id: "main" } });
     if (!snapshot) {
       const data = emptyStore();
       await ensureSeed(data);
-      await this.persist(data);
+      this.cache = data;
+      await getPrisma().storeSnapshot.upsert({
+        where: { id: "main" },
+        create: { id: "main", data: data as unknown as Prisma.InputJsonValue },
+        update: { data: data as unknown as Prisma.InputJsonValue },
+      });
       return data;
     }
 
-    return { ...emptyStore(), ...(snapshot.data as Partial<StoreData>) };
+    const data = { ...emptyStore(), ...(snapshot.data as Partial<StoreData>) };
+    await ensureSeed(data);
+    this.cache = data;
+    return data;
   }
 
   protected override async persist(data: StoreData) {
