@@ -5,6 +5,11 @@ import { getPrisma } from "@/lib/prisma";
 export const USER_SECRET_PROVIDERS = ["composio", "openrouter"] as const;
 export type UserSecretProvider = (typeof USER_SECRET_PROVIDERS)[number];
 
+// Provider credentials are workspace configuration. Keep them in the same
+// encrypted table, but use a stable scope so logging out, changing browsers,
+// or signing in as another team member cannot make the workspace look empty.
+export const WORKSPACE_SECRET_USER_ID = "__boatship_workspace__";
+
 type SecretMetadata = {
   provider: UserSecretProvider;
   configured: boolean;
@@ -51,22 +56,38 @@ export function userSecretMetadata(record: {
 
 export async function listUserSecretMetadata(userId: string): Promise<SecretMetadata[]> {
   const records = await getPrisma().userProviderSecret.findMany({
-    where: { userId },
+    where: { userId: { in: [WORKSPACE_SECRET_USER_ID, userId] } },
     orderBy: { provider: "asc" },
   });
-  const byProvider = new Map(records.map((record) => [record.provider, userSecretMetadata(record)]));
-  return USER_SECRET_PROVIDERS.map((provider) => byProvider.get(provider) || {
-    provider,
-    configured: false,
-    last4: null,
-    createdAt: null,
-    updatedAt: null,
+  const byProvider = new Map<string, (typeof records)[number]>();
+  // Workspace values win, while legacy per-user values remain readable until
+  // the workspace credential is saved once.
+  for (const record of records) {
+    if (!byProvider.has(record.provider) || record.userId === WORKSPACE_SECRET_USER_ID) {
+      byProvider.set(record.provider, record);
+    }
+  }
+  return USER_SECRET_PROVIDERS.map((provider) => {
+    const record = byProvider.get(provider);
+    return record
+      ? userSecretMetadata(record)
+      : {
+          provider,
+          configured: false,
+          last4: null,
+          createdAt: null,
+          updatedAt: null,
+        };
   });
 }
 
 export async function getUserSecret(userId: string, providerInput: string): Promise<string | null> {
   const provider = providerOrThrow(providerInput);
-  const record = await getPrisma().userProviderSecret.findUnique({
+  const prisma = getPrisma();
+  const workspaceRecord = await prisma.userProviderSecret.findUnique({
+    where: { userId_provider: { userId: WORKSPACE_SECRET_USER_ID, provider } },
+  });
+  const record = workspaceRecord || await prisma.userProviderSecret.findUnique({
     where: { userId_provider: { userId, provider } },
   });
   if (!record) return null;

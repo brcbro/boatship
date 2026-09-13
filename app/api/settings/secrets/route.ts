@@ -4,12 +4,15 @@ import {
   listUserSecretMetadata,
   upsertUserSecret,
   USER_SECRET_PROVIDERS,
+  WORKSPACE_SECRET_USER_ID,
 } from "@/lib/user-secrets";
 
 export const runtime = "nodejs";
 
 function targetUserId(session: { uid: string; role: string }, requested?: string) {
-  const target = requested?.trim() || session.uid;
+  // Credentials are entered once for the workspace and are intentionally
+  // independent of the current login session.
+  const target = requested?.trim() || WORKSPACE_SECRET_USER_ID;
   if (target !== session.uid && session.role !== "admin") throw jsonError("Forbidden", 403);
   return target;
 }
