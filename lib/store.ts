@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { Prisma } from "@prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import { promises as fs } from "fs";
 import path from "path";
 import type {

@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { Prisma } from "@prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import { getPrisma } from "@/lib/prisma";
 import { getStore } from "@/lib/store";
 import { buildHodiClientInsights } from "@/lib/hodi-insights";

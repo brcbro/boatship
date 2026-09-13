@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "crypto";
-import type { Prisma } from "@prisma/client";
+import type { Prisma } from "@/generated/prisma/client";
 import type { AuthSession } from "@/types";
 import { getSessionFromRequest } from "@/lib/auth";
 import { getPrisma } from "@/lib/prisma";

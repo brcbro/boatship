@@ -1,6 +1,6 @@
 import { randomUUID, randomBytes, scryptSync } from "node:crypto";
 import { config } from "dotenv";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from "../generated/prisma/client/index.js";
 import { PrismaNeon } from "@prisma/adapter-neon";
 
 config({ path: ".env.local" });
