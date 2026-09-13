@@ -1,0 +1,16 @@
+{
+  "order": 4,
+  "slug": "the-laptop-gallery",
+  "name": "The Laptop Gallery",
+  "url": "https://thelaptopgallery.in",
+  "image": "thelaptopgallery.in.webp",
+  "tag": "Hardware diagnostics & repair",
+  "industry": "Electronics repair & service",
+  "location": "Surat, Gujarat",
+  "services": [
+    "website-development-surat"
+  ],
+  "summary": "The Laptop Gallery is a Surat laptop repair and service centre offering hardware diagnostics and repairs. Its website helps local customers find the service they need and get in touch.",
+  "results": [],
+  "closing": "A broken laptop is <em>stressful</em>. Finding the repair shop <em>shouldn't</em> be."
+}

@@ -1,0 +1,30 @@
+{
+  "name": "cohortix-website",
+  "version": "1.0.0",
+  "description": "CohortIX — Custom Software, SaaS, Web & Mobile App Development Agency Website",
+  "scripts": {
+    "build": "node scripts/build-service-pages.mjs",
+    "deploy": "wrangler deploy",
+    "dev": "npx -y serve -l 3000 .",
+    "start": "npx -y serve -l 3000 .",
+    "py": "python -m http.server 3000"
+  },
+  "keywords": [
+    "cohortix",
+    "software-development",
+    "saas",
+    "ui-ux",
+    "web-development"
+  ],
+  "author": "CohortIX (Param Kalathiya)",
+  "license": "ISC",
+  "devDependencies": {
+    "wrangler": "^4.129.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "workerd"
+    ]
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "order": 1,
+  "slug": "locale-surat",
+  "name": "Locale Surat",
+  "url": "https://www.thelocale.in/",
+  "image": "Locale Surat.webp",
+  "tag": "Hyper-local app, POS & web",
+  "industry": "Local discovery & bookings",
+  "location": "Surat, Gujarat",
+  "services": [
+    "app-development-surat",
+    "software-development-surat",
+    "website-development-surat"
+  ],
+  "summary": "Locale is a Surat-based hyper-local platform that lets people discover and book turfs and cafes across the city. The product spans a customer-facing app, a point-of-sale system for partner venues, and a public website.",
+  "results": [],
+  "closing": "Turfs, cafes and a whole <em>city</em>, booked from one <em>app</em>."
+}

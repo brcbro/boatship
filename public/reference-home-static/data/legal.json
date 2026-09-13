@@ -1,0 +1,53 @@
+{
+  "facts": {
+    "BUSINESS": "CohortIX",
+    "PROPRIETOR": "Param Kalathiya",
+    "GRIEVANCE_NAME": "Param Kalathiya",
+    "EFFECTIVE": "13 September 2026",
+    "JURISDICTION": "Surat, Gujarat"
+  },
+  "pages": [
+    {
+      "slug": "privacy-policy",
+      "h1": "Privacy Policy",
+      "title": "Privacy Policy | CohortIX, Surat",
+      "description": "How CohortIX collects, uses, shares and protects your personal data, your rights under India's DPDP Act 2023, and how to contact our Grievance Officer.",
+      "closing": "Your details do one job: getting you a <em>reply</em>. Nothing <em>else</em>."
+    },
+    {
+      "slug": "terms-and-conditions",
+      "h1": "Terms & Conditions",
+      "title": "Terms & Conditions | CohortIX, Surat",
+      "description": "The terms for using the CohortIX website and working with us: proposals, payments, intellectual property, confidentiality, liability and jurisdiction.",
+      "closing": "Fine print, written <em>plainly</em>. Questions are always <em>welcome</em>."
+    },
+    {
+      "slug": "refund-policy",
+      "h1": "Refund & Cancellation Policy",
+      "title": "Refund & Cancellation Policy | CohortIX",
+      "description": "How advances, milestone payments, cancellations and refunds work for CohortIX software, website, app, design, marketing and automation projects.",
+      "closing": "Clear money rules make for <em>calmer</em> projects. And better <em>partnerships</em>."
+    },
+    {
+      "slug": "delivery-policy",
+      "h1": "Service Delivery Policy",
+      "title": "Service Delivery Policy | CohortIX",
+      "description": "CohortIX delivers all services digitally. How and when we hand over code, designs, deployments and reports, and what happens when timelines move.",
+      "closing": "No boxes, no couriers. Everything we build arrives <em>online</em>."
+    },
+    {
+      "slug": "cookie-policy",
+      "h1": "Cookie Policy",
+      "title": "Cookie Policy | CohortIX",
+      "description": "CohortIX uses no advertising or analytics cookies. This page lists the essential browser storage and security cookies the site relies on.",
+      "closing": "No <em>trackers</em> here. Just a website minding its <em>own business</em>."
+    },
+    {
+      "slug": "disclaimer",
+      "h1": "Disclaimer",
+      "title": "Disclaimer | CohortIX",
+      "description": "Important notes about the information, portfolio work, third-party trademarks, external links and indicative pricing on the CohortIX website.",
+      "closing": "The work is <em>real</em>. The logos still belong to their <em>owners</em>."
+    }
+  ]
+}

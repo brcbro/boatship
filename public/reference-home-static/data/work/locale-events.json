@@ -1,0 +1,17 @@
+{
+  "order": 5,
+  "slug": "locale-events",
+  "name": "Locale Hub Events",
+  "url": "https://events.thelocale.in",
+  "image": "events.thelocale.in.webp",
+  "tag": "Event ticketing & experiences",
+  "industry": "Events & ticketing",
+  "location": "Surat, Gujarat",
+  "services": [
+    "software-development-surat",
+    "website-development-surat"
+  ],
+  "summary": "Locale Hub is an events platform for discovering live music, cultural fests, workshops, comedy shows and exhibitions in the city — with online ticket booking built in.",
+  "results": [],
+  "closing": "The city is <em>louder</em> than your feed. Now the tickets are one <em>tap</em> away."
+}

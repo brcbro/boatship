@@ -26,10 +26,10 @@ export async function proxy(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   const session = token ? decodeLocalSession(token) : null;
 
+  // The public marketing homepage is intentionally available to both signed-in
+  // and prospective users. Product-area routing remains role-aware below.
   if (pathname === "/") {
-    const url = request.nextUrl.clone();
-    url.pathname = session ? homePathForRole(session.role) : "/login";
-    return NextResponse.redirect(url);
+    return NextResponse.next();
   }
 
   if (!session && !isPublic && !pathname.startsWith("/api/")) {

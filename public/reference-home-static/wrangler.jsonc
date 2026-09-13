@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "new-cohort",
+  "compatibility_date": "2024-09-23",
+  "main": "worker/index.js",
+  "assets": {
+    "directory": ".",
+    "binding": "ASSETS"
+  },
+  "vars": {
+    // ZeptoMail region endpoint: api.zeptomail.in for zoho.in accounts, api.zeptomail.com for zoho.com
+    "ZEPTOMAIL_API": "https://api.zeptomail.in/v1.1/email",
+    // must be an address on a domain verified in ZeptoMail
+    "MAIL_FROM": "noreply@cohortix.in",
+    "OWNER_EMAIL": "paramrkalathiya@gmail.com"
+  }
+  // ZEPTOMAIL_TOKEN is a secret: `npx wrangler secret put ZEPTOMAIL_TOKEN` (locally: .dev.vars)
+}

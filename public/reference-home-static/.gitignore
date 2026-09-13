@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Local previews and scratch artifacts
+/*.png
+!images/**
+.playwright-mcp/
+.wrangler/
+
+# Logs and environment
+*.log
+.env
+.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
+.dev.vars

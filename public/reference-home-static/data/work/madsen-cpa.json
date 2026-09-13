@@ -1,0 +1,16 @@
+{
+  "order": 8,
+  "slug": "madsen-cpa",
+  "name": "Madsen CPA",
+  "url": "https://madsencpa.com",
+  "image": "madsencpa.com.webp",
+  "tag": "Tax strategy & CPA services",
+  "industry": "Accounting & tax advisory",
+  "location": "",
+  "services": [
+    "website-development-surat"
+  ],
+  "summary": "Madsen CPA is an accounting firm offering tax strategy and CPA services. The project is the firm's website, presenting its services to prospective clients.",
+  "results": [],
+  "closing": "Taxes are <em>complicated</em>. Choosing the right CPA <em>shouldn't</em> be."
+}

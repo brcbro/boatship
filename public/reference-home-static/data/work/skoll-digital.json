@@ -1,0 +1,17 @@
+{
+  "order": 12,
+  "slug": "skoll-digital",
+  "name": "Skoll Digital",
+  "url": "https://skoll-tau.vercel.app",
+  "image": "skoll-tau.vercel.app.webp",
+  "tag": "Growth agency & brand strategy",
+  "industry": "Marketing agency",
+  "location": "",
+  "services": [
+    "website-development-surat",
+    "ui-ux-design-surat"
+  ],
+  "summary": "Skoll Digital is a full-stack strategic growth agency integrating strategy, product, performance and brand into one system. The project is the agency's website.",
+  "results": [],
+  "closing": "A growth agency's site has one job: <em>prove</em> it can <em>grow</em>."
+}

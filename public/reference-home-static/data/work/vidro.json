@@ -1,0 +1,17 @@
+{
+  "order": 16,
+  "slug": "vidro",
+  "name": "Vidro",
+  "url": "https://vidro.space",
+  "image": "vidro.space.webp",
+  "tag": "AI video studio & automation",
+  "industry": "SaaS · AI video",
+  "location": "",
+  "services": [
+    "ai-automation-surat",
+    "software-development-surat"
+  ],
+  "summary": "Vidro is a Dialogue Shorts studio for creators: write a two-character script, generate the voices, burn captions over gameplay footage, and export a vertical 9:16 video for YouTube Shorts, TikTok and Reels.",
+  "results": [],
+  "closing": "Two characters, one script, zero <em>editing</em>. Shorts made <em>simple</em>."
+}

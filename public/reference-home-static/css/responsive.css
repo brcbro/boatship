@@ -1,0 +1,906 @@
+/* ==========================================================================
+   COHORTIX - CENTRALIZED RESPONSIVE DESIGN SYSTEM
+   Supports:
+     - Mobile Portrait (<= 479px)
+     - Mobile Landscape / Small Tablet (480px - 767px)
+     - Tablet Portrait / Landscape (768px - 991px)
+     - Desktop / Large Desktop (>= 992px)
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. GLOBAL OVERFLOW & BASE SAFEGUARDS
+   -------------------------------------------------------------------------- */
+html,
+body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip !important;
+  position: relative;
+  -webkit-text-size-adjust: 100%;
+}
+
+.main-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip !important;
+  position: relative;
+}
+
+/* Ensure all images and videos stay bounded within viewport */
+img,
+video,
+svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Hardcoded 2000px/2300px Webflow SVG line reset */
+.dash_line_wrap,
+.dashed_line_menu_top,
+.dashed_line_menu_bottom,
+.dashed_line,
+.dash_line {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+}
+
+.dash_line_wrap svg,
+.dashed_line_menu_top svg,
+.dashed_line_menu_bottom svg,
+.dashed_line svg,
+.dash_line svg {
+  width: 100% !important;
+  max-width: 100% !important;
+  display: block !important;
+}
+
+/* --------------------------------------------------------------------------
+   2. MOBILE NAVBAR & DRAWER (<= 991px)
+   Light, compact bar + drop-down sheet in the site's own language:
+   off-white ground, black Helvetica, serif-italic accent, Firacode mono labels.
+   Shared by the homepage and the generated subpages (templates/service-page.html).
+   -------------------------------------------------------------------------- */
+@media (max-width: 991px) {
+  /* ---- bar ---- */
+  .navbar,
+  .nav_wrap .navbar {
+    height: 56px !important;
+    min-height: 56px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 0 16px !important;
+    background: rgba(237, 244, 245, 0.92) !important;
+    backdrop-filter: blur(14px) !important;
+    -webkit-backdrop-filter: blur(14px) !important;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
+    z-index: 9999 !important;
+    box-sizing: border-box !important;
+  }
+
+  .container.nav {
+    display: flex !important;
+    flex-flow: row nowrap !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    position: relative !important;
+    box-sizing: border-box !important;
+  }
+
+  .logo_link.tablet {
+    display: flex !important;
+    align-items: center !important;
+    width: auto !important;
+    height: 100% !important;
+    margin: 0 !important;
+    z-index: 2 !important;
+  }
+
+  .logo_link.tablet .logo {
+    width: 112px !important;
+    height: auto !important;
+    display: flex !important;
+    align-items: center !important;
+    color: #000 !important;
+  }
+
+  .logo_link.tablet .logo svg {
+    width: 100% !important;
+    height: auto !important;
+    display: block !important;
+  }
+
+  .logo_link.tablet .logo svg path,
+  .navbar .logo svg path,
+  .nav_wrap .navbar .logo svg path,
+  .mobile_menu_logo svg path {
+    fill: #000 !important;
+  }
+
+  .navbar_underlogo .logo_text,
+  .nav_menu_inner > .logo_text {
+    display: none !important;
+  }
+
+  .nav_menu,
+  .nav_menu_inner {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    height: 100% !important;
+    width: auto !important;
+    position: static !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* ---- open / close buttons (homepage: Lottie icon, subpages: spans) ---- */
+  .menu_button.open,
+  .menu_button.close {
+    position: relative !important;
+    inset: auto !important;
+    transform: none !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 40px !important;
+    height: 40px !important;
+    margin: 0 -8px 0 0 !important; /* optical: icon lines up with the 16px gutter */
+    padding: 0 !important;
+    cursor: pointer !important;
+    z-index: 10 !important;
+  }
+
+  .menu_button .menu_hamburger {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 22px !important;
+    height: 22px !important;
+  }
+
+  .menu_button .menu_hamburger svg {
+    width: 22px !important;
+    height: 22px !important;
+    display: block !important;
+    filter: brightness(0) !important; /* Lottie ships white; force black */
+  }
+
+  #service-menu-open span span,
+  #service-menu-open > div > span,
+  #service-menu-close span span {
+    background: #000 !important;
+  }
+
+  #service-menu-open > div {
+    width: 20px !important;
+    gap: 6px !important;
+  }
+
+  #service-menu-open > div > span {
+    height: 1.5px !important;
+  }
+
+  /* ---- drawer: drops down from the top, only as tall as its content ---- */
+  .nav_menu_wrap {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    max-height: 100dvh !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    display: none !important;
+    flex-direction: column !important;
+    justify-content: flex-start !important;
+    padding: 0 16px 20px !important;
+    background: #edf4f5 !important;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
+    box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.35) !important; /* dims the page behind */
+    box-sizing: border-box !important;
+    z-index: 999999 !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .nav_menu_wrap.is-open {
+    display: flex !important;
+    animation: nav-drop 0.35s cubic-bezier(0.25, 1, 0.5, 1) both;
+  }
+
+  /* The bar's blur (backdrop-filter) and its hide-on-scroll slide (transform) make
+     it the containing block for the "fixed" drawer, so after scrolling the drawer
+     opened off-screen above the page. Drop both while it's open: the drawer then
+     pins to the top of the screen wherever the page is scrolled. */
+  .navbar:has(.nav_menu_wrap.is-open),
+  .nav_wrap:has(.nav_menu_wrap.is-open),
+  .nav_menu:has(.nav_menu_wrap.is-open),
+  .nav_menu_inner:has(.nav_menu_wrap.is-open) {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    transform: none !important;
+    filter: none !important;
+  }
+
+  .navlink_wrap,
+  .menu_bottom,
+  .menu_content {
+    position: static !important; /* Webflow absolutely positions these */
+    height: auto !important;
+    min-height: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    opacity: 1 !important;
+    transform: none !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  /* drawer header mirrors the bar so opening feels like the bar just grows */
+  .menu_logo_wrap {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    height: 56px !important;
+    padding: 0 !important;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
+  }
+
+  .logo_link.menu {
+    width: auto !important;
+    flex: none !important;
+  }
+
+  .menu_logo_wrap .mobile_menu_logo {
+    width: 112px !important;
+    height: auto !important;
+    color: #000 !important;
+  }
+
+  .navbar_underlogo {
+    display: flex !important;
+    align-items: center !important;
+    width: auto !important;
+  }
+
+  /* ---- links: numbered rows ---- */
+  .navlinks_flex {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0 !important;
+    margin: 4px 0 0 !important;
+    width: 100% !important;
+    opacity: 1 !important;
+    transform: none !important;
+    counter-reset: nav;
+  }
+
+  .navlinks_flex .nav_link {
+    counter-increment: nav;
+    display: flex !important;
+    align-items: baseline !important;
+    justify-content: space-between !important;
+    padding: 14px 0 !important;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
+    font-family: var(--_typography---font-primary, "Helvetica Neue", Helvetica, Arial, sans-serif) !important;
+    font-size: 26px !important;
+    font-weight: 500 !important;
+    line-height: 1 !important;
+    letter-spacing: -0.02em !important;
+    color: #000 !important;
+    text-decoration: none !important;
+    transform: none !important;
+  }
+
+  .navlinks_flex .nav_link.desktop {
+    display: none !important;
+  }
+
+  .navlinks_flex .nav_link::before {
+    display: none !important; /* desktop hover underline */
+  }
+
+  .navlinks_flex .nav_link::after {
+    content: counter(nav, decimal-leading-zero);
+    font-family: var(--_typography---font-tertiary, ui-monospace, monospace);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    color: rgba(0, 0, 0, 0.45);
+  }
+
+  /* last link is the CTA: serif italic, red marker */
+  .navlinks_flex .nav_link:last-child {
+    font-family: var(--_typography---italic, Georgia, serif) !important;
+    font-style: italic !important;
+    font-weight: 400 !important;
+    letter-spacing: 0 !important;
+  }
+
+  .navlinks_flex .nav_link:last-child::after {
+    content: "\2192";
+    font-size: 18px;
+    font-style: normal;
+    color: #ff0000;
+  }
+
+  .navlinks_flex .nav_link:active {
+    color: #ff0000 !important;
+  }
+
+  /* ---- footer of the drawer: email + socials as one quiet mono row ---- */
+  .dashed_line_menu_top,
+  .dashed_line_menu_bottom,
+  .nav_aditionals,
+  .menu_content .footer_link.mail {
+    display: none !important;
+  }
+
+  .nav_menu_wrap > .nav_link.mail {
+    position: static !important;
+    inset: auto !important;
+    display: inline-block !important;
+    align-self: flex-start !important;
+    margin: 18px 0 10px !important;
+    font-family: var(--_typography---italic, Georgia, serif) !important;
+    font-style: italic !important;
+    font-size: 18px !important;
+    color: #000 !important;
+    text-decoration: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .sm_wrap {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    gap: 6px 16px !important;
+  }
+
+  .sm_wrap .footer_link {
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: none !important;
+    font-family: var(--_typography---font-tertiary, ui-monospace, monospace) !important;
+    font-size: 11px !important;
+    font-weight: 500 !important;
+    letter-spacing: 0.04em !important;
+    text-transform: uppercase !important;
+    color: rgba(0, 0, 0, 0.55) !important;
+    text-decoration: none !important;
+  }
+
+  .sm_wrap .footer_link:active {
+    color: #000 !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   2b. HOMEPAGE BIG LOGO (MOBILE) — js/mobile-logo.js drives --logo-w / --logo-y
+   Starts full width under the bar, shrinks into the bar logo on scroll.
+   Classes only exist once the script runs, so no-JS keeps the plain bar logo.
+   -------------------------------------------------------------------------- */
+@media (max-width: 991px) {
+  .has-mobile-logo .nav_wrap > a.link {
+    display: block !important;
+    position: fixed !important;
+    inset: 0 auto auto 16px !important;
+    width: var(--logo-w) !important;
+    padding: 0 !important;
+    transform: translateY(var(--logo-y));
+    z-index: 10000 !important; /* above the bar (9999), below the open drawer */
+    overflow: visible !important;
+  }
+
+  .has-mobile-logo .nav_wrap > a.link .logo {
+    width: 100% !important;
+    margin: 0 !important;
+    color: #000 !important;
+    transform: none !important;
+  }
+
+  .has-mobile-logo .nav_wrap > a.link .logo svg path {
+    fill: #000 !important;
+  }
+
+  /* bar logo stays hidden until the big one lands exactly on top of it */
+  .has-mobile-logo:not(.is-logo-docked) .logo_link.tablet .logo {
+    visibility: hidden;
+  }
+
+  .has-mobile-logo.is-logo-docked .nav_wrap > a.link {
+    visibility: hidden;
+  }
+}
+
+@keyframes nav-drop {
+  from { transform: translateY(-12px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+@media (max-width: 991px) and (prefers-reduced-motion: reduce) {
+  .nav_menu_wrap.is-open {
+    animation: none;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   3. HERO & VIDEO SECTION
+   -------------------------------------------------------------------------- */
+@media (max-width: 991px) {
+  .section.light._30vh_mobile {
+    padding-top: 72px !important;
+    min-height: auto !important;
+  }
+
+  .h1_wrap {
+    padding: 16px 16px 24px !important;
+    box-sizing: border-box !important;
+  }
+
+  .h1 {
+    font-size: clamp(2.1rem, 6.4vw, 3.4rem) !important;
+    line-height: 1.12 !important;
+    letter-spacing: -0.02em !important;
+  }
+
+  .section.dark.video {
+    padding: 24px 16px 40px !important;
+    box-sizing: border-box !important;
+  }
+
+  .video_wrap {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    aspect-ratio: 16 / 9 !important;
+    border-radius: 14px !important;
+    overflow: hidden !important;
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.3) !important;
+  }
+
+  .video_wrap video {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   4. PROCESS SECTION (TABLET & MOBILE)
+   -------------------------------------------------------------------------- */
+/* Tablet 2x2 Grid (768px - 991px) */
+@media (min-width: 768px) and (max-width: 991px) {
+  .process_long_wrap {
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+  .process-wrap {
+    position: relative !important;
+    height: auto !important;
+    padding: 48px 24px !important;
+    box-sizing: border-box !important;
+  }
+
+  .cards_wrap {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 24px !important;
+    width: 100% !important;
+    height: auto !important;
+    transform: none !important;
+    overflow: visible !important;
+  }
+
+  .process_card {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    min-height: 540px !important;
+    transform: none !important;
+  }
+}
+
+/* Mobile vertical scroll containment (<= 767px) */
+@media (max-width: 767px) {
+  .process-wrap {
+    overflow: hidden !important;
+  }
+
+  /* js/mobile-process.js sets --proc-x so each card rests centered;
+     !important beats Webflow's inline continuous-slide transform. */
+  .cards_wrap {
+    overflow: visible !important;
+    padding-left: 16px !important;
+    gap: 16px !important;
+    transform: translate3d(var(--proc-x, 0px), 0, 0) !important;
+  }
+
+  .process_card {
+    width: calc(100vw - 32px) !important;
+    max-width: calc(100vw - 32px) !important;
+    margin: 0 !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   4b. PRICING SECTION (MOBILE) — retro phone mockup + "Pricing.html" icon
+   .pricing_icon is absolutely positioned against the full-width container,
+   but .retro_mobile (the phone image) is horizontally centered and scaled
+   by height, so it rarely fills that width. A left-edge pixel offset lands
+   the icon off the phone. Center it with the phone instead.
+   -------------------------------------------------------------------------- */
+@media (max-width: 767px) {
+  .pricing_icon {
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   5. SELECTED WORKS (PORTFOLIO)
+   -------------------------------------------------------------------------- */
+@media (max-width: 991px) {
+  #our_work {
+    padding: 60px 16px 40px !important;
+    box-sizing: border-box !important;
+  }
+
+  #our_work .case_wrap {
+    padding-top: 10px !important;
+    margin-bottom: 24px !important;
+  }
+
+  #our_work .h2.sticky {
+    font-size: clamp(2.2rem, 7vw, 3.4rem) !important;
+    line-height: 1.15 !important;
+    padding-top: 10px !important;
+    overflow: visible !important;
+  }
+
+  .slider_mask {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+    border-radius: 12px !important;
+  }
+
+  .slide_img {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    object-fit: contain !important;
+  }
+
+  /* Only the small project title was a link, so tapping the image did nothing.
+     Stretch the title's link over the whole slide (image included). Swipes still
+     change slides: they never produce a click, and stacked-away slides are
+     visibility:hidden so their links can't catch taps. */
+  #our_work .swiper-slide .case_title::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 11; /* above .slider_mask (z-index 10) */
+  }
+
+  /* the prev/next arrows overlap the slide: lift the bar above that link, but let
+     taps fall through everything in it except the two arrows */
+  #our_work .slider_button_wrap {
+    position: relative;
+    z-index: 12;
+    pointer-events: none;
+  }
+
+  #our_work .slider_button_wrap .swiper-button-prev,
+  #our_work .slider_button_wrap .swiper-button-next {
+    pointer-events: auto;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   6. PRICING & INTERACTIVE DECK SECTION
+   -------------------------------------------------------------------------- */
+@media (max-width: 767px) {
+  /* "We keep our focus on important things": same style as desktop — off-white
+     Helvetica + serif italic over the red, blurring out line by line as the cards
+     pass (Webflow's "Service cards (mobile)" interaction drives color/blur). */
+  .bg-service-text {
+    font-size: clamp(2.4rem, 11vw, 3.25rem) !important;
+    line-height: 1.05 !important;
+    max-width: 90% !important;
+    left: 5% !important;
+    pointer-events: none !important;
+  }
+
+  /* Floating desktop windows constrained on mobile */
+  .andrii_wrapper.revenue_wrapper,
+  .zefir_wrapper,
+  .natalia_wrapper,
+  .faq_wrapper,
+  .testimonial_wrapper {
+    max-width: calc(100vw - 32px) !important;
+  }
+
+  /* Ticket Barcode Button Legibility Enhancement */
+  .card_bottom._03 .barcode-wrap {
+    position: relative !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    overflow: hidden !important;
+    border-radius: 6px !important;
+  }
+
+  .card_bottom._03 .barcode-wrap .button-text._03 {
+    position: absolute !important;
+    z-index: 4 !important;
+    color: #ffffff !important;
+    background: rgba(8, 8, 10, 0.88) !important;
+    padding: 6px 14px !important;
+    border-radius: 6px !important;
+    font-weight: 700 !important;
+    font-size: 13px !important;
+    letter-spacing: 0.03em !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
+    border: 1px solid rgba(255, 255, 255, 0.18) !important;
+    backdrop-filter: blur(6px) !important;
+    -webkit-backdrop-filter: blur(6px) !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   7. CTA / CONTACT MORPH SECTION (#hover-section)
+   -------------------------------------------------------------------------- */
+@media (max-width: 991px) {
+  #hover-section {
+    padding: 64px 16px 60px !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+  }
+
+  #hover-section .cta-content-wrap {
+    padding-top: 16px !important;
+    max-width: 600px !important;
+    margin: 0 auto !important;
+  }
+
+  #hover-section .h2 {
+    font-size: clamp(2rem, 6.2vw, 3.2rem) !important;
+    line-height: 1.15 !important;
+    padding-top: 12px !important;
+  }
+
+  .dash_line_wrap {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+  }
+
+  .reserve_wrap {
+    margin-top: 28px !important;
+    text-align: center !important;
+  }
+
+  .reserve_wrap .reserve_text {
+    display: inline-block !important;
+    padding: 13px 26px !important;
+    background: #000000 !important;
+    color: #ffffff !important;
+    border-radius: 999px !important;
+    font-size: 14.5px !important;
+    font-weight: 600 !important;
+    text-decoration: none !important;
+    letter-spacing: 0.04em !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2) !important;
+    transition: transform 0.2s ease, background-color 0.2s ease !important;
+  }
+
+  .reserve_wrap .reserve_text:hover {
+    background: #ff0000 !important;
+    transform: translateY(-2px) !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   8. FOOTER ACROSS ALL PAGES
+   -------------------------------------------------------------------------- */
+/* Ensure footer is NOT sticky on subpages */
+body:not([data-wf-page="696f937363525fd559c6eb04"]) .footer,
+.svc-page .footer,
+footer.footer {
+  position: relative !important;
+  bottom: auto !important;
+  z-index: 10 !important;
+}
+
+@media (max-width: 767px) {
+  .footer {
+    padding: 44px 16px 36px !important;
+    box-sizing: border-box !important;
+    position: relative !important;
+  }
+
+  .footer_container {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 32px !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .footer_navigation_wrap {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    text-align: center !important;
+    gap: 20px !important;
+    width: 100% !important;
+    grid-template-columns: none !important;
+  }
+
+  .footer_link.mail {
+    font-size: clamp(17px, 4.8vw, 22px) !important;
+    word-break: break-all !important;
+    color: #edf4f5 !important;
+  }
+
+  .footer_navigation {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    gap: 8px 14px !important;
+    width: 100% !important;
+  }
+
+  .footer_navigation .footer_link {
+    font-size: 13.5px !important;
+    color: rgba(237, 244, 245, 0.8) !important;
+    padding: 6px 12px !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-radius: 6px !important;
+  }
+
+  .footer_navigation .footer_link:hover {
+    color: #ffffff !important;
+    border-color: rgba(255, 0, 0, 0.4) !important;
+  }
+
+  .timezone.white {
+    font-size: 11px !important;
+    color: rgba(237, 244, 245, 0.6) !important;
+    text-align: center !important;
+    margin: 4px auto !important;
+  }
+
+  .footer_logo_wrap {
+    width: 100% !important;
+    max-width: 280px !important;
+    margin: 0 auto !important;
+  }
+
+  .footer_logo_wrap svg {
+    width: 100% !important;
+    height: auto !important;
+    max-height: 44px !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   9. SERVICE PAGES SPECIFIC OVERRIDES
+   -------------------------------------------------------------------------- */
+.svc-wrap {
+  width: 100%;
+  max-width: var(--svc-max, 1120px);
+  margin: 0 auto;
+  padding: 0 24px;
+  box-sizing: border-box;
+}
+
+.svc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)) !important;
+  gap: 20px !important;
+}
+
+@media (max-width: 768px) {
+  .svc-wrap {
+    padding: 0 16px !important;
+  }
+
+  .svc-hero {
+    padding: 80px 0 44px !important;
+  }
+
+  .svc-section {
+    padding: 48px 0 !important;
+  }
+
+  .svc-card {
+    padding: 22px !important;
+  }
+
+  .svc-cta {
+    padding: 56px 0 !important;
+  }
+
+  .svc-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    max-width: 320px !important;
+    margin: 8px auto !important;
+    box-sizing: border-box !important;
+  }
+}
+
+/* Service & work pages — desktop: light bar with inline links, like the homepage */
+@media (min-width: 992px) {
+  #service-menu-drawer {
+    display: flex !important;
+    position: static !important;
+    width: auto !important;
+    padding: 0 !important;
+    background: transparent !important;
+    align-items: center !important;
+    gap: 32px !important;
+  }
+
+  #service-menu-drawer .navlink_wrap {
+    display: flex !important;
+  }
+
+  #service-menu-drawer .menu_logo_wrap,
+  #service-menu-drawer .menu_bottom {
+    display: none !important;
+  }
+
+  #service-menu-drawer .navlinks_flex {
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 28px !important;
+  }
+
+  #service-menu-drawer .nav_link {
+    font-size: 16px !important;
+    color: #000 !important;
+  }
+
+  #service-menu-drawer .nav_link.mail {
+    font-family: var(--_typography---italic) !important;
+    font-style: italic !important;
+    margin-left: 0 !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .stratchy-text {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    padding: 0 16px !important;
+  }
+  .under_video_text {
+    font-size: 11px !important;
+  }
+}

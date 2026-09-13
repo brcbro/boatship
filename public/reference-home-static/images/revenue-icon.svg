@@ -1,0 +1,46 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="docGrad" x1="8" y1="6" x2="56" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#E2E8F0"/>
+    </linearGradient>
+    <linearGradient id="lineGrad" x1="16" y1="44" x2="48" y2="20" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3B82F6"/>
+      <stop offset="50%" stop-color="#10B981"/>
+      <stop offset="100%" stop-color="#34D399"/>
+    </linearGradient>
+    <linearGradient id="glowGrad" x1="16" y1="44" x2="48" y2="20" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#10B981" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#10B981" stop-opacity="0.0"/>
+    </linearGradient>
+    <filter id="shadow" x="0" y="2" width="64" height="60" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000000" flood-opacity="0.2"/>
+    </filter>
+  </defs>
+
+  <!-- Document Body -->
+  <g filter="url(#shadow)">
+    <!-- Base Page -->
+    <path d="M14 6H40L52 18V54C52 56.2091 50.2091 58 48 58H14C11.7909 58 10 56.2091 10 54V10C10 7.79086 11.7909 6 14 6Z" fill="url(#docGrad)" stroke="#CBD5E1" stroke-width="1.5"/>
+    
+    <!-- Folded Corner -->
+    <path d="M40 6V16C40 17.1046 40.8954 18 42 18H52L40 6Z" fill="#94A3B8"/>
+    <path d="M40 6L52 18H42C40.8954 18 40 17.1046 40 16V6Z" fill="#CBD5E1"/>
+
+    <!-- Mini Header Badge -->
+    <rect x="16" y="14" width="16" height="4" rx="2" fill="#0EA5E9" fill-opacity="0.7"/>
+
+    <!-- Chart Area Fill -->
+    <path d="M16 44L26 36L34 40L46 22V44H16Z" fill="url(#glowGrad)"/>
+
+    <!-- Chart Trendline -->
+    <path d="M16 44L26 36L34 40L46 22" stroke="url(#lineGrad)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Peak Dot -->
+    <circle cx="46" cy="22" r="3" fill="#10B981" stroke="#FFFFFF" stroke-width="1.5"/>
+
+    <!-- Rupee Icon / Currency Tag -->
+    <circle cx="21" cy="24" r="5" fill="#10B981" fill-opacity="0.15"/>
+    <text x="21" y="27" font-family="-apple-system, sans-serif" font-size="7" font-weight="bold" fill="#059669" text-anchor="middle">₹</text>
+  </g>
+</svg>

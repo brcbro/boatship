@@ -1,0 +1,67 @@
+{
+  "slug": "software-development-surat",
+  "serviceType": "Software Development",
+  "primaryKeyword": "software development company in Surat",
+  "secondaryKeywords": [
+    "custom software development Surat",
+    "ERP software development Surat",
+    "POS software company Surat",
+    "SaaS development company Surat"
+  ],
+  "whyKeyword": "software development in Surat",
+  "meta": {
+    "title": "Software Development Company in Surat | CohortIX",
+    "description": "CohortIX builds custom software, SaaS, ERP & POS for Surat businesses. Deep tech, fast delivery, real results. Get a free project quote today.",
+    "ogTitle": "Custom Software Development in Surat — Built to Scale | CohortIX",
+    "ogDescription": "From GST billing systems to full SaaS platforms, we engineer software Surat businesses actually run on."
+  },
+  "h1": "Software Development Company in Surat",
+  "heroSub": "Custom software, SaaS, ERP and POS systems — engineered to run your business, not slow it down.",
+  "intro": "CohortIX is a software development company in Surat helping local businesses and growing startups turn operational headaches into clean, scalable software — built end to end, from architecture to launch to support.",
+  "offeringsHeading": "What we build",
+  "offerings": [
+    {
+      "title": "Custom Software Development",
+      "body": "Custom software in Surat tailored to your exact workflows — inventory, invoicing, reporting, or anything specific to your industry — built to grow with you instead of breaking under you."
+    },
+    {
+      "title": "SaaS Product Development",
+      "body": "A SaaS development company in Surat that takes you from concept to a live, subscription-ready platform with multi-tenant architecture, secure auth, payments, and an admin dashboard."
+    },
+    {
+      "title": "ERP Software Development",
+      "body": "ERP software development in Surat that connects sales, inventory, and accounting into one system, with native GST, UPI, and WhatsApp notifications for Indian SMBs."
+    },
+    {
+      "title": "POS Software Development",
+      "body": "Fast, reliable POS software for retail and multi-outlet businesses — barcode billing, GST-ready invoices, real-time stock sync, online or offline."
+    },
+    {
+      "title": "AI-Powered Automation",
+      "body": "AI receipt and GST scanners, WhatsApp bots that trigger real actions, and automation that removes repetitive manual work."
+    }
+  ],
+  "faq": [
+    {
+      "q": "How much does custom software development cost in Surat?",
+      "a": "It depends on scope — a simple billing tool costs far less than a full ERP or SaaS platform. You get a clear, itemized quote after a free scoping call, with no hidden charges and phased milestone payments."
+    },
+    {
+      "q": "How long does it take to build custom software?",
+      "a": "A focused MVP can be ready in 4 to 8 weeks. Larger ERP or SaaS builds run longer and are delivered in phases so you get usable software early."
+    },
+    {
+      "q": "Do you build software with GST and UPI support?",
+      "a": "Yes. GST-compliant invoicing, UPI and payment gateway integration, and WhatsApp Business notifications are core to how we build."
+    },
+    {
+      "q": "Will we own the source code?",
+      "a": "Yes — you own your code and data in full. We hand over everything and can support you afterward, but you are never locked in."
+    },
+    {
+      "q": "Do you provide support after launch?",
+      "a": "Yes. We offer ongoing maintenance and support plans, plus continued feature development as your business grows."
+    }
+  ],
+  "closing": "Spreadsheets can only take you <em>so far</em>. Software takes you <em>further</em>."
+}

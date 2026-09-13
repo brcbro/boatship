@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { ReferenceHomepage } from "@/components/marketing/ReferenceHomepage";
 
 export default function HomePage() {
-  redirect("/login");
+  return <ReferenceHomepage />;
 }

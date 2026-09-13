@@ -1,0 +1,67 @@
+{
+  "slug": "app-development-surat",
+  "serviceType": "Mobile App Development",
+  "primaryKeyword": "mobile app development company in Surat",
+  "secondaryKeywords": [
+    "android app development Surat",
+    "iOS app developers Surat",
+    "react native app development Surat",
+    "ecommerce app development Surat"
+  ],
+  "whyKeyword": "app development in Surat",
+  "meta": {
+    "title": "Mobile App Development Company in Surat | CohortIX",
+    "description": "CohortIX builds Android & iOS apps for Surat businesses — one codebase, both platforms, store launch included. Fast, scalable, supported. Get a free quote.",
+    "ogTitle": "Mobile App Development in Surat — Android & iOS | CohortIX",
+    "ogDescription": "Cross-platform apps built once and shipped to both stores, from idea to launch."
+  },
+  "h1": "Mobile App Development Company in Surat",
+  "heroSub": "Android and iOS apps built from one codebase — from idea to store launch to scale.",
+  "intro": "CohortIX is a mobile app development company in Surat building fast, reliable apps for both Android and iOS. Using React Native, we build once and ship to both stores, which keeps your cost and timeline down without cutting quality.",
+  "offeringsHeading": "What we build",
+  "offerings": [
+    {
+      "title": "Android & iOS Apps",
+      "body": "Native-quality apps for both platforms, built from a single React Native codebase so you launch faster and maintain less."
+    },
+    {
+      "title": "E-commerce & On-Demand Apps",
+      "body": "Ecommerce and on-demand app development in Surat with carts, payments, live tracking, and push notifications built in."
+    },
+    {
+      "title": "Business & Internal Apps",
+      "body": "Apps that run your operations — bookings, field teams, inventory, or customer management — connected to your existing systems."
+    },
+    {
+      "title": "App UI/UX Design",
+      "body": "Clean, intuitive interfaces designed for real usage, so people actually keep the app and use it."
+    },
+    {
+      "title": "Store Launch & Maintenance",
+      "body": "We handle Play Store and App Store submission, then keep the app updated, secure, and growing after launch."
+    }
+  ],
+  "faq": [
+    {
+      "q": "How much does it cost to build an app in Surat?",
+      "a": "It depends on features and complexity. You get an itemized quote after a scoping call, with phased milestone payments across the build."
+    },
+    {
+      "q": "Can you build for both Android and iOS?",
+      "a": "Yes. We use React Native to build one codebase that runs on both, which lowers cost and keeps the two versions in sync."
+    },
+    {
+      "q": "How long does app development take?",
+      "a": "A focused first version is typically ready in 6 to 10 weeks, with larger apps delivered in phases so you get something usable early."
+    },
+    {
+      "q": "Do you publish the app to the stores?",
+      "a": "Yes. We handle the full Play Store and App Store submission process and help with the store listings."
+    },
+    {
+      "q": "Do you maintain the app after launch?",
+      "a": "Yes. We offer maintenance and support plans plus ongoing feature development as your app grows."
+    }
+  ],
+  "closing": "Your customers live on their <em>phones</em>. Your business should <em>too</em>."
+}

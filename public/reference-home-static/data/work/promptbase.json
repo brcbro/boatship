@@ -1,0 +1,17 @@
+{
+  "order": 14,
+  "slug": "promptbase",
+  "name": "Promptbase",
+  "url": "https://promptbase.shop",
+  "image": "promptbase.shop.webp",
+  "tag": "AI workflows & prompt store",
+  "industry": "AI education",
+  "location": "",
+  "services": [
+    "ai-automation-surat",
+    "website-development-surat"
+  ],
+  "summary": "Promptbase teaches Claude AI automation through a full automation playbook, covering social growth workflows with tools like the Meta Graph API and ManyChat.",
+  "results": [],
+  "closing": "AI moves <em>fast</em>. The playbook had to move <em>faster</em>."
+}

@@ -1,0 +1,17 @@
+{
+  "order": 2,
+  "slug": "startupsync",
+  "name": "StartupSync",
+  "url": "https://startupsync.in",
+  "image": "startupsync.in.webp",
+  "tag": "VC dealflow & founder matching",
+  "industry": "Startups & venture capital",
+  "location": "India",
+  "services": [
+    "software-development-surat",
+    "website-development-surat"
+  ],
+  "summary": "StartupSync is a platform where startups meet opportunity — it connects founders and investors in real time, giving VCs a structured dealflow and founders a direct route to the right investors.",
+  "results": [],
+  "closing": "Founders and investors, finally in the <em>same room</em>. Even when it's <em>virtual</em>."
+}

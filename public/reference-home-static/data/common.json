@@ -1,0 +1,83 @@
+{
+  "brand": {
+    "telephone": "+919016052410",
+    "telephoneDisplay": "+91 90160 52410",
+    "email": "support@cohortix.in",
+    "streetAddress": "304,484-487,Haridarshan Soc,Dabholi-Causeway Road",
+    "postalCode": "395004",
+    "sameAs": [
+      "https://www.linkedin.com/company/cohortix",
+      "https://www.instagram.com/cohortix"
+    ]
+  },
+  "cta": {
+    "heading": "Let us build it with you",
+    "body": "Tell us what you are trying to solve. You get an honest assessment and a clear quote — free, no pressure.",
+    "whatsapp": "https://wa.me/919016052410",
+    "quote": "/contact",
+    "email": "mailto:support@cohortix.in",
+    "primaryLabel": "Get a Free Quote",
+    "secondaryLabel": "Email Us"
+  },
+  "whyChoose": [
+    {
+      "title": "Local team, direct access.",
+      "body": "We are based in Surat, in your timezone and your language. You talk to the people building your project, not a support queue."
+    },
+    {
+      "title": "Deep tech, done right.",
+      "body": "A modern, maintainable stack built for performance and long-term growth, not quick throwaway work."
+    },
+    {
+      "title": "India-first by default.",
+      "body": "GST, UPI, and WhatsApp integration are baked into how we build, not bolted on later."
+    },
+    {
+      "title": "We ship.",
+      "body": "Clear milestones, transparent pricing, and work delivered in phases so you see progress fast."
+    },
+    {
+      "title": "We build our own products.",
+      "body": "We run the same standards on our own SaaS that we bring to your project."
+    }
+  ],
+  "process": [
+    {
+      "title": "Discovery.",
+      "body": "We map your goals, audience, and budget, then agree on a clear scope."
+    },
+    {
+      "title": "Plan & design.",
+      "body": "Structure, design, and approach built for results from day one."
+    },
+    {
+      "title": "Build & execute.",
+      "body": "Delivered in focused sprints with regular check-ins, so you are never in the dark."
+    },
+    {
+      "title": "Launch & measure.",
+      "body": "A smooth go-live, then real numbers so we know it is working."
+    },
+    {
+      "title": "Support & scale.",
+      "body": "Ongoing improvements and growth as your business expands."
+    }
+  ],
+  "industries": {
+    "intro": "Surat runs on textiles, diamonds, jewellery, and fast-growing trading and retail businesses — each with its own needs. We build for:",
+    "items": [
+      "Textile manufacturers & traders",
+      "Jewellery & diamond retailers and CAD studios",
+      "Retail chains & multi-outlet stores",
+      "Wholesale & distribution businesses",
+      "Startups & D2C brands",
+      "Service businesses (repair, logistics, healthcare)"
+    ]
+  },
+  "closing": {
+    "home": "Big ideas get <em>stuck</em> in slide decks. We get them <em>shipped</em>.",
+    "workIndex": "Every project here started as a <em>maybe</em>. Yours could be <em>next</em>.",
+    "booked": "Your slot is <em>locked in</em>. Now we do the <em>homework</em>.",
+    "lead": "Rather just talk?"
+  }
+}

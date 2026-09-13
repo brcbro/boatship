@@ -1,0 +1,681 @@
+/* Service + work pages — same look as the homepage's light sections:
+   off-white ground, black type, Helvetica headings with serif-italic accents,
+   Firacode mono labels, red dashed-line accents. Tokens come from the shared
+   Webflow stylesheet so fonts/colours never drift from index.html. */
+:root {
+  --svc-bg: #edf4f5;
+  --svc-bg-alt: #e3ebed;
+  --svc-fg: #000000;
+  --svc-muted: rgba(0, 0, 0, 0.62);
+  --svc-accent: #ff0000;
+  --svc-card: #ffffff;
+  --svc-border: rgba(0, 0, 0, 0.12);
+  --svc-max: 1240px;
+  --svc-sans: var(--_typography---font-primary, "Helvetica Neue", Helvetica, Arial, sans-serif);
+  --svc-serif: var(--_typography---italic, Georgia, serif);
+  --svc-mono: var(--_typography---font-tertiary, ui-monospace, monospace);
+}
+
+main.svc-main {
+  display: block;
+  background: var(--svc-bg);
+  color: var(--svc-fg);
+  font-family: var(--svc-sans);
+}
+
+.svc-wrap {
+  max-width: var(--svc-max);
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* ---- hero ---------------------------------------------------------------- */
+.svc-hero {
+  background: var(--svc-bg);
+  color: var(--svc-fg);
+  padding: 96px 0 72px;
+  position: relative;
+}
+
+.svc-hero::after,
+.svc-section + .svc-section::before {
+  content: "";
+  display: block;
+  height: 2px;
+  background-image: linear-gradient(to right, var(--svc-accent) 50%, transparent 50%);
+  background-size: 16px 2px;
+}
+
+.svc-hero::after {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.svc-hero h1 {
+  font-family: var(--svc-sans);
+  font-size: clamp(2.6rem, 7vw, 5.5rem);
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  line-height: 0.98;
+  margin: 0 0 28px;
+  color: var(--svc-fg);
+}
+
+.svc-hero h1 .italic-text,
+.svc-section h2 .italic-text {
+  font-family: var(--svc-serif);
+  font-style: italic;
+  letter-spacing: 0;
+}
+
+.svc-hero__sub {
+  font-family: var(--svc-serif);
+  font-style: italic;
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  line-height: 1.15;
+  color: var(--svc-fg);
+  margin: 0 0 24px;
+  max-width: 34ch;
+}
+
+.svc-hero__intro {
+  color: var(--svc-muted);
+  max-width: 60ch;
+  font-size: 1.05rem;
+  line-height: 1.6;
+  margin: 0 0 32px;
+}
+
+.svc-eyebrow {
+  font-family: var(--svc-mono);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--svc-fg);
+  margin: 0 0 20px;
+}
+
+.svc-eyebrow a,
+.svc-more a {
+  color: var(--svc-fg);
+}
+
+/* ---- sections ------------------------------------------------------------ */
+.svc-section {
+  background: var(--svc-bg);
+  color: var(--svc-fg);
+  padding: 88px 0;
+}
+
+.svc-section + .svc-section::before {
+  margin-top: -88px;
+  margin-bottom: 86px;
+}
+
+.svc-section--alt {
+  background: var(--svc-bg);
+}
+
+.svc-section h2 {
+  font-family: var(--svc-sans);
+  font-size: clamp(2.2rem, 5vw, 4rem);
+  font-weight: 400;
+  letter-spacing: -0.025em;
+  line-height: 1;
+  margin: 0 0 40px;
+  color: var(--svc-fg);
+}
+
+.svc-section > .svc-wrap > p {
+  color: var(--svc-muted);
+  max-width: 60ch;
+  line-height: 1.6;
+}
+
+/* ---- cards --------------------------------------------------------------- */
+.svc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.svc-card {
+  background: var(--svc-card);
+  border: 1px solid var(--svc-border);
+  border-radius: 16px;
+  padding: 28px;
+  transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.3s ease;
+}
+
+.svc-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.08);
+}
+
+.svc-card h3 {
+  margin: 0 0 12px;
+  font-family: var(--svc-serif);
+  font-style: italic;
+  font-size: 1.75rem;
+  font-weight: 400;
+  line-height: 1.05;
+  color: var(--svc-fg);
+}
+
+.svc-card p,
+.svc-list li,
+.svc-steps li {
+  color: var(--svc-muted);
+  line-height: 1.6;
+  font-size: 0.98rem;
+  margin: 0;
+}
+
+a.svc-card {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+/* work cards mirror the homepage "Selected Works" tiles */
+.svc-card--work {
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+
+.svc-card--work:hover {
+  box-shadow: none;
+}
+
+.svc-card--work img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 16px;
+  margin-bottom: 16px;
+}
+
+.svc-card--work h3 {
+  font-family: var(--svc-sans);
+  font-style: normal;
+  font-size: 1.35rem;
+  margin-bottom: 6px;
+}
+
+.svc-card--work p {
+  font-family: var(--svc-mono);
+  font-size: 13px;
+  text-transform: uppercase;
+  color: var(--svc-fg);
+}
+
+/* ---- lists / steps / chips ---------------------------------------------- */
+.svc-list,
+.svc-steps {
+  padding-left: 0;
+  list-style: none;
+  display: grid;
+  gap: 0;
+  margin: 0;
+  border-top: 1px solid var(--svc-border);
+}
+
+.svc-list li,
+.svc-steps li {
+  padding: 20px 0;
+  border-bottom: 1px solid var(--svc-border);
+}
+
+.svc-list li strong,
+.svc-steps li strong {
+  display: block;
+  font-family: var(--svc-serif);
+  font-style: italic;
+  font-size: 1.5rem;
+  font-weight: 400;
+  color: var(--svc-fg);
+  margin-bottom: 6px;
+}
+
+.svc-steps {
+  counter-reset: step;
+}
+
+.svc-steps li {
+  counter-increment: step;
+  position: relative;
+  padding-left: 64px;
+}
+
+.svc-steps li::before {
+  content: counter(step, decimal-leading-zero);
+  position: absolute;
+  left: 0;
+  top: 24px;
+  font-family: var(--svc-mono);
+  font-size: 13px;
+  color: var(--svc-fg);
+}
+
+.svc-chips {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 24px 0 0;
+}
+
+.svc-chips li {
+  border: 1px solid var(--svc-fg);
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-family: var(--svc-mono);
+  font-size: 13px;
+  text-transform: uppercase;
+  color: var(--svc-fg);
+}
+
+/* ---- FAQ ----------------------------------------------------------------- */
+.svc-faq {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--svc-border);
+}
+
+.svc-faq__item {
+  border-bottom: 1px solid var(--svc-border);
+  padding: 22px 0;
+}
+
+.svc-faq__item summary {
+  cursor: pointer;
+  font-size: 1.2rem;
+  color: var(--svc-fg);
+  list-style: none;
+  position: relative;
+  padding-right: 32px;
+}
+
+.svc-faq__item summary::-webkit-details-marker {
+  display: none;
+}
+
+.svc-faq__item summary::after {
+  content: "+";
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--svc-mono);
+  font-size: 1.4rem;
+  color: var(--svc-accent);
+}
+
+.svc-faq__item[open] summary::after {
+  content: "−";
+}
+
+.svc-faq__item p {
+  color: var(--svc-muted);
+  margin: 14px 0 0;
+  line-height: 1.6;
+  max-width: 70ch;
+}
+
+/* ---- CTA (inverted, like the homepage's dark bands) ---------------------- */
+.svc-section.svc-cta {
+  background: #000;
+  color: #edf4f5;
+  text-align: center;
+  padding: 110px 0;
+}
+
+.svc-section.svc-cta::before {
+  display: none;
+}
+
+.svc-cta h2 {
+  color: #edf4f5;
+}
+
+.svc-cta p {
+  color: rgba(237, 244, 245, 0.7);
+  max-width: 52ch;
+  margin: 0 auto 36px;
+  font-size: 1.1rem;
+  line-height: 1.6;
+}
+
+/* ---- buttons: black pill with italic serif label (homepage "Schedule Free Call") */
+.svc-btn {
+  display: inline-block;
+  padding: 16px 30px;
+  border-radius: 999px;
+  font-family: var(--svc-serif);
+  font-style: italic;
+  font-size: 1.15rem;
+  text-decoration: none;
+  margin: 6px 8px 6px 0;
+  transition: transform 0.25s ease, background 0.25s ease, color 0.25s ease;
+}
+
+.svc-btn:hover {
+  transform: translateY(-2px);
+}
+
+.svc-btn--primary {
+  background: #000;
+  color: #edf4f5;
+}
+
+.svc-btn--ghost {
+  border: 1px solid #000;
+  color: #000;
+}
+
+.svc-btn--ghost:hover {
+  background: #000;
+  color: #edf4f5;
+}
+
+.svc-cta .svc-btn--primary {
+  background: var(--svc-accent);
+  color: #fff;
+}
+
+.svc-cta .svc-btn--ghost {
+  border-color: #edf4f5;
+  color: #edf4f5;
+}
+
+.svc-cta .svc-btn--ghost:hover {
+  background: #edf4f5;
+  color: #000;
+}
+
+/* ---- case study hero ----------------------------------------------------- */
+.svc-work-hero {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 56px;
+  align-items: center;
+}
+
+.svc-work-hero img {
+  width: 100%;
+  height: auto;
+  border-radius: 16px;
+}
+
+.svc-more {
+  margin: 32px 0 0;
+  font-family: var(--svc-mono);
+  font-size: 13px;
+  text-transform: uppercase;
+}
+
+/* ---- footer bottom strip (below the wordmark, inside the dark footer) ----- */
+/* Small mono labels like the homepage's LOCAL TIME / tags, on the same 20px
+   gutters as .footer_container so every footer row shares one left edge. */
+.svc-footer {
+  margin: 0;
+  padding: 20px 20px 24px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px 48px;
+  border-top: 1px dashed rgba(237, 244, 245, 0.2);
+  color: rgba(237, 244, 245, 0.5);
+  font-family: var(--svc-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  position: relative;
+  z-index: 1;
+}
+
+.svc-footer__links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 20px;
+  flex: 1 1 520px;
+}
+
+.svc-footer__links::before {
+  content: "Services";
+  color: rgba(237, 244, 245, 0.4);
+  margin-right: 4px;
+}
+
+.svc-footer a {
+  color: rgba(237, 244, 245, 0.85);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.svc-footer a:hover {
+  color: var(--svc-accent);
+}
+
+.svc-footer__nap {
+  font-style: normal;
+  text-align: right;
+  flex: 0 1 420px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.svc-footer__nap strong {
+  color: rgba(237, 244, 245, 0.85);
+  font-weight: 500;
+}
+
+@media (max-width: 767px) {
+  .svc-footer {
+    padding: 20px 16px 24px;
+  }
+
+  .svc-footer__nap {
+    text-align: left;
+  }
+}
+
+@media (max-width: 767px) {
+  .svc-hero {
+    padding: 56px 0 48px;
+  }
+  .svc-section {
+    padding: 60px 0;
+  }
+  .svc-section + .svc-section::before {
+    margin-top: -60px;
+    margin-bottom: 58px;
+  }
+  .svc-section.svc-cta {
+    padding: 80px 0;
+  }
+  .svc-wrap {
+    padding: 0 16px;
+  }
+  .svc-work-hero {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+}
+
+/* Closing band above the footer (mirrors the contact page's .ct-close) */
+.svc-close {
+  --svc-close-fg: #edf4f5; /* dark band on light pages, like the homepage footer */
+  background: #000;
+  color: var(--svc-close-fg);
+  padding: 120px 0;
+}
+
+.svc-close h2 {
+  font-family: var(--_typography---font-primary, "Helvetica Neue", Helvetica, Arial, sans-serif);
+  font-size: clamp(2.4rem, 6.5vw, 6rem);
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  margin: 0 0 32px;
+  max-width: 16ch;
+  color: var(--svc-close-fg);
+}
+
+.svc-close h2 em {
+  font-family: var(--_typography---italic, Georgia, serif);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.svc-close__mono {
+  font-family: var(--_typography---font-tertiary, ui-monospace, monospace);
+  font-size: 13px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin: 0;
+}
+
+.svc-close__mono a {
+  color: var(--svc-close-fg);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.svc-close__mono a:hover {
+  color: var(--svc-accent);
+}
+
+@media (max-width: 767px) {
+  .svc-close {
+    padding: 80px 0;
+  }
+}
+
+/* Legal & compliance pages: readable long-form text */
+.svc-legal {
+  max-width: 760px;
+  font-size: 1.05rem;
+  line-height: 1.75;
+  color: var(--svc-fg);
+}
+
+.svc-legal__lead {
+  font-size: 1.2rem;
+  line-height: 1.6;
+  margin: 0 0 40px;
+}
+
+.svc-legal h2 {
+  font-family: var(--svc-sans);
+  font-size: clamp(1.4rem, 2.6vw, 1.8rem);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  margin: 48px 0 16px;
+}
+
+.svc-legal h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 28px 0 8px;
+}
+
+.svc-legal p,
+.svc-legal ul,
+.svc-legal ol {
+  margin: 0 0 16px;
+}
+
+.svc-legal ul,
+.svc-legal ol {
+  padding-left: 1.3em;
+}
+
+.svc-legal li {
+  margin-bottom: 8px;
+}
+
+.svc-legal a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.svc-legal a:hover {
+  color: var(--svc-accent);
+}
+
+.svc-legal__contact {
+  font-style: normal;
+  padding: 20px 24px;
+  border: 1px solid var(--svc-border);
+  border-radius: 12px;
+  background: var(--svc-card);
+  margin: 0 0 16px;
+}
+
+.svc-legal__table {
+  overflow-x: auto;
+  margin: 0 0 16px;
+}
+
+.svc-legal table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.svc-legal th,
+.svc-legal td {
+  text-align: left;
+  vertical-align: top;
+  padding: 12px;
+  border-bottom: 1px solid var(--svc-border);
+}
+
+.svc-legal th {
+  font-family: var(--svc-mono);
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.svc-legal code {
+  font-family: var(--svc-mono);
+  font-size: 0.85em;
+  overflow-wrap: anywhere;
+}
+
+.svc-hero--legal {
+  padding-bottom: 32px;
+}
+
+/* Footer legal row: full width under services + address */
+.svc-footer__legal {
+  flex: 1 1 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(237, 244, 245, 0.12);
+}
+
+.svc-footer__legal::before {
+  content: "Legal";
+  color: rgba(237, 244, 245, 0.4);
+  margin-right: 4px;
+}

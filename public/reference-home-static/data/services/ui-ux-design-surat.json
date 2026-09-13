@@ -1,0 +1,67 @@
+{
+  "slug": "ui-ux-design-surat",
+  "serviceType": "UI UX Design",
+  "primaryKeyword": "UI UX design company in Surat",
+  "secondaryKeywords": [
+    "product design agency Surat",
+    "mobile app UI UX designers Surat",
+    "website UI design Surat",
+    "UX audit Surat"
+  ],
+  "whyKeyword": "UI UX design in Surat",
+  "meta": {
+    "title": "UI UX Design Company in Surat | CohortIX",
+    "description": "CohortIX designs clean, intuitive interfaces for apps and websites in Surat — research-led, dev-ready, built to convert. Figma-based. Get a free quote.",
+    "ogTitle": "UI UX Design Company in Surat — Product & App Design | CohortIX",
+    "ogDescription": "Research-led interface design that makes products easy to use and easy to buy from."
+  },
+  "h1": "UI UX Design Company in Surat",
+  "heroSub": "Clean, intuitive interfaces for apps and websites — designed around real users, ready for developers.",
+  "intro": "CohortIX is a UI UX design company in Surat that designs products people find easy to use and easy to buy from. Because we also build software, our designs arrive developer-ready — not pretty mockups that fall apart in code.",
+  "offeringsHeading": "What we design",
+  "offerings": [
+    {
+      "title": "Product & App UI/UX",
+      "body": "End-to-end interface design for apps and SaaS products, from user flows to polished, developer-ready screens."
+    },
+    {
+      "title": "Website Design",
+      "body": "Website UI design in Surat that balances brand, clarity, and conversion, structured for fast, clean builds."
+    },
+    {
+      "title": "Design Systems",
+      "body": "Reusable components, tokens, and guidelines so your product stays consistent and scales without redesigns."
+    },
+    {
+      "title": "Prototyping & Testing",
+      "body": "Interactive prototypes and user testing to validate ideas before you spend on development."
+    },
+    {
+      "title": "UX Audit & Redesign",
+      "body": "A clear audit of where your current product loses users, with a redesign plan to fix it."
+    }
+  ],
+  "faq": [
+    {
+      "q": "How much does UI UX design cost in Surat?",
+      "a": "It depends on the size of the product and screens involved. You get a clear quote after a short call, scoped to what you actually need."
+    },
+    {
+      "q": "What tools do you design in?",
+      "a": "We work primarily in Figma, so you get editable files, shareable prototypes, and clean developer handoff."
+    },
+    {
+      "q": "What is the difference between UI and UX?",
+      "a": "UX is how the product works and flows; UI is how it looks and feels. Good products need both, and we handle them together."
+    },
+    {
+      "q": "Do you do user research?",
+      "a": "Yes, scaled to your budget — from quick usability checks to structured research and testing on larger products."
+    },
+    {
+      "q": "Do you hand off developer-ready files?",
+      "a": "Yes. You get organized Figma files with specs and components, and since we also build software, the handoff is genuinely build-ready."
+    }
+  ],
+  "closing": "If users need a <em>manual</em>, the design isn't <em>done</em> yet."
+}

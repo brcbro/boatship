@@ -1,0 +1,213 @@
+<div class="ct">
+
+  <!-- ---- Hero --------------------------------------------------------- -->
+  <section class="ct-hero">
+    <div class="ct-wrap">
+      <div class="ct-meta" data-reveal>
+        <span class="ct-mono">[ Book a call ]</span>
+        <span class="ct-live"><span class="ct-dot" aria-hidden="true"></span><span class="ct-mono">Open for
+            work</span></span>
+        <span class="ct-mono" id="ct-clock">Local time</span>
+      </div>
+
+      <h1 class="ct-title" data-split>
+        Pick a date. <em>We'll bring the plan.</em>
+      </h1>
+
+      <div class="ct-stretch" data-reveal aria-label="Idea plus call plus scope equals full scale">
+        <span>Idea</span><span>+</span><span>Call</span><span>+</span><span>Scope</span><span>=</span><span>Full
+          Scale</span>
+      </div>
+
+      <p class="ct-lead" data-reveal>
+        Tech that sells <em>&amp;</em> design that sticks. Book a free 30-minute call with the people who'll
+        actually build it — <em>and get a realistic scope within 24 hours.</em>
+      </p>
+    </div>
+  </section>
+
+  <!-- ---- How it goes ----------------------------------------------------- -->
+  <section class="ct-steps">
+    <div class="ct-wrap ct-steps__grid">
+      <div class="ct-step" data-reveal style="--d:0">
+        <span class="ct-mono">01</span>
+        <h3>Pick a slot <em>→ ten seconds</em></h3>
+      </div>
+      <div class="ct-step" data-reveal style="--d:1">
+        <span class="ct-mono">02</span>
+        <h3>Share the brief <em>→ what you're building</em></h3>
+      </div>
+      <div class="ct-step" data-reveal style="--d:2">
+        <span class="ct-mono">03</span>
+        <h3>Get your scope <em>→ within 24 hours</em></h3>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---- Booking form ---------------------------------------------------- -->
+  <section class="ct-book">
+    <div class="ct-wrap">
+      <form id="ct-form" novalidate>
+
+        <!-- 01 Slot -->
+        <fieldset class="ct-block" id="grp-slot" data-reveal>
+          <legend class="ct-block__head">
+            <span class="ct-mono">01</span>
+            <span class="ct-block__title">Your call-back <em>slot</em></span>
+            <span class="ct-mono ct-muted">Mon – Sat · IST (GMT+5:30)</span>
+          </legend>
+
+          <div class="ct-slot">
+            <div class="ct-cal" id="ct-cal">
+              <div class="ct-cal__bar">
+                <button type="button" class="ct-cal__nav" id="ct-prev" aria-label="Previous month"><span class="ct-ico ct-ico--back" aria-hidden="true"></span></button>
+                <span class="ct-cal__month" id="ct-month" aria-live="polite"></span>
+                <button type="button" class="ct-cal__nav" id="ct-next" aria-label="Next month"><span class="ct-ico" aria-hidden="true"></span></button>
+              </div>
+              <div class="ct-cal__dow ct-mono" aria-hidden="true">
+                <span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span><span>Su</span>
+              </div>
+              <div class="ct-cal__grid" id="ct-days"></div>
+            </div>
+
+            <div class="ct-times">
+              <p class="ct-mono ct-muted" id="ct-times-label">Pick a date first</p>
+              <div class="ct-times__grid" id="ct-times" role="group" aria-labelledby="ct-times-label"></div>
+
+              <div class="ct-ticket" aria-live="polite">
+                <div class="ct-ticket__top">
+                  <span class="ct-mono">COH/CALL-30</span>
+                  <span class="ct-mono">Free · 30 min</span>
+                </div>
+                <p class="ct-ticket__date" id="ct-ticket-date"><em>No date yet</em></p>
+                <p class="ct-mono" id="ct-ticket-time">— : —</p>
+                <div class="ct-ticket__tear"><span class="ct-mono">tear along line</span><img src="/images/699c27d4d0107831c69e0e82_Vector_60ed47.png" alt="" class="ct-arrows "></div>
+              </div>
+            </div>
+          </div>
+
+          <input type="hidden" name="callDate" id="callDate">
+          <input type="hidden" name="callTime" id="callTime">
+          <p class="ct-error" role="alert">Pick a date and a time for your call.</p>
+        </fieldset>
+
+        <!-- 02 About you -->
+        <fieldset class="ct-block" data-reveal>
+          <legend class="ct-block__head">
+            <span class="ct-mono">02</span>
+            <span class="ct-block__title">About <em>you</em></span>
+          </legend>
+
+          <div class="ct-grid-2">
+            <label class="ct-field" id="grp-fullName">
+              <span class="ct-mono">Full name *</span>
+              <input type="text" id="fullName" name="fullName" placeholder="Rahul Sharma" autocomplete="name" maxlength="80" required>
+              <span class="ct-error">Enter your name (at least 2 characters).</span>
+            </label>
+            <label class="ct-field" id="grp-email">
+              <span class="ct-mono">Email *</span>
+              <input type="email" id="email" name="email" placeholder="rahul@company.com" autocomplete="email" maxlength="120" required>
+              <span class="ct-error">Enter a valid email address.</span>
+            </label>
+            <label class="ct-field" id="grp-phone">
+              <span class="ct-mono">Phone / WhatsApp *</span>
+              <input type="tel" id="phone" name="phone" placeholder="+91 98765 43210" autocomplete="tel" inputmode="tel" maxlength="20" required>
+              <span class="ct-error">Enter a valid phone or WhatsApp number.</span>
+            </label>
+            <label class="ct-field">
+              <span class="ct-mono">Company / brand <span class="ct-muted">(optional)</span></span>
+              <input type="text" id="company" name="company" placeholder="Acme Innovations" autocomplete="organization" maxlength="120">
+            </label>
+          </div>
+        </fieldset>
+
+        <!-- 03 Project -->
+        <fieldset class="ct-block" data-reveal>
+          <legend class="ct-block__head">
+            <span class="ct-mono">03</span>
+            <span class="ct-block__title">The <em>project</em></span>
+            <span class="ct-mono ct-muted">Select all that apply</span>
+          </legend>
+
+          <div class="ct-field" id="grp-services">
+            <div class="ct-pills" role="group" aria-label="Services needed">
+              <label class="ct-pill"><input type="checkbox" name="services" value="Website Development"
+                  checked><span>Website</span></label>
+              <label class="ct-pill"><input type="checkbox" name="services"
+                  value="Mobile App Development"><span>App</span></label>
+              <label class="ct-pill"><input type="checkbox" name="services"
+                  value="Custom Software / SaaS"><span>Software / SaaS</span></label>
+              <label class="ct-pill"><input type="checkbox" name="services"
+                  value="UI/UX Design"><span>UI/UX</span></label>
+              <label class="ct-pill"><input type="checkbox" name="services" value="AI Automation"><span>AI
+                  Automation</span></label>
+              <label class="ct-pill"><input type="checkbox" name="services"
+                  value="Digital Marketing"><span>Marketing</span></label>
+            </div>
+            <span class="ct-error">Pick at least one service.</span>
+          </div>
+
+          <label class="ct-field" id="grp-message">
+            <span class="ct-mono">What are you building? *</span>
+            <textarea id="message" name="message" maxlength="2000" required
+              placeholder="Your idea, the problem it solves, anything already built…"></textarea>
+            <span class="ct-field__foot">
+              <span class="ct-error">Tell us a little more (at least 10 characters).</span>
+              <span class="ct-mono ct-muted"><span id="char-count">0</span> / 2000</span>
+            </span>
+          </label>
+        </fieldset>
+
+        <!-- 04 Budget -->
+        <fieldset class="ct-block" data-reveal>
+          <legend class="ct-block__head">
+            <span class="ct-mono">04</span>
+            <span class="ct-block__title">Budget <em>&amp; timeline</em></span>
+            <span class="ct-mono ct-muted">Optional</span>
+          </legend>
+
+          <div class="ct-pills" role="radiogroup" aria-label="Estimated budget">
+            <label class="ct-pill"><input type="radio" name="budget" value="Under ₹30k"><span>&lt; ₹30k</span></label>
+            <label class="ct-pill"><input type="radio" name="budget" value="₹30k – ₹60k" checked><span>₹30k –
+                ₹60k</span></label>
+            <label class="ct-pill"><input type="radio" name="budget" value="₹60k – ₹1.5L"><span>₹60k –
+                ₹1.5L</span></label>
+            <label class="ct-pill"><input type="radio" name="budget" value="₹1.5L+"><span>₹1.5L+</span></label>
+            <label class="ct-pill"><input type="radio" name="budget" value="Not sure"><span>Not sure</span></label>
+          </div>
+          <div class="ct-pills" role="radiogroup" aria-label="Expected timeline">
+            <label class="ct-pill"><input type="radio" name="timeline" value="Under 1 month"><span>&lt; 1
+                month</span></label>
+            <label class="ct-pill"><input type="radio" name="timeline" value="1 – 3 months" checked><span>1 – 3
+                months</span></label>
+            <label class="ct-pill"><input type="radio" name="timeline" value="Flexible"><span>Flexible</span></label>
+          </div>
+        </fieldset>
+
+        <!-- honeypot: hidden from people, bots fill it and get silently dropped -->
+        <input type="text" name="website" id="website" tabindex="-1" autocomplete="off" aria-hidden="true"
+          style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
+
+        <div class="ct-submit" data-reveal>
+          <button type="submit" class="ct-btn" id="ct-submit">
+            <span id="ct-submit-text">Schedule free call</span><span class="ct-ico" aria-hidden="true"></span>
+          </button>
+          <p class="ct-mono ct-muted">NDA on request · Senior engineers only · Reply within 24h</p>
+          <p class="ct-muted ct-consent">By scheduling a call, you agree to our <a href="/terms-and-conditions">Terms</a> and consent to us using your details to contact you as described in our <a href="/privacy-policy">Privacy Policy</a>.</p>
+          <p class="ct-error" id="err-submit" role="alert"></p>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- ---- Closing band (dark, like the homepage) -------------------------- -->
+  <section class="ct-close">
+    <div class="ct-wrap">
+      <h2 data-split>The road can get <em>bumpy</em>. We keep you <em>rolling</em> regardless.</h2>
+      <p class="ct-mono">Rather just talk? <a href="https://wa.me/919016052410" target="_blank" rel="noopener">WhatsApp
+          +91 90160 52410</a></p>
+    </div>
+  </section>
+</div>
+
+<script src="/js/contact.js" defer></script>

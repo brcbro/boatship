@@ -1,0 +1,67 @@
+{
+  "slug": "website-development-surat",
+  "serviceType": "Website Development",
+  "primaryKeyword": "website development company in Surat",
+  "secondaryKeywords": [
+    "website design company Surat",
+    "ecommerce website development Surat",
+    "responsive web design Surat",
+    "business website design Surat"
+  ],
+  "whyKeyword": "website development in Surat",
+  "meta": {
+    "title": "Website Development Company in Surat | CohortIX",
+    "description": "CohortIX designs and builds fast, responsive websites and online stores for Surat businesses. SEO-ready, mobile-first, built to convert. Get a free quote.",
+    "ogTitle": "Website Design & Development in Surat — Fast, Modern, Converting | CohortIX",
+    "ogDescription": "Business sites, online stores, and landing pages that load fast and turn visitors into customers."
+  },
+  "h1": "Website Development Company in Surat",
+  "heroSub": "Fast, responsive websites and online stores — designed to look sharp and built to convert.",
+  "intro": "CohortIX is a website design and development company in Surat building sites that load fast, rank well, and turn visitors into customers — not just brochures that sit online doing nothing.",
+  "offeringsHeading": "What we build",
+  "offerings": [
+    {
+      "title": "Business Websites",
+      "body": "Clean, modern business website design in Surat that builds trust and generates enquiries — mobile-first and SEO-ready from day one."
+    },
+    {
+      "title": "E-commerce Websites",
+      "body": "Ecommerce website development in Surat with secure checkout, UPI and card payments, inventory, and an admin panel your team can actually use."
+    },
+    {
+      "title": "Landing & Campaign Pages",
+      "body": "High-converting landing pages for ads and launches, built to load fast and drive a single clear action."
+    },
+    {
+      "title": "Website Redesign & Speed",
+      "body": "Turn a slow, dated site into a fast, modern one — better Core Web Vitals, better ranking, better conversions."
+    },
+    {
+      "title": "Maintenance & Support",
+      "body": "Ongoing updates, security, backups, and content changes so your site keeps performing after launch."
+    }
+  ],
+  "faq": [
+    {
+      "q": "How much does a website cost in Surat?",
+      "a": "A simple business website costs far less than a full e-commerce store. You get a clear, itemized quote after a short call, with phased payments across milestones."
+    },
+    {
+      "q": "How long does it take to build a website?",
+      "a": "A standard business website is typically ready in 2 to 4 weeks. E-commerce and custom builds take longer and are delivered in phases."
+    },
+    {
+      "q": "Will my website be mobile-friendly and SEO-ready?",
+      "a": "Yes. Every site we build is responsive, fast, and set up with the on-page SEO basics so it can rank for Surat searches."
+    },
+    {
+      "q": "Do you build online stores with UPI and card payments?",
+      "a": "Yes. We integrate UPI, cards, and popular Indian payment gateways, plus GST-ready invoicing where you need it."
+    },
+    {
+      "q": "Do you provide hosting and maintenance?",
+      "a": "Yes. We can set up hosting and offer maintenance plans covering updates, backups, security, and content changes."
+    }
+  ],
+  "closing": "Your website is open at <em>3am</em>. Make sure it's <em>selling</em> too."
+}
