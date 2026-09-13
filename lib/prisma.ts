@@ -1,10 +1,6 @@
 import { PrismaNeon } from "@prisma/adapter-neon";
 import { PrismaClient } from "@/generated/prisma/client";
 
-const globalForPrisma = globalThis as unknown as {
-  prisma?: PrismaClient;
-};
-
 export function getPrisma() {
   const connectionString = process.env.DATABASE_URL?.trim();
   if (!connectionString) {
@@ -13,10 +9,8 @@ export function getPrisma() {
     );
   }
 
-  if (!globalForPrisma.prisma) {
-    const adapter = new PrismaNeon({ connectionString });
-    globalForPrisma.prisma = new PrismaClient({ adapter });
-  }
-
-  return globalForPrisma.prisma;
+  // Neon adapter I/O is request-scoped in Cloudflare Workers. Do not cache
+  // this client globally or concurrent requests can reuse another request's
+  // native I/O object and fail with a Workers 1101 exception.
+  return new PrismaClient({ adapter: new PrismaNeon({ connectionString }) });
 }
