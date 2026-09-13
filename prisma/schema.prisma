@@ -40,6 +40,23 @@ model ComposioConnection {
   @@index([userId])
 }
 
+model UserProviderSecret {
+  id           String   @id
+  userId       String
+  provider     String
+  ciphertext   String
+  iv           String
+  authTag      String
+  keyVersion   Int      @default(1)
+  last4        String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, provider])
+  @@index([userId])
+  @@index([provider])
+}
+
 model McpIdentity {
   id          String    @id
   publicId    String    @unique

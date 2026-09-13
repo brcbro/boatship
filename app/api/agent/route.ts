@@ -1,15 +1,15 @@
 import { handleApi } from "@/lib/api";
-import { isLlmConfigured } from "@/lib/agent";
+import { isLlmConfiguredForUser } from "@/lib/agent";
 import { requireRoles } from "@/lib/auth";
-import { isComposioConfigured, listBoatshipConnections } from "@/lib/composio";
+import { isComposioConfiguredForUser, listBoatshipConnections } from "@/lib/composio";
 
 export const runtime = "nodejs";
 
 export async function GET(req: Request) {
   return handleApi(async () => {
     const session = await requireRoles(req, ["admin", "team"]);
-    const composioConfigured = isComposioConfigured();
-    const llmConfigured = isLlmConfigured();
+    const composioConfigured = await isComposioConfiguredForUser(session.uid);
+    const llmConfigured = await isLlmConfiguredForUser(session.uid);
 
     let connectors: Awaited<ReturnType<typeof listBoatshipConnections>> = [];
     if (composioConfigured) {
@@ -24,9 +24,9 @@ export async function GET(req: Request) {
       ready: llmConfigured,
       userId: session.uid,
       message: !llmConfigured
-          ? "Set OPENROUTER_API_KEY, OPENAI_API_KEY, or AI_GATEWAY_API_KEY so the agent can reason."
+          ? "Add an OpenRouter credential in Integrations, or configure a server AI key, so the agent can reason."
           : !composioConfigured
-            ? "Boatship knowledge is ready. Add COMPOSIO_API_KEY to use connected apps."
+            ? "Boatship knowledge is ready. Add a Composio credential in Integrations to use connected apps."
             : null,
     };
   });

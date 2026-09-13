@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { FormEvent, Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Link2, Unplug } from "lucide-react";
@@ -36,6 +36,19 @@ type IntegrationsResponse = {
     outcome: string;
     status: "available" | "not_enabled";
   }>;
+};
+
+type SecretProvider = "composio" | "openrouter";
+
+type SecretStatus = {
+  provider: SecretProvider;
+  configured: boolean;
+  last4?: string | null;
+  updatedAt?: string | null;
+};
+
+type SecretStatusResponse = {
+  secrets: SecretStatus[];
 };
 
 type DriveFile = {
@@ -80,6 +93,9 @@ function IntegrationsContent() {
   const [testing, setTesting] = useState(false);
   const [testingDrive, setTestingDrive] = useState(false);
   const [driveFiles, setDriveFiles] = useState<DriveFile[] | null>(null);
+  const [secretStatuses, setSecretStatuses] = useState<SecretStatus[]>([]);
+  const [secretsLoading, setSecretsLoading] = useState(true);
+  const [secretBusy, setSecretBusy] = useState<SecretProvider | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -95,9 +111,22 @@ function IntegrationsContent() {
     }
   }, [token]);
 
+  const loadSecretStatuses = useCallback(async () => {
+    setSecretsLoading(true);
+    try {
+      const response = await apiFetch<SecretStatusResponse>("/api/settings/secrets", { token });
+      setSecretStatuses(response.secrets);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load credential status");
+    } finally {
+      setSecretsLoading(false);
+    }
+  }, [token]);
+
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadSecretStatuses();
+  }, [load, loadSecretStatuses]);
 
   useEffect(() => {
     const connected = searchParams.get("connected");
@@ -145,6 +174,54 @@ function IntegrationsContent() {
       setError(err instanceof Error ? err.message : "Failed to disconnect");
     } finally {
       setBusySlug(null);
+    }
+  }
+
+  async function saveSecret(provider: SecretProvider, event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const input = form.elements.namedItem("secret") as HTMLInputElement | null;
+    const value = input?.value.trim() || "";
+    if (!value) {
+      setError("Enter a credential before saving.");
+      return;
+    }
+
+    setSecretBusy(provider);
+    setError("");
+    setMessage("");
+    try {
+      await apiFetch("/api/settings/secrets", {
+        method: "POST",
+        token,
+        body: JSON.stringify({ provider, value }),
+      });
+      setMessage(`${provider === "composio" ? "Composio" : "OpenRouter"} credential saved securely.`);
+      form.reset();
+      await Promise.all([loadSecretStatuses(), load()]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save credential");
+      form.reset();
+    } finally {
+      setSecretBusy(null);
+    }
+  }
+
+  async function removeSecret(provider: SecretProvider) {
+    setSecretBusy(provider);
+    setError("");
+    setMessage("");
+    try {
+      await apiFetch(`/api/settings/secrets/${encodeURIComponent(provider)}`, {
+        method: "DELETE",
+        token,
+      });
+      setMessage(`${provider === "composio" ? "Composio" : "OpenRouter"} credential removed.`);
+      await Promise.all([loadSecretStatuses(), load()]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to remove credential");
+    } finally {
+      setSecretBusy(null);
     }
   }
 
@@ -230,41 +307,62 @@ function IntegrationsContent() {
         </p>
       ) : null}
 
-      {!loading && data && !data.configured ? (
-        <Card className="space-y-3 p-5">
+      <Card className="space-y-5 border-[var(--accent)]/30 bg-[var(--surface-raised)] p-5">
+        <div className="space-y-1">
           <h2 className="font-[family-name:var(--font-display)] text-lg text-[var(--brand)]">
-            Set up Composio
+            AI & integration credentials
           </h2>
           <p className="text-sm text-[var(--ink-muted)]">
-            {data.message || "Add your Composio API key to enable app connections."}
+            Add credentials for this workspace without exposing them to clients, browsers, or source control.
+            Hosted deployments store them encrypted on the server and only return configured status afterward.
           </p>
-          <ol className="list-decimal space-y-1 pl-5 text-sm text-[var(--ink)]">
-            <li>
-              Create an account at{" "}
-              <a
-                className="underline"
-                href="https://app.composio.dev"
-                target="_blank"
-                rel="noreferrer"
-              >
-                app.composio.dev
-              </a>
-            </li>
-            <li>
-              Copy your API key into <code className="text-xs">.env.local</code> as{" "}
-              <code className="text-xs">COMPOSIO_API_KEY</code>
-            </li>
-            <li>
-              Set <code className="text-xs">OPENROUTER_API_KEY</code> for Hodi chat
-            </li>
-            <li>
-              Optional: set <code className="text-xs">COMPOSIO_SLACK_CHANNEL</code> for automatic
-              onboarding notifications
-            </li>
-            <li>Restart the dev server and refresh this page</li>
-          </ol>
-        </Card>
-      ) : null}
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          {(["composio", "openrouter"] as const).map((provider) => {
+            const status = secretStatuses.find((item) => item.provider === provider);
+            const label = provider === "composio" ? "Composio" : "OpenRouter";
+            return (
+              <div key={provider} className="space-y-3 rounded-lg border border-[var(--border)] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-medium text-[var(--ink)]">{label}</h3>
+                    <p className="text-xs text-[var(--ink-muted)]">
+                      {secretsLoading ? "Checking status…" : status?.configured ? (status.last4 ? `Configured · ends in ${status.last4}` : "Configured · hidden") : "Not configured"}
+                    </p>
+                  </div>
+                  <Badge tone={status?.configured ? "success" : "neutral"}>
+                    {status?.configured ? "Configured" : "Not set"}
+                  </Badge>
+                </div>
+                <form className="space-y-2" onSubmit={(event) => void saveSecret(provider, event)}>
+                  <label className="sr-only" htmlFor={`${provider}-secret`}>{label} credential</label>
+                  <Input
+                    id={`${provider}-secret`}
+                    name="secret"
+                    type="password"
+                    autoComplete="new-password"
+                    placeholder={status?.configured ? "Enter a new credential to replace it" : `Paste your ${label} credential`}
+                    spellCheck={false}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="submit" size="sm" disabled={secretBusy !== null}>
+                      {secretBusy === provider ? "Saving…" : status?.configured ? "Replace" : "Save securely"}
+                    </Button>
+                    {status?.configured ? (
+                      <Button type="button" size="sm" variant="secondary" disabled={secretBusy !== null} onClick={() => void removeSecret(provider)}>
+                        {secretBusy === provider ? "Removing…" : "Remove"}
+                      </Button>
+                    ) : null}
+                  </div>
+                </form>
+              </div>
+            );
+          })}
+        </div>
+        <p className="text-xs text-[var(--ink-muted)]">
+          Credentials are sent over HTTPS to the server secret API. They are never placed in URLs, local storage, rendered HTML, or client-visible responses. Connected app accounts below continue to use Composio&apos;s secure authorization flow.
+        </p>
+      </Card>
 
       {loading ? (
         <p className="text-sm text-[var(--ink-muted)]">Loading integrations…</p>
@@ -276,7 +374,7 @@ function IntegrationsContent() {
                 Onboarding workflow coverage
               </h2>
               <p className="text-sm text-[var(--ink-muted)]">
-                Connect the available tools below. Categories marked "Not enabled" describe the next integrations to add; they are not connected to Boatship yet.
+                Connect the available tools below. Categories marked &quot;Not enabled&quot; describe the next integrations to add; they are not connected to Boatship yet.
               </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">

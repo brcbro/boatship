@@ -1,14 +1,14 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
-import { executeTool, isComposioConfigured, isIntegrationTestTool } from "@/lib/composio";
+import { executeTool, isComposioConfiguredForUser, isIntegrationTestTool } from "@/lib/composio";
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   return handleApi(async () => {
     const session = await requireRoles(req, ["admin", "team"]);
-    if (!isComposioConfigured()) {
-      throw jsonError("COMPOSIO_API_KEY is not set", 503);
+    if (!(await isComposioConfiguredForUser(session.uid))) {
+      throw jsonError("Composio is not configured for this user or the server", 503);
     }
 
     const body = (await req.json().catch(() => ({}))) as {

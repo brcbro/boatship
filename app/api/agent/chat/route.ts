@@ -6,11 +6,11 @@ import {
 } from "ai";
 import { randomUUID } from "crypto";
 import type { AgentChatMessage } from "@/types";
-import { BOATSHIP_AGENT_SYSTEM, getAgentModel, isLlmConfigured } from "@/lib/agent";
+import { BOATSHIP_AGENT_SYSTEM, getAgentModel, isLlmConfiguredForUser } from "@/lib/agent";
 import { jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
 import { buildBoatshipRagContext } from "@/lib/boatship-rag";
-import { createBoatshipAgentSession, isComposioConfigured } from "@/lib/composio";
+import { createBoatshipAgentSession, isComposioConfiguredForUser } from "@/lib/composio";
 import { getStore } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -74,7 +74,7 @@ export async function POST(req: Request) {
   try {
     const session = await requireRoles(req, ["admin", "team"]);
 
-    if (!isLlmConfigured()) {
+    if (!(await isLlmConfiguredForUser(session.uid))) {
       return jsonError("OPENROUTER_API_KEY, OPENAI_API_KEY, or AI_GATEWAY_API_KEY is not set", 503);
     }
 
@@ -110,7 +110,7 @@ export async function POST(req: Request) {
     let composioSession: Awaited<ReturnType<typeof createBoatshipAgentSession>> | null = null;
     let tools = {};
     let composioInstructions: string | undefined;
-    if (isComposioConfigured()) {
+    if (await isComposioConfiguredForUser(session.uid)) {
       try {
         composioSession = await createBoatshipAgentSession(session.uid, req);
         tools = await composioSession.tools();
@@ -122,7 +122,7 @@ export async function POST(req: Request) {
     const ragContext = await buildBoatshipRagContext(latestUserText(conversationMessages), session);
 
     const result = streamText({
-      model: getAgentModel(),
+      model: await getAgentModel(session.uid),
       system: [
         BOATSHIP_AGENT_SYSTEM,
         composioSession

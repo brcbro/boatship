@@ -1,6 +1,6 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
-import { disconnectAccount, isComposioConfigured } from "@/lib/composio";
+import { disconnectAccount, isComposioConfiguredForUser } from "@/lib/composio";
 
 export const runtime = "nodejs";
 
@@ -8,13 +8,13 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function DELETE(req: Request, { params }: Params) {
   return handleApi(async () => {
-    await requireRoles(req, ["admin", "team"]);
-    if (!isComposioConfigured()) {
-      throw jsonError("COMPOSIO_API_KEY is not set", 503);
+    const session = await requireRoles(req, ["admin", "team"]);
+    if (!(await isComposioConfiguredForUser(session.uid))) {
+      throw jsonError("Composio is not configured for this user or the server", 503);
     }
     const { id } = await params;
     if (!id) throw jsonError("connected account id is required", 400);
-    await disconnectAccount(id);
+    await disconnectAccount(session.uid, id);
     return { ok: true };
   });
 }

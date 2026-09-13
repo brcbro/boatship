@@ -1,7 +1,7 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
 import {
-  isComposioConfigured,
+  isComposioConfiguredForUser,
   listBoatshipConnections,
   startToolkitConnect,
   BOATSHIP_TOOLKITS,
@@ -14,7 +14,7 @@ export async function GET(req: Request) {
   return handleApi(async () => {
     const session = await requireRoles(req, ["admin", "team"]);
 
-    if (!isComposioConfigured()) {
+    if (!(await isComposioConfiguredForUser(session.uid))) {
       return {
         configured: false,
         toolkits: BOATSHIP_TOOLKITS.map((tk) => ({
@@ -27,7 +27,7 @@ export async function GET(req: Request) {
           testTool: tk.testTool,
         })),
         message:
-          "Set COMPOSIO_API_KEY to enable integrations. Get a key at https://app.composio.dev",
+          "Add a Composio credential in the secure credentials panel above to enable integrations.",
         workflows: ONBOARDING_INTEGRATION_WORKFLOWS,
       };
     }
@@ -45,8 +45,8 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   return handleApi(async () => {
     const session = await requireRoles(req, ["admin", "team"]);
-    if (!isComposioConfigured()) {
-      throw jsonError("COMPOSIO_API_KEY is not set", 503);
+    if (!(await isComposioConfiguredForUser(session.uid))) {
+      throw jsonError("Composio is not configured for this user or the server", 503);
     }
 
     const body = (await req.json().catch(() => ({}))) as { toolkit?: string };

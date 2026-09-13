@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { executeTool, isComposioConfigured } from "@/lib/composio";
+import { executeTool, isComposioConfiguredForUser } from "@/lib/composio";
 import { getStore } from "@/lib/store";
 import type { Client, Task } from "@/types";
 
@@ -140,7 +140,7 @@ export async function weeklyEvidenceReport(clientId?: string) {
 }
 
 export async function executeProjectIntegration(input: { userId: string; action: "calendar" | "docs" | "sheets" | "telegram"; arguments: Record<string, unknown> }) {
-  if (!isComposioConfigured()) return { connected: false, message: "Composio is not configured; export the prepared payload manually.", payload: input.arguments };
+  if (!(await isComposioConfiguredForUser(input.userId))) return { connected: false, message: "Composio is not configured for this user; export the prepared payload manually.", payload: input.arguments };
   const tools = { calendar: "GOOGLECALENDAR_CREATE_EVENT", docs: "GOOGLEDOCS_CREATE_DOCUMENT", sheets: "GOOGLESHEETS_APPEND_ROW", telegram: "TELEGRAM_BOT_SEND_MESSAGE" } as const;
   const result = await executeTool({ boatshipUid: input.userId, toolSlug: tools[input.action], arguments: input.arguments });
   return { connected: true, result };

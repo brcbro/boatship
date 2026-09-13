@@ -1,4 +1,4 @@
-import { executeTool, isComposioConfigured, listBoatshipConnections } from "@/lib/composio";
+import { executeTool, isComposioConfiguredForUser, listBoatshipConnections } from "@/lib/composio";
 import { sendEmail } from "@/lib/email";
 import { getStore } from "@/lib/store";
 import type { AppUser, Client } from "@/types";
@@ -129,7 +129,7 @@ async function recipients(store: Awaited<ReturnType<typeof getStore>>, finding: 
 }
 
 async function sendComposioNotification(userId: string, channel: ReminderChannel, text: string) {
-  if (!isComposioConfigured()) return { status: "skipped" as const, reason: "composio_not_configured" };
+  if (!(await isComposioConfiguredForUser(userId))) return { status: "skipped" as const, reason: "composio_not_configured" };
   const connections = await listBoatshipConnections(userId);
   const slug = channel === "slack" ? "slack" : channel === "telegram" ? "telegram" : "";
   if (!slug || !connections.some((connection) => connection.slug === slug && connection.connected)) {

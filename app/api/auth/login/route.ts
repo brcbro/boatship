@@ -6,14 +6,6 @@ import type { AuthSession } from "@/types";
 
 export const runtime = "nodejs";
 
-const DEMO_PASSWORDS: Record<string, string> = {
-  "admin@boatship.local": "admin123",
-  "team@boatship.local": "team123",
-};
-
-/** Default password for invited client users in local/demo mode. */
-const LOCAL_CLIENT_PASSWORD = "Welcome123!";
-
 const RATE_LIMIT_MAX = 20;
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 
@@ -79,11 +71,9 @@ export async function POST(req: Request) {
       ok = verifyPassword(password, user.passwordHash);
     } else {
       const expected =
-        user.password ||
-        DEMO_PASSWORDS[user.email.toLowerCase()] ||
-        (user.role === "client" || user.mustResetPassword || user.inviteToken
-          ? LOCAL_CLIENT_PASSWORD
-          : null);
+        process.env.ALLOW_LOCAL_STORE === "1" && process.env.NODE_ENV !== "production"
+          ? user.password || null
+          : null;
       ok = passwordsMatch(password, expected);
     }
 

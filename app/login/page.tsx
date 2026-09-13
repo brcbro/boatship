@@ -15,8 +15,8 @@ function LoginContent() {
   }, [searchParams]);
 
   const [mode, setMode] = useState<Mode>(resetToken ? "reset" : "login");
-  const [email, setEmail] = useState("admin@boatship.local");
-  const [password, setPassword] = useState(resetToken ? "" : "admin123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -249,12 +249,9 @@ function LoginContent() {
           ) : null}
 
           {mode === "login" ? (
-            <div className="mt-6 rounded-lg bg-[var(--surface-2)] p-3 text-xs text-[var(--ink-muted)]">
-              <p className="font-medium text-[var(--ink)]">Demo accounts</p>
-              <p className="mt-1">Admin: admin@boatship.local / admin123</p>
-              <p>Team: team@boatship.local / team123</p>
-              <p>Invited clients: Welcome123!</p>
-            </div>
+            <p className="mt-6 text-center text-xs text-[var(--ink-muted)]">
+              Use the account created by your workspace administrator, or request a password reset.
+            </p>
           ) : null}
         </Card>
       </div>

@@ -1,6 +1,6 @@
 import {
   executeTool,
-  isComposioConfigured,
+  isComposioConfiguredForUser,
   listBoatshipConnections,
 } from "@/lib/composio";
 import { getStore } from "@/lib/store";
@@ -52,7 +52,7 @@ export async function provisionClientDriveFolder(
   client: Pick<Client, "id" | "name" | "companyName" | "driveFolderId" | "driveFolderUrl">
 ): Promise<ProvisionedDriveFolder | null> {
   try {
-    if (!isComposioConfigured()) return null;
+    if (!(await isComposioConfiguredForUser(boatshipUid))) return null;
     if (client.driveFolderId) {
       return {
         folderId: client.driveFolderId,

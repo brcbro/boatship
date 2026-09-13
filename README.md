@@ -21,11 +21,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ### Initial accounts
 
-| Role  | Email                   | Password     |
-|-------|-------------------------|--------------|
-| Admin | admin@boatship.local    | admin123     |
-| Team  | team@boatship.local     | team123      |
-| Client| (after invite)          | Welcome123!  |
+Create the first administrator through your private seed or provisioning process. Default demo credentials are not displayed or enabled in hosted/production mode. Client accounts should sign in using their invitation or password-reset link.
 
 ## Core flows
 
@@ -33,7 +29,7 @@ Open [http://localhost:3000](http://localhost:3000).
 2. Open client → **Invite client** → copy temp password
 3. Sign out → sign in as client → complete tasks, submit form, upload documents
 4. Sign in as admin → review documents/forms, update task status, check **Activity** / **Analytics**
-5. Optional: **Integrations** → each member connects **Google Drive** (needs `COMPOSIO_API_KEY`) → open **Hodi** (`OPENROUTER_API_KEY`) to list or create folders
+5. Optional: **Integrations** → each member securely saves their own Composio/OpenRouter credentials → connect **Google Drive** and open **Hodi**
 6. Optional: connect Slack → set `COMPOSIO_SLACK_CHANNEL` for auto-notify
 
 ## Environment

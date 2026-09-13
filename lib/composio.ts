@@ -2,6 +2,7 @@ import { Composio } from "@composio/core";
 import { VercelProvider } from "@composio/vercel";
 import { appBaseUrl } from "@/lib/client-status";
 import { getPrisma } from "@/lib/prisma";
+import { resolveUserSecret } from "@/lib/user-secrets";
 
 /** Curated onboarding-relevant toolkits (Composio catalog has 250+). */
 export const BOATSHIP_TOOLKITS = [
@@ -129,6 +130,11 @@ export function isComposioConfigured() {
   return Boolean(process.env.COMPOSIO_API_KEY?.trim());
 }
 
+export async function isComposioConfiguredForUser(userId?: string) {
+  if (isComposioConfigured()) return true;
+  return Boolean(userId && (await resolveUserSecret(userId, "composio")));
+}
+
 const TOOLKIT_VERSIONS = {
   slack: "latest",
   gmail: "latest",
@@ -163,6 +169,12 @@ export function getComposio() {
   return client;
 }
 
+export async function getComposioForUser(boatshipUid: string): Promise<Composio> {
+  const apiKey = (await resolveUserSecret(boatshipUid, "composio")) || process.env.COMPOSIO_API_KEY?.trim();
+  if (!apiKey) throw new Error("Composio is not configured for this user or the server");
+  return new Composio({ apiKey, toolkitVersions: TOOLKIT_VERSIONS });
+}
+
 /** Composio client with Vercel AI SDK tool wrapping for the Agent UI. */
 export function getAgentComposio(): Composio<VercelProvider> {
   requireApiKey();
@@ -176,13 +188,19 @@ export function getAgentComposio(): Composio<VercelProvider> {
   return agentClient;
 }
 
+export async function getAgentComposioForUser(boatshipUid: string): Promise<Composio<VercelProvider>> {
+  const apiKey = (await resolveUserSecret(boatshipUid, "composio")) || process.env.COMPOSIO_API_KEY?.trim();
+  if (!apiKey) throw new Error("Composio is not configured for this user or the server");
+  return new Composio({ apiKey, provider: new VercelProvider(), toolkitVersions: TOOLKIT_VERSIONS });
+}
+
 /**
  * Session scoped to the signed-in member's connected Boatship integrations.
  * It exposes the full curated toolkit catalog, so Composio can offer the
  * relevant connection flow when an account has not yet been linked.
  */
 export async function createBoatshipAgentSession(boatshipUid: string, req?: Request) {
-  const composio = getAgentComposio();
+  const composio = await getAgentComposioForUser(boatshipUid);
   const userId = composioUserId(boatshipUid);
   const callbackUrl = `${appBaseUrl(req)}/integrations`;
   return composio.create(userId, {
@@ -200,7 +218,7 @@ export function composioUserId(boatshipUid: string) {
 }
 
 export async function listBoatshipConnections(boatshipUid: string): Promise<ConnectedToolkit[]> {
-  const composio = getComposio();
+  const composio = await getComposioForUser(boatshipUid);
   const userId = composioUserId(boatshipUid);
   const accounts = await composio.connectedAccounts.list({
     userIds: [userId],
@@ -247,7 +265,7 @@ export async function startToolkitConnect(
   toolkitSlug: string,
   req?: Request
 ) {
-  const composio = getComposio();
+  const composio = await getComposioForUser(boatshipUid);
   const userId = composioUserId(boatshipUid);
   const callbackUrl = `${appBaseUrl(req)}/integrations?connected=${encodeURIComponent(toolkitSlug)}`;
 
@@ -277,8 +295,8 @@ export async function startToolkitConnect(
   };
 }
 
-export async function disconnectAccount(connectedAccountId: string) {
-  const composio = getComposio();
+export async function disconnectAccount(boatshipUid: string, connectedAccountId: string) {
+  const composio = await getComposioForUser(boatshipUid);
   await composio.connectedAccounts.delete(connectedAccountId);
 }
 
@@ -287,7 +305,7 @@ export async function executeTool(params: {
   toolSlug: string;
   arguments: Record<string, unknown>;
 }) {
-  const composio = getComposio();
+  const composio = await getComposioForUser(params.boatshipUid);
   const userId = composioUserId(params.boatshipUid);
   return composio.tools.execute(params.toolSlug, {
     userId,
@@ -482,7 +500,7 @@ async function upsertHubspotContact(
  * Never throws — integrations must not break core onboarding flows.
  */
 export async function notifyIntegrations(boatshipUid: string, event: IntegrationEvent) {
-  if (!isComposioConfigured()) return { skipped: true as const, reason: "not_configured" };
+  if (!(await isComposioConfiguredForUser(boatshipUid))) return { skipped: true as const, reason: "not_configured" };
 
   try {
     const connections = await listBoatshipConnections(boatshipUid);

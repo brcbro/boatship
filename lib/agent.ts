@@ -1,5 +1,6 @@
 import { createOpenAI, openai } from "@ai-sdk/openai";
 import type { LanguageModel } from "ai";
+import { resolveUserSecret } from "@/lib/user-secrets";
 
 export function isLlmConfigured() {
   return Boolean(
@@ -9,9 +10,16 @@ export function isLlmConfigured() {
   );
 }
 
+export async function isLlmConfiguredForUser(userId?: string) {
+  if (isLlmConfigured()) return true;
+  return Boolean(userId && (await resolveUserSecret(userId, "openrouter")));
+}
+
 /** Prefer OpenRouter, then direct OpenAI, then Vercel AI Gateway. */
-export function getAgentModel(): LanguageModel | string {
-  const openRouterKey = process.env.OPENROUTER_API_KEY?.trim();
+export async function getAgentModel(userId?: string): Promise<LanguageModel | string> {
+  const openRouterKey =
+    (userId ? await resolveUserSecret(userId, "openrouter") : null) ||
+    process.env.OPENROUTER_API_KEY?.trim();
   if (openRouterKey) {
     const openrouter = createOpenAI({
       name: "openrouter",
@@ -29,7 +37,7 @@ export function getAgentModel(): LanguageModel | string {
     return process.env.AI_GATEWAY_MODEL?.trim() || "openai/gpt-4o-mini";
   }
   throw new Error(
-    "No LLM configured. Set OPENROUTER_API_KEY, OPENAI_API_KEY, or AI_GATEWAY_API_KEY in .env.local."
+    "No LLM configured. Add an OpenRouter key in settings or configure the server environment."
   );
 }
 
