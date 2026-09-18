@@ -170,7 +170,10 @@ export function getComposio() {
 }
 
 export async function getComposioForUser(boatshipUid: string): Promise<Composio> {
-  const apiKey = (await resolveUserSecret(boatshipUid, "composio")) || process.env.COMPOSIO_API_KEY?.trim();
+  // Prefer the deployed Worker secret when present. It is the canonical
+  // workspace credential and avoids relying on Node crypto decryption inside
+  // the edge bundle for every Composio request.
+  const apiKey = process.env.COMPOSIO_API_KEY?.trim() || (await resolveUserSecret(boatshipUid, "composio"));
   if (!apiKey) throw new Error("Composio is not configured for this user or the server");
   return new Composio({ apiKey, toolkitVersions: TOOLKIT_VERSIONS });
 }
@@ -189,7 +192,7 @@ export function getAgentComposio(): Composio<VercelProvider> {
 }
 
 export async function getAgentComposioForUser(boatshipUid: string): Promise<Composio<VercelProvider>> {
-  const apiKey = (await resolveUserSecret(boatshipUid, "composio")) || process.env.COMPOSIO_API_KEY?.trim();
+  const apiKey = process.env.COMPOSIO_API_KEY?.trim() || (await resolveUserSecret(boatshipUid, "composio"));
   if (!apiKey) throw new Error("Composio is not configured for this user or the server");
   return new Composio({ apiKey, provider: new VercelProvider(), toolkitVersions: TOOLKIT_VERSIONS });
 }

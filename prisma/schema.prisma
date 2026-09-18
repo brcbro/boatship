@@ -2,7 +2,9 @@ generator client {
   provider = "prisma-client"
   output = "../generated/prisma"
   engineType = "client"
-  runtime = "workerd"
+  // Cloudflare Workers disallow runtime WebAssembly compilation. The
+  // Cloudflare loader uses the Worker-compatible imported Wasm module path.
+  runtime = "cloudflare"
 }
 
 datasource db {

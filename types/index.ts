@@ -12,6 +12,35 @@ export type StaffPermission =
   | "webhooks.manage"
   | "audit.export";
 
+export type AccountingCategory = "rent" | "emi" | "misc";
+export type AccountingStatus = "pending" | "partially_paid" | "settled";
+export type AccountingSplitMode = "equal" | "specific";
+
+export interface AccountingSplit {
+  id: string;
+  personId: string;
+  personName: string;
+  amount: number;
+  paidAmount: number;
+}
+
+export interface AccountingEntry {
+  id: string;
+  title: string;
+  category: AccountingCategory;
+  amount: number;
+  month: string;
+  dueDate: string | null;
+  status: AccountingStatus;
+  paidById: string;
+  paidByName: string;
+  splitMode: AccountingSplitMode;
+  splits: AccountingSplit[];
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type ClientStatus =
   | "not_started"
   | "in_progress"

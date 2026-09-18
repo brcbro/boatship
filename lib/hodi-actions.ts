@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "crypto";
 import type { AuthSession, Task, TaskPriority, TaskStatus, TaskType } from "@/types";
 import { hasPermission } from "@/lib/rbac";
 import { getStore } from "@/lib/store";
+import { createAccountingEntry, listAccountingEntries, updateAccountingEntry, validateAccountingInput } from "@/lib/accounting";
 import { consumeHodiActionProposal, createHodiActionProposal, finishHodiActionProposal, releaseHodiActionProposal } from "@/lib/hodi-queue";
 
 export type HodiAction =
@@ -11,7 +12,9 @@ export type HodiAction =
   | "update_task"
   | "assign_task"
   | "block_task"
-  | "weekly_status_report";
+  | "weekly_status_report"
+  | "create_accounting_entry"
+  | "update_accounting_entry";
 
 type ActionPayload = Record<string, unknown>;
 
@@ -51,6 +54,8 @@ function assertAction(value: unknown): asserts value is HodiAction {
     "assign_task",
     "block_task",
     "weekly_status_report",
+    "create_accounting_entry",
+    "update_accounting_entry",
   ];
   if (!actions.includes(value as HodiAction)) throw new Error("Unsupported Hodi action");
 }
@@ -61,6 +66,10 @@ function assertCanManage(session: AuthSession) {
 
 function assertCanView(session: AuthSession) {
   if (!hasPermission(session, "clients.view")) throw new Error("Forbidden");
+}
+
+function assertCanManageAccounts(session: AuthSession) {
+  if (session.role !== "admin") throw new Error("Forbidden");
 }
 
 function validateDueDate(value: unknown) {
@@ -225,6 +234,20 @@ async function preview(action: HodiAction, payload: ActionPayload, session: Auth
       const report = await buildWeeklyReport(clientId);
       return { title: `Generate weekly status report for ${report.client.companyName}`, changes: ["Generate a read-only report", `Includes ${report.summary.tasks.blocked} blockers and ${report.summary.tasks.overdue} overdue tasks`], diff: [{ field: "report", label: "Weekly status report", before: "Not generated", after: "Generated for review" }], report };
     }
+    case "create_accounting_entry": {
+      assertCanManageAccounts(session);
+      const entry = validateAccountingInput(payload, session.uid);
+      return { title: `Add ${entry.title} to accounting`, changes: [`Record ${entry.category.toUpperCase()} expense of ₹${entry.amount}`, `Paid by ${entry.paidByName}`, entry.splitMode === "equal" ? `Divide equally between ${entry.splits.map((allocation) => allocation.personName).join(", ")}` : `Assign to ${entry.splits[0]?.personName}`], diff: entry.splits.map((allocation) => ({ field: allocation.personId, label: allocation.personName, before: "No balance", after: `₹${allocation.amount} (${allocation.paidAmount >= allocation.amount ? "settled" : "owed"})` })) };
+    }
+    case "update_accounting_entry": {
+      assertCanManageAccounts(session);
+      const id = text(payload.id);
+      if (!id) throw new Error("id is required");
+      const existing = (await listAccountingEntries()).find((entry) => entry.id === id);
+      if (!existing) throw new Error("Accounting entry not found");
+      const entry = validateAccountingInput(payload, session.uid, existing);
+      return { title: `Update ${existing.title}`, changes: [`Update ${entry.category.toUpperCase()} expense`, `Set payer to ${entry.paidByName}`, entry.splitMode === "equal" ? `Divide equally between ${entry.splits.length} people` : `Assign the bill to ${entry.splits[0]?.personName}`], diff: [{ field: "total", label: "Total", before: `₹${existing.amount}`, after: `₹${entry.amount}` }, ...entry.splits.map((allocation) => ({ field: allocation.personId, label: allocation.personName, before: "Current balance", after: `₹${allocation.amount} (${allocation.paidAmount >= allocation.amount ? "settled" : "owed"})` }))] };
+    }
   }
 }
 
@@ -277,6 +300,19 @@ export async function executeHodiAction(
     const report = await buildWeeklyReport(text(payload.clientId));
     await store.addActivity({ clientId: report.client.id, actorId: session.uid, actorName: session.name, action: "hodi.weekly_status_report_generated", meta: { proposalId: claim.proposal.id, summary: report.summary } });
     return complete({ report });
+  }
+
+  if (action === "create_accounting_entry") {
+    const entry = await createAccountingEntry(payload, session.uid);
+    await store.addActivity({ clientId: "accounting", actorId: session.uid, actorName: session.name, action: "hodi.accounting_entry_created", meta: { proposalId: claim.proposal.id, entryId: entry.id, title: entry.title, amount: entry.amount } });
+    return complete({ entry });
+  }
+
+  if (action === "update_accounting_entry") {
+    const id = text(payload.id);
+    const entry = await updateAccountingEntry(id, payload, session.uid);
+    await store.addActivity({ clientId: "accounting", actorId: session.uid, actorName: session.name, action: "hodi.accounting_entry_updated", meta: { proposalId: claim.proposal.id, entryId: entry.id, title: entry.title, amount: entry.amount } });
+    return complete({ entry });
   }
 
   if (action === "create_client") {

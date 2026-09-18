@@ -70,7 +70,10 @@ export function appBaseUrl(req?: Request) {
   if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
   if (req) {
     const host = req.headers.get("x-forwarded-host") || req.headers.get("host");
-    const proto = req.headers.get("x-forwarded-proto") || "http";
+    // Cloudflare may omit x-forwarded-proto on Worker requests. OAuth
+    // callbacks must still be HTTPS on every deployed hostname.
+    const forwardedProto = req.headers.get("x-forwarded-proto");
+    const proto = forwardedProto || (host && !/^localhost(?::\d+)?$/i.test(host) ? "https" : "http");
     if (host) return `${proto}://${host}`;
   }
   return "http://localhost:3000";

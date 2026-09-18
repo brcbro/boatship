@@ -8,6 +8,7 @@ import {
   Bot,
   Sparkles,
   CalendarDays,
+  WalletCards,
   ClipboardCheck,
   FileText,
   Gauge,
@@ -27,8 +28,11 @@ import { CommandPalette } from "@/components/shared/CommandPalette";
 import { NotificationBell } from "@/components/shared/NotificationBell";
 import { Button } from "@/components/shared/ui";
 import { cn, statusLabel } from "@/lib/utils";
+import type { LucideIcon } from "lucide-react";
 
-const NAV = [
+type NavItem = { href: string; label: string; icon: LucideIcon; adminOnly?: boolean };
+
+const NAV: readonly NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/clients", label: "Clients", icon: Users },
   { href: "/team", label: "Team", icon: UsersRound },
@@ -40,6 +44,7 @@ const NAV = [
   { href: "/templates", label: "Templates", icon: ClipboardCheck },
   { href: "/forms", label: "Forms", icon: FileText },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/accounting", label: "Accounting", icon: WalletCards, adminOnly: true },
   { href: "/integrations", label: "Integrations", icon: Plug },
   { href: "/webhooks", label: "Webhooks", icon: Webhook },
   { href: "/mcp", label: "MCP access", icon: KeyRound },
@@ -95,7 +100,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   function nav(compact = false) {
     return (
     <nav className="flex flex-col gap-1">
-      {NAV.map((item) => (
+      {NAV.filter((item) => !item.adminOnly || session?.role === "admin").map((item) => (
         (() => {
           const Icon = item.icon;
           return <Link

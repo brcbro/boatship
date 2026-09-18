@@ -16,6 +16,7 @@ public/reference-home/
 
 # next.js
 /.next/
+/.next-predeploy-backup/
 /out/
 /.open-next/
 /.wrangler/

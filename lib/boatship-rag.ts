@@ -2,6 +2,7 @@ import type { AuthSession, Client } from "@/types";
 import { isStaff } from "@/lib/rbac";
 import { getStore } from "@/lib/store";
 import { buildHodiClientInsights } from "@/lib/hodi-insights";
+import { listAccountingEntries } from "@/lib/accounting";
 
 type KnowledgeChunk = {
   source: string;
@@ -71,7 +72,7 @@ export async function retrieveBoatshipKnowledge(query: string, session: AuthSess
   const store = await getStore();
   const clients = await store.listClients();
   const clientById = new Map(clients.map((client) => [client.id, client]));
-  const [users, tasks, documents, forms, vessels, activity, templates, messages, notifications] = await Promise.all([
+  const [users, tasks, documents, forms, vessels, activity, templates, messages, notifications, accountingEntries] = await Promise.all([
     store.listUsers(),
     store.listAllTasks(),
     store.listAllDocuments(),
@@ -81,6 +82,7 @@ export async function retrieveBoatshipKnowledge(query: string, session: AuthSess
     store.listTemplates(),
     Promise.all(clients.map((client) => store.listMessages(client.id))).then((items) => items.flat()),
     store.listNotifications(session.uid),
+    listAccountingEntries(),
   ]);
   const taskComments = (
     await Promise.all(tasks.map((task) => store.listTaskComments(task.id)))
@@ -189,6 +191,11 @@ export async function retrieveBoatshipKnowledge(query: string, session: AuthSess
       source: `notification:${notification.kind}`,
       updatedAt: notification.createdAt,
       text: `Notification: ${notification.title}. ${notification.body}`,
+    })),
+    ...accountingEntries.map((entry) => ({
+      source: `accounting:${entry.title}`,
+      updatedAt: entry.updatedAt,
+      text: `Accounting entry ${entry.title} for ${entry.month}. Category: ${entry.category}; total: ₹${entry.amount}; paid by: ${entry.paidByName}; division: ${entry.splitMode}; status: ${entry.status}; due: ${entry.dueDate || "not set"}. Amounts: ${entry.splits.map((allocation) => `${allocation.personName} ₹${allocation.amount}, ${allocation.paidAmount >= allocation.amount ? "settled" : "owed"}`).join("; ")}.`,
     })),
   ];
 

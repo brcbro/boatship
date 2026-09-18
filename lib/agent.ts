@@ -18,8 +18,8 @@ export async function isLlmConfiguredForUser(userId?: string) {
 /** Prefer OpenRouter, then direct OpenAI, then Vercel AI Gateway. */
 export async function getAgentModel(userId?: string): Promise<LanguageModel | string> {
   const openRouterKey =
-    (userId ? await resolveUserSecret(userId, "openrouter") : null) ||
-    process.env.OPENROUTER_API_KEY?.trim();
+    process.env.OPENROUTER_API_KEY?.trim() ||
+    (userId ? await resolveUserSecret(userId, "openrouter") : null);
   if (openRouterKey) {
     const openrouter = createOpenAI({
       name: "openrouter",
@@ -52,6 +52,7 @@ Capabilities:
 - Assess onboarding health using the supplied client summaries: state the health, known blockers, owner, and the single best next step. Clearly distinguish confirmed facts from recommendations.
 - When connected tools are available, create sensible client project folders and prepare follow-up drafts for missing assets, access, approvals, kickoff scheduling, or overdue work. A draft is not sent until the user explicitly approves sending it.
 - Clearly report what you found or changed, including relevant links and next steps
+- For accounting changes, use the built-in Hodi action proposal flow when available. Record who paid, then either divide the bill equally among selected people or assign it to one specific person. Show the exact calculated amounts and receive explicit approval before the ledger changes.
 
 Response quality:
 - Lead with the answer in plain language. For operational questions, then include only the evidence that materially supports it, using the retrieved source labels.
