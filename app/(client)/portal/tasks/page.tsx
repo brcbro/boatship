@@ -89,7 +89,7 @@ export default function PortalTasksPage() {
     <div>
       <PageHeader
         title="Tasks"
-        description="Compact sections — click any row to open details, subtasks, and comments."
+        description="Work through your onboarding checklist one step at a time. Open a task to see its details, subtasks, and messages from your team."
       />
 
       {error ? (

@@ -72,16 +72,16 @@ export default function DashboardPage() {
     setLoading(true);
     setError("");
     try {
-      const [a, c, h] = await Promise.all([
-        apiFetch<Analytics>("/api/analytics", { token }),
-        apiFetch<{ clients: ClientWithProgress[] }>("/api/clients", { token }),
-        apiFetch<{ health: OnboardingHealth[] }>("/api/onboarding-health", { token }),
-      ]);
-      setAnalytics(a);
-      setClients(
-        [...c.clients].sort((x, y) => y.updatedAt.localeCompare(x.updatedAt)).slice(0, 8)
+      const data = await apiFetch<{
+        analytics: Analytics;
+        clients: ClientWithProgress[];
+        health: OnboardingHealth[];
+      }>("/api/dashboard", { token });
+      setAnalytics(data.analytics);
+      setClients(data.clients);
+      setHealthByClientId(
+        Object.fromEntries(data.health.map((item) => [item.clientId, item]))
       );
-      setHealthByClientId(Object.fromEntries(h.health.map((item) => [item.clientId, item])));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load dashboard");
     } finally {
@@ -90,7 +90,8 @@ export default function DashboardPage() {
   }, [token]);
 
   useEffect(() => {
-    void load();
+    const timeoutId = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timeoutId);
   }, [load]);
 
   if (loading) {

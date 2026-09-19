@@ -106,6 +106,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           return <Link
             key={item.href}
             href={item.href}
+            prefetch={false}
             onClick={() => setOpen(false)}
             title={compact ? item.label : undefined}
             className={cn(

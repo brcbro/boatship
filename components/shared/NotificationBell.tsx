@@ -9,6 +9,28 @@ import { apiFetch } from "@/lib/api-client";
 import { cn, formatDateTime } from "@/lib/utils";
 import type { AppNotification } from "@/types";
 
+type NotificationPayload = {
+  notifications: AppNotification[];
+  unreadCount: number;
+};
+
+const NOTIFICATION_REFRESH_MS = 5 * 60_000;
+let notificationRequest: Promise<NotificationPayload> | null = null;
+let notificationRequestToken: string | null;
+
+function requestNotifications(token: string | null) {
+  if (notificationRequest && notificationRequestToken === token) {
+    return notificationRequest;
+  }
+
+  notificationRequestToken = token;
+  const request = apiFetch<NotificationPayload>("/api/notifications", { token });
+  notificationRequest = request;
+  return request.finally(() => {
+    if (notificationRequest === request) notificationRequest = null;
+  });
+}
+
 export function NotificationBell({
   className,
   tone = "light",
@@ -31,10 +53,7 @@ export function NotificationBell({
     if (authLoading) return;
     setLoading(true);
     try {
-      const data = await apiFetch<{
-        notifications: AppNotification[];
-        unreadCount: number;
-      }>("/api/notifications", { token });
+      const data = await requestNotifications(token);
       setNotifications(data.notifications);
       setUnreadCount(data.unreadCount);
     } catch {
@@ -45,9 +64,19 @@ export function NotificationBell({
   }, [token, authLoading]);
 
   useEffect(() => {
-    void load();
-    const id = setInterval(() => void load(), 45_000);
-    return () => clearInterval(id);
+    const initial = window.setTimeout(() => void load(), 0);
+    const id = window.setInterval(() => {
+      if (document.visibilityState === "visible") void load();
+    }, NOTIFICATION_REFRESH_MS);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.clearTimeout(initial);
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
   }, [load]);
 
   useEffect(() => {
@@ -139,7 +168,7 @@ export function NotificationBell({
         aria-expanded={open}
         onClick={() => void onOpenChange(!open)}
         className={cn(
-          "relative inline-flex h-11 w-11 items-center justify-center rounded-md transition sm:h-9 sm:w-9",
+          "relative inline-flex h-11 w-11 items-center justify-center rounded-lg transition",
           isDark
             ? "text-white hover:bg-white/10"
             : "border border-[var(--border)] text-[var(--ink)] hover:bg-[var(--surface-2)]"

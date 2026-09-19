@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, Suspense, useMemo, useState } from "react";
+import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/shared/AuthProvider";
 import { Button, Card, Input, Label } from "@/components/shared/ui";
@@ -10,6 +10,14 @@ type Mode = "login" | "forgot" | "reset";
 function LoginContent() {
   const { login } = useAuth();
   const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const topWindow = window.top;
+    if (topWindow && window.self !== topWindow) {
+      topWindow.location.replace(window.location.href);
+    }
+  }, []);
+
   const resetToken = useMemo(() => {
     return (searchParams.get("reset") || searchParams.get("token") || "").trim();
   }, [searchParams]);

@@ -1,5 +1,5 @@
 name = "boatship-onboarding"
-main = ".open-next/worker.js"
+main = "custom-worker.ts"
 compatibility_date = "2026-09-13"
 compatibility_flags = ["nodejs_compat"]
 
@@ -9,6 +9,21 @@ binding = "ASSETS"
 
 [observability]
 enabled = true
+head_sampling_rate = 0.1
+
+[[durable_objects.bindings]]
+name = "MESSAGE_ROOM"
+class_name = "MessageRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["MessageRoom"]
+
+# Hyperdrive is supported by lib/prisma.ts, but a binding must only be enabled
+# after creating the real resource. Never commit a placeholder ID.
+# [[hyperdrive]]
+# binding = "HYPERDRIVE"
+# id = "<set-your-real-hyperdrive-id>"
 
 [[routes]]
 pattern = "boatship.cohortix.in"

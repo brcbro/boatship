@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -13,7 +14,6 @@ import { usePathname, useRouter } from "next/navigation";
 import type { AuthSession } from "@/types";
 import {
   apiFetch,
-  getStoredSession,
   getStoredToken,
   setStoredSession,
   setStoredToken,
@@ -37,35 +37,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const hasValidatedSession = useRef(false);
 
   const refresh = useCallback(async () => {
     try {
       const data = await apiFetch<{ session: AuthSession | null }>("/api/auth/session");
       if (!data.session) {
+        hasValidatedSession.current = true;
         setSession(null);
         setStoredSession(null);
         setStoredToken(null);
         setToken(null);
-        if (pathname !== "/login") router.replace("/login");
+        if (pathname !== "/login") {
+          router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+        }
         return;
       }
+      hasValidatedSession.current = true;
       setSession(data.session);
       setStoredSession(data.session);
       const t = getStoredToken();
       setToken(t);
     } catch {
-      setSession(null);
-      setStoredSession(null);
-      setToken(null);
-      if (pathname !== "/login") router.replace("/login");
+      // A temporary database/network failure is not proof that the session is
+      // invalid. Keep the current verified state instead of ejecting the user
+      // from whichever workspace section they are using.
     } finally {
       setLoading(false);
     }
   }, [pathname, router]);
 
   useEffect(() => {
-    setSession(getStoredSession());
-    setToken(getStoredToken());
+    // The marketing home page is public. Avoid a Worker invocation plus the
+    // session/database lookup for every anonymous landing-page visit.
+    if (pathname === "/") {
+      setLoading(false);
+      return;
+    }
+
+    // The session is shared by every workspace route. Revalidating it on each
+    // pathname change causes unnecessary database work and can redirect users
+    // during navigation when a single lookup is slow or temporarily fails.
+    if (hasValidatedSession.current) return;
+
+    // Do not expose a cached browser session before the server has validated
+    // its database-backed token. Otherwise protected pages can issue API
+    // requests with an expired token and briefly render an "Unauthorized"
+    // error before this provider redirects to login.
     void refresh();
   }, [refresh]);
 
@@ -79,8 +97,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStoredSession(data.session);
       setToken(data.token);
       setSession(data.session);
+      hasValidatedSession.current = true;
       router.push(homePathForRole(data.session.role));
-      router.refresh();
       return data.session;
     },
     [router]
@@ -92,8 +110,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStoredSession(null);
     setToken(null);
     setSession(null);
+    hasValidatedSession.current = false;
     router.push("/login");
-    router.refresh();
   }, [router]);
 
   const value = useMemo(

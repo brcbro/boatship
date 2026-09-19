@@ -1,6 +1,7 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
 import { getStore } from "@/lib/store";
+import { getRedisCacheVersion, withRedisCache } from "@/lib/redis-cache";
 import type { ClientStatus } from "@/types";
 
 export const runtime = "nodejs";
@@ -80,6 +81,9 @@ export async function GET(req: Request) {
   return handleApi(async () => {
     await requireRoles(req, ["admin", "team"]);
     const store = await getStore();
+    const cacheVersion = await getRedisCacheVersion();
+
+    return withRedisCache("analytics", cacheVersion, 60, async () => {
     const clients = await store.listClients();
     const users = await store.listUsers();
 
@@ -201,5 +205,6 @@ export async function GET(req: Request) {
       avgTasksCompleted,
       documentsPendingReview,
     };
+    });
   });
 }

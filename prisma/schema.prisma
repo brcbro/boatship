@@ -32,6 +32,51 @@ model AuthSession {
   @@index([expiresAt])
 }
 
+// Hot identity reads live outside StoreSnapshot so authentication does not
+// need to download and decode the entire application store on every request.
+// This intentionally has no foreign key to AuthSession: legacy sessions can
+// be backfilled and expired independently without making the migration brittle.
+model UserProfile {
+  uid                  String   @id
+  email                String
+  name                 String
+  role                 String
+  clientId             String?
+  createdAt            DateTime
+  inviteToken          String?
+  inviteTokenExpiresAt DateTime?
+  mustResetPassword    Boolean  @default(false)
+  password             String?
+  passwordHash         String?
+  permissions          String[]
+  digestEnabled        Boolean  @default(false)
+  lastDigestAt         DateTime?
+  updatedAt            DateTime @updatedAt
+
+  @@index([email])
+  @@index([inviteToken])
+  @@index([role])
+  @@index([clientId])
+}
+
+// Notification polling is a frequent dashboard request. Keeping it relational
+// lets Postgres answer from a small user/time index instead of StoreSnapshot.
+model NotificationRecord {
+  id        String   @id
+  userId    String
+  kind      String
+  title     String
+  body      String
+  href      String?
+  clientId  String?
+  readAt    DateTime?
+  createdAt DateTime
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+  @@index([clientId])
+}
+
 model ComposioConnection {
   id                String   @id
   userId            String

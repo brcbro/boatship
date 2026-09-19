@@ -32,6 +32,11 @@ import { calcProgress } from "@/lib/utils";
 import { SEED_FORM_TEMPLATES, SEED_ONBOARDING_TEMPLATES } from "@/lib/seed-templates";
 import { getPrisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/password";
+import { bumpRedisCacheVersion } from "@/lib/redis-cache";
+import type {
+  NotificationRecord as PrismaNotificationRecord,
+  UserProfile as PrismaUserProfile,
+} from "@/generated/prisma/client";
 
 const DATA_DIR = path.join(process.cwd(), ".data");
 const DATA_FILE = path.join(DATA_DIR, "store.json");
@@ -61,6 +66,84 @@ export type StoreData = {
 
 function now() {
   return new Date().toISOString();
+}
+
+function relationalStoreUnavailable(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  // P2021/P2022 let application code and the schema migration be deployed in
+  // either order. Other database failures must surface instead of silently
+  // falling back to a large snapshot read.
+  const code = (error as { code?: unknown }).code;
+  if (code === "P2021" || code === "P2022" || code === "42P01" || code === "42703") {
+    return true;
+  }
+
+  // Driver-adapter errors do not always preserve Prisma/Postgres' code on the
+  // outer error. Restrict the message fallback to the two normalized tables so
+  // unrelated query errors still surface normally.
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    /(?:relation|table).*(?:UserProfile|NotificationRecord).*(?:does not exist|missing)/i.test(
+      message
+    ) ||
+    /(?:UserProfile|NotificationRecord).*(?:relation|table).*(?:does not exist|missing)/i.test(
+      message
+    )
+  );
+}
+
+function userProfileData(user: AppUser) {
+  return {
+    uid: user.uid,
+    email: user.email.trim().toLowerCase(),
+    name: user.name,
+    role: user.role,
+    clientId: user.clientId,
+    createdAt: new Date(user.createdAt),
+    inviteToken: user.inviteToken ?? null,
+    inviteTokenExpiresAt: user.inviteTokenExpiresAt
+      ? new Date(user.inviteTokenExpiresAt)
+      : null,
+    mustResetPassword: user.mustResetPassword ?? false,
+    password: user.password ?? null,
+    passwordHash: user.passwordHash ?? null,
+    permissions: user.permissions ?? [],
+    digestEnabled: user.digestEnabled ?? false,
+    lastDigestAt: user.lastDigestAt ? new Date(user.lastDigestAt) : null,
+  };
+}
+
+function appUserFromProfile(user: PrismaUserProfile): AppUser {
+  return {
+    uid: user.uid,
+    email: user.email,
+    name: user.name,
+    role: user.role as AppUser["role"],
+    clientId: user.clientId,
+    createdAt: user.createdAt.toISOString(),
+    inviteToken: user.inviteToken,
+    inviteTokenExpiresAt: user.inviteTokenExpiresAt?.toISOString() ?? null,
+    mustResetPassword: user.mustResetPassword,
+    password: user.password,
+    passwordHash: user.passwordHash,
+    permissions: user.permissions as NonNullable<AppUser["permissions"]>,
+    digestEnabled: user.digestEnabled,
+    lastDigestAt: user.lastDigestAt?.toISOString() ?? null,
+  };
+}
+
+function appNotificationFromRecord(notification: PrismaNotificationRecord): AppNotification {
+  return {
+    id: notification.id,
+    userId: notification.userId,
+    kind: notification.kind as NotificationKind,
+    title: notification.title,
+    body: notification.body,
+    href: notification.href,
+    clientId: notification.clientId,
+    readAt: notification.readAt?.toISOString() ?? null,
+    createdAt: notification.createdAt.toISOString(),
+  };
 }
 
 function emptyStore(): StoreData {
@@ -545,6 +628,7 @@ class LocalStore implements DataStore {
       await fs.writeFile(DATA_FILE, JSON.stringify(data, null, 2), "utf8");
     });
     await this.writeChain;
+    await bumpRedisCacheVersion();
   }
 
   protected async mutate<T>(fn: (data: StoreData) => T | Promise<T>): Promise<T> {
@@ -1338,6 +1422,232 @@ class LocalStore implements DataStore {
 }
 
 class PrismaStore extends LocalStore {
+  private async upsertRelationalUser(user: AppUser) {
+    const data = userProfileData(user);
+    await getPrisma().userProfile.upsert({
+      where: { uid: user.uid },
+      create: data,
+      update: data,
+    });
+  }
+
+  private async syncLegacySnapshot(operation: () => Promise<unknown>) {
+    try {
+      await operation();
+    } catch (error) {
+      // The relational write is authoritative for these normalized slices.
+      // Keeping snapshot sync best-effort preserves rollback compatibility
+      // without turning a successful hot-table write into a failed request.
+      console.error("Legacy StoreSnapshot sync failed", error);
+    }
+  }
+
+  override async getUser(uid: string) {
+    try {
+      const prisma = getPrisma();
+      const user = await prisma.userProfile.findUnique({ where: { uid } });
+      if (user) return appUserFromProfile(user);
+
+      // Handles a freshly-created/local database whose seed snapshot predates
+      // the relational migration. Once any relational user exists, a missing
+      // row is authoritative and must never be resurrected from stale JSON.
+      if ((await prisma.userProfile.count()) > 0) return null;
+      const legacy = await super.getUser(uid);
+      if (legacy) await this.upsertRelationalUser(legacy);
+      return legacy;
+    } catch (error) {
+      if (relationalStoreUnavailable(error)) return super.getUser(uid);
+      throw error;
+    }
+  }
+
+  override async getUserByEmail(email: string) {
+    const normalizedEmail = email.trim().toLowerCase();
+    try {
+      const prisma = getPrisma();
+      const user = await prisma.userProfile.findFirst({
+        where: { email: normalizedEmail },
+      });
+      if (user) return appUserFromProfile(user);
+
+      if ((await prisma.userProfile.count()) > 0) return null;
+      const legacy = await super.getUserByEmail(normalizedEmail);
+      if (legacy) await this.upsertRelationalUser(legacy);
+      return legacy;
+    } catch (error) {
+      if (relationalStoreUnavailable(error)) return super.getUserByEmail(normalizedEmail);
+      throw error;
+    }
+  }
+
+  override async getUserByInviteToken(token: string) {
+    try {
+      const prisma = getPrisma();
+      const user = await prisma.userProfile.findFirst({ where: { inviteToken: token } });
+      if (user) {
+        if (user.inviteTokenExpiresAt && user.inviteTokenExpiresAt.getTime() < Date.now()) {
+          return null;
+        }
+        return appUserFromProfile(user);
+      }
+
+      if ((await prisma.userProfile.count()) > 0) return null;
+      const legacy = await super.getUserByInviteToken(token);
+      if (legacy) await this.upsertRelationalUser(legacy);
+      return legacy;
+    } catch (error) {
+      if (relationalStoreUnavailable(error)) return super.getUserByInviteToken(token);
+      throw error;
+    }
+  }
+
+  override async listUsers() {
+    try {
+      const users = await getPrisma().userProfile.findMany({ orderBy: { name: "asc" } });
+      if (users.length > 0) return users.map(appUserFromProfile);
+
+      const legacy = await super.listUsers();
+      await Promise.all(legacy.map((user) => this.upsertRelationalUser(user)));
+      return legacy;
+    } catch (error) {
+      if (relationalStoreUnavailable(error)) return super.listUsers();
+      throw error;
+    }
+  }
+
+  override async upsertUser(user: AppUser) {
+    try {
+      await this.upsertRelationalUser(user);
+    } catch (error) {
+      if (relationalStoreUnavailable(error)) return super.upsertUser(user);
+      throw error;
+    }
+
+    await this.syncLegacySnapshot(() => super.upsertUser(user));
+    return user;
+  }
+
+  override async deleteUser(uid: string) {
+    try {
+      const prisma = getPrisma();
+      await prisma.$transaction([
+        prisma.notificationRecord.deleteMany({ where: { userId: uid } }),
+        prisma.userProfile.deleteMany({ where: { uid } }),
+      ]);
+    } catch (error) {
+      if (relationalStoreUnavailable(error)) return super.deleteUser(uid);
+      throw error;
+    }
+
+    await this.syncLegacySnapshot(() => super.deleteUser(uid));
+  }
+
+  override async listNotifications(userId: string) {
+    try {
+      const notifications = await getPrisma().notificationRecord.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+      });
+      return notifications.map(appNotificationFromRecord);
+    } catch (error) {
+      if (relationalStoreUnavailable(error)) return super.listNotifications(userId);
+      throw error;
+    }
+  }
+
+  override async createNotification(
+    input: Omit<AppNotification, "id" | "createdAt" | "readAt"> & { readAt?: string | null }
+  ) {
+    const record: AppNotification = {
+      ...input,
+      id: randomUUID(),
+      readAt: input.readAt ?? null,
+      createdAt: now(),
+    };
+
+    try {
+      await getPrisma().notificationRecord.create({
+        data: {
+          ...record,
+          createdAt: new Date(record.createdAt),
+          readAt: record.readAt ? new Date(record.readAt) : null,
+        },
+      });
+    } catch (error) {
+      if (relationalStoreUnavailable(error)) return super.createNotification(input);
+      throw error;
+    }
+
+    await this.syncLegacySnapshot(() =>
+      this.mutate((data) => {
+        data.notifications.push(record);
+        return record;
+      })
+    );
+    return record;
+  }
+
+  override async markNotificationRead(id: string, userId: string) {
+    try {
+      const existing = await getPrisma().notificationRecord.findFirst({
+        where: { id, userId },
+      });
+      if (!existing) {
+        const legacy = await super.markNotificationRead(id, userId);
+        await getPrisma().notificationRecord.upsert({
+          where: { id: legacy.id },
+          create: {
+            ...legacy,
+            createdAt: new Date(legacy.createdAt),
+            readAt: legacy.readAt ? new Date(legacy.readAt) : null,
+          },
+          update: { readAt: legacy.readAt ? new Date(legacy.readAt) : new Date() },
+        });
+        return legacy;
+      }
+
+      const notification = existing.readAt
+        ? existing
+        : await getPrisma().notificationRecord.update({
+            where: { id },
+            data: { readAt: new Date() },
+          });
+      const result = appNotificationFromRecord(notification);
+      await this.syncLegacySnapshot(() => super.markNotificationRead(id, userId));
+      return result;
+    } catch (error) {
+      if (relationalStoreUnavailable(error)) return super.markNotificationRead(id, userId);
+      throw error;
+    }
+  }
+
+  override async markAllNotificationsRead(userId: string) {
+    try {
+      const result = await getPrisma().notificationRecord.updateMany({
+        where: { userId, readAt: null },
+        data: { readAt: new Date() },
+      });
+      await this.syncLegacySnapshot(() => super.markAllNotificationsRead(userId));
+      return result.count;
+    } catch (error) {
+      if (relationalStoreUnavailable(error)) return super.markAllNotificationsRead(userId);
+      throw error;
+    }
+  }
+
+  override async deleteClientCascade(id: string) {
+    await super.deleteClientCascade(id);
+    try {
+      const prisma = getPrisma();
+      await prisma.$transaction([
+        prisma.notificationRecord.deleteMany({ where: { clientId: id } }),
+        prisma.userProfile.deleteMany({ where: { clientId: id, role: "client" } }),
+      ]);
+    } catch (error) {
+      if (!relationalStoreUnavailable(error)) throw error;
+    }
+  }
+
   override async readProjectOps<T = Record<string, unknown>>() {
     const snapshot = await getPrisma().storeSnapshot.findUnique({ where: { id: "main" } });
     if (!snapshot) return super.readProjectOps<T>();
@@ -1398,6 +1708,7 @@ class PrismaStore extends LocalStore {
       create: { id: "main", data: data as unknown as Prisma.InputJsonValue },
       update: { data: data as unknown as Prisma.InputJsonValue },
     });
+    await bumpRedisCacheVersion();
   }
 }
 

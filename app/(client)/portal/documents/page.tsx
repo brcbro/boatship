@@ -284,7 +284,7 @@ function DocumentsPageInner() {
             </Select>
           </div>
 
-          <Button type="submit" disabled={uploading || !file}>
+          <Button type="submit" disabled={uploading || !file} className="w-full sm:w-auto">
             {uploading ? "Uploading…" : "Upload document"}
           </Button>
         </form>

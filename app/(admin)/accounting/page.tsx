@@ -100,7 +100,9 @@ export default function AccountingPage() {
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);
-    const interval = window.setInterval(() => void load(true), 15_000);
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") void load(true);
+    }, 120_000);
     const refresh = () => void load(true);
     const refreshWhenVisible = () => {
       if (document.visibilityState === "visible") refresh();

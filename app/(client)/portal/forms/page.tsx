@@ -192,7 +192,7 @@ export default function PortalFormsPage() {
     <div>
       <PageHeader
         title="Forms"
-        description="Complete assigned forms and submit them when finished."
+        description="Complete the forms your team has assigned, then submit them for review. Your completed answers stay available here."
       />
 
       {error && !modalOpen ? (

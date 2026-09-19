@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 :root {
+  --color-white: #fff;
   --background: #f3ebe0;
   --foreground: #141414;
   --brand: #141414;
@@ -18,6 +19,11 @@
   --warning: #7a5a12;
 }
 
+html {
+  min-width: 320px;
+  scroll-behavior: smooth;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -26,12 +32,27 @@
 }
 
 body {
+  min-height: 100dvh;
   background:
     radial-gradient(900px 480px at 0% 0%, rgba(255, 252, 245, 0.9), transparent 55%),
     radial-gradient(700px 420px at 100% 10%, rgba(210, 196, 176, 0.35), transparent 50%),
     var(--background);
   color: var(--foreground);
   text-rendering: optimizeLegibility;
+}
+
+button,
+a,
+input,
+textarea,
+select {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+button:not(:disabled),
+a[href] {
+  cursor: pointer;
 }
 
 .reference-home {
@@ -42,9 +63,11 @@ body {
   width: 100%;
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
+@layer base {
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
 }
 
 * {
@@ -57,8 +80,16 @@ a {
 }
 
 :where(a, button, input, textarea, select):focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--accent) 55%, white);
+  outline: 3px solid color-mix(in srgb, var(--accent) 68%, white);
   outline-offset: 3px;
+}
+
+@media (max-width: 639px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
 }
 
 .page-enter {

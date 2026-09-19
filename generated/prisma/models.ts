@@ -9,6 +9,8 @@
  */
 export type * from './models/StoreSnapshot'
 export type * from './models/AuthSession'
+export type * from './models/UserProfile'
+export type * from './models/NotificationRecord'
 export type * from './models/ComposioConnection'
 export type * from './models/UserProviderSecret'
 export type * from './models/McpIdentity'

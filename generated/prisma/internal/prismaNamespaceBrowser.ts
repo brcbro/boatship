@@ -21,6 +21,8 @@ export const Decimal = runtime.Decimal
 export const ModelName = {
   StoreSnapshot: 'StoreSnapshot',
   AuthSession: 'AuthSession',
+  UserProfile: 'UserProfile',
+  NotificationRecord: 'NotificationRecord',
   ComposioConnection: 'ComposioConnection',
   UserProviderSecret: 'UserProviderSecret',
   McpIdentity: 'McpIdentity',
@@ -71,6 +73,42 @@ export const AuthSessionScalarFieldEnum = {
 } as const
 
 export type AuthSessionScalarFieldEnum = (typeof AuthSessionScalarFieldEnum)[keyof typeof AuthSessionScalarFieldEnum]
+
+
+export const UserProfileScalarFieldEnum = {
+  uid: 'uid',
+  email: 'email',
+  name: 'name',
+  role: 'role',
+  clientId: 'clientId',
+  createdAt: 'createdAt',
+  inviteToken: 'inviteToken',
+  inviteTokenExpiresAt: 'inviteTokenExpiresAt',
+  mustResetPassword: 'mustResetPassword',
+  password: 'password',
+  passwordHash: 'passwordHash',
+  permissions: 'permissions',
+  digestEnabled: 'digestEnabled',
+  lastDigestAt: 'lastDigestAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type UserProfileScalarFieldEnum = (typeof UserProfileScalarFieldEnum)[keyof typeof UserProfileScalarFieldEnum]
+
+
+export const NotificationRecordScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  kind: 'kind',
+  title: 'title',
+  body: 'body',
+  href: 'href',
+  clientId: 'clientId',
+  readAt: 'readAt',
+  createdAt: 'createdAt'
+} as const
+
+export type NotificationRecordScalarFieldEnum = (typeof NotificationRecordScalarFieldEnum)[keyof typeof NotificationRecordScalarFieldEnum]
 
 
 export const ComposioConnectionScalarFieldEnum = {

@@ -1,6 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, decodeLocalSession } from "@/lib/session";
-import { homePathForRole } from "@/lib/rbac";
 
 const PUBLIC_PATHS = [
   "/login",
@@ -39,11 +38,9 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (session && pathname === "/login") {
-    const url = request.nextUrl.clone();
-    url.pathname = homePathForRole(session.role);
-    return NextResponse.redirect(url);
-  }
+  // Do not redirect `/login` based only on the unsigned token payload here.
+  // The API verifies the database-backed session. Redirecting before that
+  // verification causes expired cookies to loop between dashboard and login.
 
   if (session) {
     const isAdminArea =
@@ -78,5 +75,7 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // Keep the public landing page and static assets on Cloudflare's asset/CDN
+  // path. Protected application routes still pass through this proxy.
+  matcher: ["/((?!$|_next/static|_next/image|favicon.ico).*)"],
 };

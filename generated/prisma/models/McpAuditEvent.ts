@@ -440,14 +440,6 @@ export type McpAuditEventUncheckedUpdateManyWithoutIdentityNestedInput = {
   deleteMany?: Prisma.McpAuditEventScalarWhereInput | Prisma.McpAuditEventScalarWhereInput[]
 }
 
-export type NullableStringFieldUpdateOperationsInput = {
-  set?: string | null
-}
-
-export type BoolFieldUpdateOperationsInput = {
-  set?: boolean
-}
-
 export type McpAuditEventCreateWithoutIdentityInput = {
   id: string
   userId: string

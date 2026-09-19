@@ -387,8 +387,8 @@ export default function TemplatesPage() {
       ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
-        <Card className="h-fit p-3">
-          <ul className="space-y-1">
+        <Card className="h-fit self-start p-3 lg:sticky lg:top-6 lg:max-h-[calc(100dvh-4.5rem)] lg:overflow-y-auto lg:overscroll-contain">
+          <ul className="space-y-1" aria-label="Onboarding templates">
             {templates.map((t) => (
               <li key={t.id}>
                 <button

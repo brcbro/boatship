@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ArrowRight, ClipboardCheck, FileText, MessageCircle } from "lucide-react";
 import { useAuth } from "@/components/shared/AuthProvider";
 import {
   Badge,
@@ -150,66 +151,43 @@ export default function PortalDashboardPage() {
     <div>
       <PageHeader
         title={`Welcome, ${client.name}`}
-        description={`${client.companyName} · click a task to open details.`}
+        description={`${client.companyName} · Here’s the clearest next step for your onboarding.`}
       />
 
-      <Card className="mb-6">
-        <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-sm font-medium text-[var(--ink)]">Onboarding progress</p>
-            <p className="mt-1 text-3xl font-semibold tracking-tight text-[var(--brand)]">
-              {progressPct}%
-            </p>
-            <p className="mt-1 text-xs text-[var(--ink-muted)]">
-              {client.completedTasks} of {client.totalTasks} tasks complete
-              {incompleteForms ? ` · ${incompleteForms} form(s) waiting` : ""}
-            </p>
-            <p className="mt-1 text-xs text-[var(--ink-muted)]">
-              Estimated time left: {formatEta(etaDays)}
-              {remainingCount > 0 ? ` (${remainingCount} task${remainingCount === 1 ? "" : "s"} × ~2 days)` : ""}
-            </p>
-          </div>
-          <div className="flex flex-col items-end gap-2">
-            <Badge tone={clientStatusTone(client.status)}>{statusLabel(client.status)}</Badge>
-            <Link
-              href="/portal/messages"
-              className="text-xs font-medium text-[var(--brand)] hover:underline"
-            >
-              Messages →
-            </Link>
-          </div>
-        </div>
-        <ProgressBar value={progressPct} />
-      </Card>
-
-      <Card className="mb-6">
-        <div className="mb-3">
-          <p className="text-sm font-medium text-[var(--ink)]">Your client details</p>
-          <p className="mt-1 text-xs text-[var(--ink-muted)]">
-            These details are updated automatically when you submit a native onboarding form.
-          </p>
-        </div>
-        <dl className="grid gap-3 text-sm sm:grid-cols-2">
-          <div>
-            <dt className="text-xs text-[var(--ink-muted)]">Name</dt>
-            <dd className="font-medium text-[var(--ink)]">{client.name || "—"}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-[var(--ink-muted)]">Company</dt>
-            <dd className="font-medium text-[var(--ink)]">{client.companyName || "—"}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-[var(--ink-muted)]">Email</dt>
-            <dd className="font-medium text-[var(--ink)]">{client.primaryContactEmail || "—"}</dd>
-          </div>
-          {Object.entries(client.customFields || {}).map(([key, value]) => (
-            <div key={key}>
-              <dt className="text-xs text-[var(--ink-muted)]">{key}</dt>
-              <dd className="font-medium text-[var(--ink)]">{value || "—"}</dd>
+      <section className="mb-6 grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(17rem,0.55fr)]">
+        <Card className="relative overflow-hidden p-5 sm:p-6">
+          <div className="absolute right-0 top-0 h-28 w-28 -translate-y-1/3 translate-x-1/3 rounded-full bg-[var(--accent-soft)]" aria-hidden="true" />
+          <div className="relative">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-[var(--ink)]">Your onboarding progress</p>
+                <p className="mt-2 font-[family-name:var(--font-display)] text-5xl leading-none tracking-[-0.04em] text-[var(--brand)] tabular-nums">{progressPct}%</p>
+              </div>
+              <Badge tone={clientStatusTone(client.status)}>{statusLabel(client.status)}</Badge>
             </div>
-          ))}
-        </dl>
-      </Card>
+            <ProgressBar value={progressPct} />
+            <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+              <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-[var(--ink-muted)]"><span className="font-semibold text-[var(--ink)]">{client.completedTasks} of {client.totalTasks}</span> tasks complete</p>
+              <p className="rounded-lg bg-[var(--surface)] px-3 py-2 text-[var(--ink-muted)]"><span className="font-semibold text-[var(--ink)]">{formatEta(etaDays)}</span>{incompleteForms ? ` · ${incompleteForms} form${incompleteForms === 1 ? "" : "s"} waiting` : ""}</p>
+            </div>
+          </div>
+        </Card>
+        <Card className="flex flex-col justify-between p-5 sm:p-6">
+          <div>
+            <p className="text-sm font-semibold text-[var(--ink)]">Need a hand?</p>
+            <p className="mt-2 text-sm leading-6 text-[var(--ink-muted)]">Your onboarding team can help with questions, files, or decisions.</p>
+          </div>
+          <Link href="/portal/messages" className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--brand-strong)]">
+            <MessageCircle className="h-4 w-4" aria-hidden="true" /> Message your team
+          </Link>
+        </Card>
+      </section>
+
+      <section className="mb-8 grid gap-3 sm:grid-cols-3" aria-label="Workspace shortcuts">
+        <PortalShortcut href="/portal/tasks" title="Tasks" detail={remainingCount ? `${remainingCount} remaining` : "All caught up"} icon={ClipboardCheck} />
+        <PortalShortcut href="/portal/forms" title="Forms" detail={incompleteForms ? `${incompleteForms} to complete` : "View submitted forms"} icon={FileText} />
+        <PortalShortcut href="/portal/documents" title="Documents" detail="Upload or review files" icon={FileText} />
+      </section>
 
       {nextTasks.length > 0 ? (
         <Card className="mb-6">
@@ -220,11 +198,8 @@ export default function PortalDashboardPage() {
                 Your next incomplete onboarding tasks
               </p>
             </div>
-            <Link
-              href="/portal/tasks"
-              className="text-xs font-medium text-[var(--brand)] hover:underline"
-            >
-              View all tasks
+            <Link href="/portal/tasks" className="inline-flex min-h-10 items-center gap-1 text-sm font-semibold text-[var(--brand)] hover:underline">
+              View all <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Link>
           </div>
           <ul className="divide-y divide-[var(--border)]">
@@ -258,7 +233,20 @@ export default function PortalDashboardPage() {
         </Card>
       )}
 
-      <TaskBoard mode="client" tasks={tasks} busy={busy} onUpdate={updateTask} />
+      <section aria-label="All onboarding tasks">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+          <div><h2 className="font-[family-name:var(--font-display)] text-2xl text-[var(--ink)]">All tasks</h2><p className="mt-1 text-sm text-[var(--ink-muted)]">Open a task for its requirements, subtasks, and team comments.</p></div>
+        </div>
+        <TaskBoard mode="client" tasks={tasks} busy={busy} onUpdate={updateTask} />
+      </section>
     </div>
   );
+}
+
+function PortalShortcut({ href, title, detail, icon: Icon }: { href: string; title: string; detail: string; icon: typeof FileText }) {
+  return <Link href={href} className="group flex min-h-24 items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-4 transition hover:-translate-y-0.5 hover:border-[var(--ink-muted)]/45 hover:shadow-[0_12px_28px_rgba(20,43,53,0.08)]">
+    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--surface-2)] text-[var(--ink)]"><Icon className="h-5 w-5" aria-hidden="true" /></span>
+    <span className="min-w-0"><span className="block text-sm font-semibold text-[var(--ink)]">{title}</span><span className="mt-0.5 block text-xs text-[var(--ink-muted)]">{detail}</span></span>
+    <ArrowRight className="ml-auto h-4 w-4 shrink-0 text-[var(--ink-muted)] transition group-hover:translate-x-0.5 group-hover:text-[var(--ink)]" aria-hidden="true" />
+  </Link>;
 }

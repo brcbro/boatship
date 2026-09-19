@@ -1,0 +1,32 @@
+/
+  Cache-Control: public, max-age=300, stale-while-revalidate=86400
+
+/_next/static/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/reference-home-static/css/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+/reference-home-static/js/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+/reference-home-static/images/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+/reference-home-static/assets/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+/reference-home-static/videos/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+/reference-home-static/fonts/*
+  Cache-Control: public, max-age=2592000, stale-while-revalidate=604800
+
+/reference-home-static/*.html
+  Cache-Control: public, max-age=300, stale-while-revalidate=86400
+
+/reference-home-static/assets_manifest.json
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+/brand/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800

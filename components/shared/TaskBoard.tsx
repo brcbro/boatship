@@ -275,7 +275,7 @@ export function TaskBoard({
             className={cn(
               "flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border transition",
               task.status === "completed"
-                ? "border-[var(--brand)] bg-[var(--brand)] text-[var(--surface-raised)]"
+                ? "border-[var(--brand)] bg-[var(--brand)] text-white"
                 : blocked
                   ? "cursor-not-allowed border-[var(--border)] bg-[var(--surface-2)] opacity-60"
                   : "border-[var(--border)] bg-[var(--surface-raised)] hover:border-[var(--ink)]"
@@ -317,7 +317,7 @@ export function TaskBoard({
               className={cn(
                 "rounded px-2.5 py-1 text-xs font-medium transition",
                 viewMode === "list"
-                  ? "bg-[var(--brand)] text-[var(--surface-raised)]"
+                  ? "bg-[var(--brand)] text-white"
                   : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
               )}
               onClick={() => setViewMode("list")}
@@ -329,7 +329,7 @@ export function TaskBoard({
               className={cn(
                 "rounded px-2.5 py-1 text-xs font-medium transition",
                 viewMode === "kanban"
-                  ? "bg-[var(--brand)] text-[var(--surface-raised)]"
+                  ? "bg-[var(--brand)] text-white"
                   : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
               )}
               onClick={() => setViewMode("kanban")}
@@ -344,7 +344,7 @@ export function TaskBoard({
                 className={cn(
                   "rounded px-2.5 py-1 text-xs font-medium transition",
                   groupBy === "section"
-                    ? "bg-[var(--brand)] text-[var(--surface-raised)]"
+                    ? "bg-[var(--brand)] text-white"
                     : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
                 )}
                 onClick={() => setGroupBy("section")}
@@ -356,7 +356,7 @@ export function TaskBoard({
                 className={cn(
                   "rounded px-2.5 py-1 text-xs font-medium transition",
                   groupBy === "status"
-                    ? "bg-[var(--brand)] text-[var(--surface-raised)]"
+                    ? "bg-[var(--brand)] text-white"
                     : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
                 )}
                 onClick={() => setGroupBy("status")}
@@ -925,7 +925,7 @@ export function TaskDetailModal({
                         className={cn(
                           "flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border",
                           sub.completed
-                            ? "border-[var(--brand)] bg-[var(--brand)] text-[var(--surface-raised)]"
+                            ? "border-[var(--brand)] bg-[var(--brand)] text-white"
                             : "border-[var(--border)] bg-[var(--surface-raised)]"
                         )}
                       >

@@ -391,6 +391,8 @@ type FieldRefInputType<Model, FieldType> = Model extends never ? never : FieldRe
 export const ModelName = {
   StoreSnapshot: 'StoreSnapshot',
   AuthSession: 'AuthSession',
+  UserProfile: 'UserProfile',
+  NotificationRecord: 'NotificationRecord',
   ComposioConnection: 'ComposioConnection',
   UserProviderSecret: 'UserProviderSecret',
   McpIdentity: 'McpIdentity',
@@ -422,7 +424,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "storeSnapshot" | "authSession" | "composioConnection" | "userProviderSecret" | "mcpIdentity" | "mcpProjectAccess" | "mcpAuditEvent" | "gitRepositoryConnection" | "gitTaskLink" | "definitionOfDonePolicy" | "gitValidationRun" | "gitEvidence" | "taskManagerApproval" | "hodiQueueItem" | "hodiActionProposal" | "hodiCommunicationProposal" | "hodiAutomationRuleState" | "hodiAutomationRun"
+    modelProps: "storeSnapshot" | "authSession" | "userProfile" | "notificationRecord" | "composioConnection" | "userProviderSecret" | "mcpIdentity" | "mcpProjectAccess" | "mcpAuditEvent" | "gitRepositoryConnection" | "gitTaskLink" | "definitionOfDonePolicy" | "gitValidationRun" | "gitEvidence" | "taskManagerApproval" | "hodiQueueItem" | "hodiActionProposal" | "hodiCommunicationProposal" | "hodiAutomationRuleState" | "hodiAutomationRun"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -571,6 +573,154 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.AuthSessionCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.AuthSessionCountAggregateOutputType> | number
+        }
+      }
+    }
+    UserProfile: {
+      payload: Prisma.$UserProfilePayload<ExtArgs>
+      fields: Prisma.UserProfileFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.UserProfileFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserProfilePayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.UserProfileFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserProfilePayload>
+        }
+        findFirst: {
+          args: Prisma.UserProfileFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserProfilePayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.UserProfileFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserProfilePayload>
+        }
+        findMany: {
+          args: Prisma.UserProfileFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserProfilePayload>[]
+        }
+        create: {
+          args: Prisma.UserProfileCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserProfilePayload>
+        }
+        createMany: {
+          args: Prisma.UserProfileCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.UserProfileCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserProfilePayload>[]
+        }
+        delete: {
+          args: Prisma.UserProfileDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserProfilePayload>
+        }
+        update: {
+          args: Prisma.UserProfileUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserProfilePayload>
+        }
+        deleteMany: {
+          args: Prisma.UserProfileDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.UserProfileUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.UserProfileUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserProfilePayload>[]
+        }
+        upsert: {
+          args: Prisma.UserProfileUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserProfilePayload>
+        }
+        aggregate: {
+          args: Prisma.UserProfileAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateUserProfile>
+        }
+        groupBy: {
+          args: Prisma.UserProfileGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.UserProfileGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.UserProfileCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.UserProfileCountAggregateOutputType> | number
+        }
+      }
+    }
+    NotificationRecord: {
+      payload: Prisma.$NotificationRecordPayload<ExtArgs>
+      fields: Prisma.NotificationRecordFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.NotificationRecordFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$NotificationRecordPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.NotificationRecordFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$NotificationRecordPayload>
+        }
+        findFirst: {
+          args: Prisma.NotificationRecordFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$NotificationRecordPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.NotificationRecordFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$NotificationRecordPayload>
+        }
+        findMany: {
+          args: Prisma.NotificationRecordFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$NotificationRecordPayload>[]
+        }
+        create: {
+          args: Prisma.NotificationRecordCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$NotificationRecordPayload>
+        }
+        createMany: {
+          args: Prisma.NotificationRecordCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.NotificationRecordCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$NotificationRecordPayload>[]
+        }
+        delete: {
+          args: Prisma.NotificationRecordDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$NotificationRecordPayload>
+        }
+        update: {
+          args: Prisma.NotificationRecordUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$NotificationRecordPayload>
+        }
+        deleteMany: {
+          args: Prisma.NotificationRecordDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.NotificationRecordUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.NotificationRecordUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$NotificationRecordPayload>[]
+        }
+        upsert: {
+          args: Prisma.NotificationRecordUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$NotificationRecordPayload>
+        }
+        aggregate: {
+          args: Prisma.NotificationRecordAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateNotificationRecord>
+        }
+        groupBy: {
+          args: Prisma.NotificationRecordGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.NotificationRecordGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.NotificationRecordCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.NotificationRecordCountAggregateOutputType> | number
         }
       }
     }
@@ -1816,6 +1966,42 @@ export const AuthSessionScalarFieldEnum = {
 export type AuthSessionScalarFieldEnum = (typeof AuthSessionScalarFieldEnum)[keyof typeof AuthSessionScalarFieldEnum]
 
 
+export const UserProfileScalarFieldEnum = {
+  uid: 'uid',
+  email: 'email',
+  name: 'name',
+  role: 'role',
+  clientId: 'clientId',
+  createdAt: 'createdAt',
+  inviteToken: 'inviteToken',
+  inviteTokenExpiresAt: 'inviteTokenExpiresAt',
+  mustResetPassword: 'mustResetPassword',
+  password: 'password',
+  passwordHash: 'passwordHash',
+  permissions: 'permissions',
+  digestEnabled: 'digestEnabled',
+  lastDigestAt: 'lastDigestAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type UserProfileScalarFieldEnum = (typeof UserProfileScalarFieldEnum)[keyof typeof UserProfileScalarFieldEnum]
+
+
+export const NotificationRecordScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  kind: 'kind',
+  title: 'title',
+  body: 'body',
+  href: 'href',
+  clientId: 'clientId',
+  readAt: 'readAt',
+  createdAt: 'createdAt'
+} as const
+
+export type NotificationRecordScalarFieldEnum = (typeof NotificationRecordScalarFieldEnum)[keyof typeof NotificationRecordScalarFieldEnum]
+
+
 export const ComposioConnectionScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
@@ -2181,6 +2367,13 @@ export type ListDateTimeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaM
 
 
 /**
+ * Reference to a field of type 'Boolean'
+ */
+export type BooleanFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Boolean'>
+    
+
+
+/**
  * Reference to a field of type 'Int'
  */
 export type IntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Int'>
@@ -2191,13 +2384,6 @@ export type IntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'In
  * Reference to a field of type 'Int[]'
  */
 export type ListIntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Int[]'>
-    
-
-
-/**
- * Reference to a field of type 'Boolean'
- */
-export type BooleanFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Boolean'>
     
 
 
@@ -2303,6 +2489,8 @@ export interface PrismaClientOptions {
 export type GlobalOmitConfig = {
   storeSnapshot?: Prisma.StoreSnapshotOmit
   authSession?: Prisma.AuthSessionOmit
+  userProfile?: Prisma.UserProfileOmit
+  notificationRecord?: Prisma.NotificationRecordOmit
   composioConnection?: Prisma.ComposioConnectionOmit
   userProviderSecret?: Prisma.UserProviderSecretOmit
   mcpIdentity?: Prisma.McpIdentityOmit

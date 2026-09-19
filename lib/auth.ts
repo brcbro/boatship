@@ -61,15 +61,21 @@ export async function verifyIdToken(idToken: string): Promise<AuthSession | null
 }
 
 export async function getSessionFromRequest(req: Request): Promise<AuthSession | null> {
+  const cookieHeader = req.headers.get("cookie") || "";
+  const match = cookieHeader.match(new RegExp(`${SESSION_COOKIE}=([^;]+)`));
+  if (match?.[1]) {
+    // Browser requests may also carry an old local-storage bearer token. The
+    // HTTP-only cookie is the authoritative browser session; prioritising it
+    // prevents an expired header from logging a valid dashboard session out
+    // during a page refresh.
+    return verifyIdToken(decodeURIComponent(match[1]));
+  }
+
   const authHeader = req.headers.get("authorization");
   if (authHeader?.startsWith("Bearer ")) {
     return verifyIdToken(authHeader.slice(7));
   }
-  const cookieHeader = req.headers.get("cookie") || "";
-  const match = cookieHeader.match(new RegExp(`${SESSION_COOKIE}=([^;]+)`));
-  if (match?.[1]) {
-    return verifyIdToken(decodeURIComponent(match[1]));
-  }
+
   return null;
 }
 

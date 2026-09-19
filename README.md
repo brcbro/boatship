@@ -58,6 +58,33 @@ npm run deploy
 
 Configure the same secrets in Cloudflare Pages / Workers.
 
+### Optional Cloudflare Hyperdrive
+
+Production can use Hyperdrive to avoid opening a full PostgreSQL connection to Neon for every
+Worker request. Create a Hyperdrive configuration with the direct Neon connection string, then
+uncomment the `[[hyperdrive]]` example in `wrangler.toml` and replace its placeholder with the real
+configuration ID. The application automatically uses the `HYPERDRIVE` binding on Cloudflare and
+keeps using the pooled `DATABASE_URL` with the Neon HTTP adapter during local `next dev` runs.
+
+Do not put a database URL or Hyperdrive ID into application source code. Keep `DATABASE_URL` as a
+Worker secret for fallback and maintenance tasks. Run `npm run cf:dry-run` before deployment to
+build the OpenNext output, prune unused static assets, and validate the Worker without uploading it.
+
+### Optional Redis cache
+
+Set `REDIS_REST_URL` and `REDIS_REST_TOKEN` to an Upstash Redis REST database to cache the
+analytics endpoint for 60 seconds. Every successful datastore write advances a cache generation,
+so cached analytics are immediately bypassed after a mutation. Redis is optional and cache outages
+fall back to Neon without affecting requests. Keep these values as Worker secrets; do not expose
+them with a `NEXT_PUBLIC_` prefix.
+
+### Live messages
+
+Live conversations use a Cloudflare Durable Object with short-lived, server-authorized WebSocket
+tickets. Before deploying, set `MESSAGE_REALTIME_SECRET` as a Worker secret (a long random value)
+and in local `.env.local` when testing through a Cloudflare Worker preview. Without it, the message
+pages continue using their polling fallback.
+
 ## Security rules
 
 Server API routes enforce RBAC. Each authenticated Boatship user gets an isolated Composio user namespace (`boatship_<userId>`), and connected-account ownership is also recorded in Neon.

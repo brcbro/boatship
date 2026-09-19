@@ -4,6 +4,7 @@ import { notifyIntegrations } from "@/lib/composio";
 import { provisionClientDriveFolder } from "@/lib/drive-provision";
 import { getStore } from "@/lib/store";
 import { dispatchWebhooks } from "@/lib/webhooks";
+import { getRedisCacheVersion, redisCacheKey, withRedisCache } from "@/lib/redis-cache";
 import type { ClientStatus, ClientWithProgress, PipelineStage } from "@/types";
 
 export const runtime = "nodejs";
@@ -19,33 +20,39 @@ export async function GET(req: Request) {
     const q = searchParams.get("q") || undefined;
     const tag = searchParams.get("tag") || undefined;
 
-    const clients = await store.listClients({
-      status: status || undefined,
-      pipelineStage: pipelineStage || undefined,
-      assignedTeamMemberId,
-      q,
-      tag,
+    const filters = { status, pipelineStage, assignedTeamMemberId, q, tag };
+    const cacheVersion = await getRedisCacheVersion();
+    const cacheKey = await redisCacheKey("clients", JSON.stringify(filters));
+
+    return withRedisCache(cacheKey, cacheVersion, 30, async () => {
+      const clients = await store.listClients({
+        status: status || undefined,
+        pipelineStage: pipelineStage || undefined,
+        assignedTeamMemberId,
+        q,
+        tag,
+      });
+      const users = await store.listUsers();
+      const userMap = new Map(users.map((u) => [u.uid, u]));
+
+      const result: ClientWithProgress[] = await Promise.all(
+        clients.map(async (client) => {
+          const progress = await store.clientProgress(client.id);
+          const vessels = await store.listVessels(client.id);
+          const assignee = client.assignedTeamMemberId
+            ? userMap.get(client.assignedTeamMemberId)
+            : null;
+          return {
+            ...client,
+            ...progress,
+            assignedTeamMemberName: assignee?.name ?? null,
+            vesselCount: vessels.length,
+          };
+        })
+      );
+
+      return { clients: result };
     });
-    const users = await store.listUsers();
-    const userMap = new Map(users.map((u) => [u.uid, u]));
-
-    const result: ClientWithProgress[] = await Promise.all(
-      clients.map(async (client) => {
-        const progress = await store.clientProgress(client.id);
-        const vessels = await store.listVessels(client.id);
-        const assignee = client.assignedTeamMemberId
-          ? userMap.get(client.assignedTeamMemberId)
-          : null;
-        return {
-          ...client,
-          ...progress,
-          assignedTeamMemberName: assignee?.name ?? null,
-          vesselCount: vessels.length,
-        };
-      })
-    );
-
-    return { clients: result };
   });
 }
 

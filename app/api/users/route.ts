@@ -1,6 +1,7 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
 import { getStore } from "@/lib/store";
+import { getRedisCacheVersion, withRedisCache } from "@/lib/redis-cache";
 import type { StaffPermission } from "@/types";
 
 export const runtime = "nodejs";
@@ -9,19 +10,23 @@ export async function GET(req: Request) {
   return handleApi(async () => {
     await requireRoles(req, ["admin", "team"]);
     const store = await getStore();
-    const users = await store.listUsers();
-    const team = users
-      .filter((u) => u.role === "admin" || u.role === "team")
-      .map((u) => ({
-        uid: u.uid,
-        email: u.email,
-        name: u.name,
-        role: u.role,
-        permissions: u.permissions || [],
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+    const cacheVersion = await getRedisCacheVersion();
 
-    return { users: team };
+    return withRedisCache("team-users", cacheVersion, 30, async () => {
+      const users = await store.listUsers();
+      const team = users
+        .filter((u) => u.role === "admin" || u.role === "team")
+        .map((u) => ({
+          uid: u.uid,
+          email: u.email,
+          name: u.name,
+          role: u.role,
+          permissions: u.permissions || [],
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      return { users: team };
+    });
   });
 }
 
