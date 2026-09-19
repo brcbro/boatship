@@ -13,7 +13,7 @@
     "db:import-local": "node scripts/import-local-store.mjs",
     "build:cloudflare": "next build --turbopack && opennextjs-cloudflare build --skipNextBuild && node scripts/prune-cloudflare-assets.mjs && node scripts/copy-server-wasm.mjs",
     "preview": "npm run build:cloudflare && opennextjs-cloudflare preview",
-    "deploy": "npm run build:cloudflare && opennextjs-cloudflare deploy",
+    "deploy": "npm run build:cloudflare && wrangler deploy --config wrangler.production.toml",
     "cf:dry-run": "npm run build:cloudflare && wrangler deploy --dry-run --outdir .wrangler/dry-run",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
   },

@@ -1,0 +1,24 @@
+name = "boatship-onboarding"
+main = "custom-worker.ts"
+compatibility_date = "2026-09-13"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
+[observability]
+enabled = true
+head_sampling_rate = 0.1
+
+[[durable_objects.bindings]]
+name = "MESSAGE_ROOM"
+class_name = "MessageRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["MessageRoom"]
+
+[[routes]]
+pattern = "boatship.cohortix.in"
+custom_domain = true
