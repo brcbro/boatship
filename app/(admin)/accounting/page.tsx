@@ -5,7 +5,9 @@ import {
   CircleDollarSign,
   Equal,
   Plus,
+  Pencil,
   ReceiptText,
+  Trash2,
   UserRound,
   UsersRound,
 } from "lucide-react";
@@ -16,6 +18,7 @@ import type { AccountingCategory, AccountingEntry, AccountingSplitMode } from "@
 
 type Person = { uid: string; name: string; email: string };
 type Draft = {
+  editingId: string | null;
   title: string;
   category: AccountingCategory;
   amount: string;
@@ -37,6 +40,7 @@ const money = new Intl.NumberFormat("en-IN", {
 
 function blank(): Draft {
   return {
+    editingId: null,
     title: "",
     category: "rent",
     amount: "",
@@ -47,6 +51,23 @@ function blank(): Draft {
     participantIds: [],
     specificPersonId: "",
     paidPersonIds: [],
+  };
+}
+
+function draftFromEntry(entry: AccountingEntry): Draft {
+  const participants = entry.splits.map((split) => split.personId);
+  return {
+    editingId: entry.id,
+    title: entry.title,
+    category: entry.category,
+    amount: String(entry.amount),
+    month: entry.month,
+    dueDate: entry.dueDate || "",
+    paidById: entry.paidById,
+    splitMode: entry.splitMode,
+    participantIds: entry.splitMode === "equal" ? participants : [],
+    specificPersonId: entry.splitMode === "specific" ? participants[0] || "" : "",
+    paidPersonIds: entry.splits.filter((split) => split.personId !== entry.paidById && split.paidAmount >= split.amount).map((split) => split.personId),
   };
 }
 
@@ -140,6 +161,12 @@ export default function AccountingPage() {
     setDraft(blank());
   }
 
+  function startEdit(entry: AccountingEntry) {
+    setError("");
+    setNotice("");
+    setDraft(draftFromEntry(entry));
+  }
+
   function toggleParticipant(personId: string) {
     if (!draft) return;
     const selected = draft.participantIds.includes(personId);
@@ -182,16 +209,32 @@ export default function AccountingPage() {
         paidByName: payer?.name || "",
         participants: peopleForBill,
       };
-      await apiFetch("/api/accounting", {
-        method: "POST",
+      await apiFetch(`/api/accounting${draft.editingId ? `?id=${encodeURIComponent(draft.editingId)}` : ""}`, {
+        method: draft.editingId ? "PUT" : "POST",
         token,
         body: JSON.stringify(payload),
       });
-      setNotice("Expense added and synced for all admins.");
+      setNotice(draft.editingId ? "Ledger entry updated and synced for all admins." : "Expense added and synced for all admins.");
       setDraft(null);
       await load();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not save the expense");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function remove(entry: AccountingEntry) {
+    if (!confirm(`Delete “${entry.title}” from the shared ledger?`)) return;
+    setSaving(true);
+    setError("");
+    try {
+      await apiFetch(`/api/accounting?id=${encodeURIComponent(entry.id)}`, { method: "DELETE", token });
+      setNotice("Ledger entry deleted.");
+      if (draft?.editingId === entry.id) setDraft(null);
+      await load();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not delete the ledger entry");
     } finally {
       setSaving(false);
     }
@@ -242,7 +285,7 @@ export default function AccountingPage() {
     {draft ? <Card className="border-[var(--accent)]/35 p-5 sm:p-6">
       <div className="mb-5 flex items-center justify-between gap-3">
         <div>
-          <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--ink)]">New expense</h2>
+          <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--ink)]">{draft.editingId ? "Edit ledger entry" : "New expense"}</h2>
           <p className="mt-1 text-sm text-[var(--ink-muted)]">Tell us who paid and who the bill belongs to. Amounts are calculated for you.</p>
         </div>
         <Button variant="ghost" onClick={() => setDraft(null)}>Cancel</Button>
@@ -312,7 +355,7 @@ export default function AccountingPage() {
           </div>
         </fieldset> : null}
 
-        <div className="flex justify-end"><Button type="submit" disabled={saving}>{saving ? "Saving…" : "Add to shared ledger"}</Button></div>
+        <div className="flex justify-end"><Button type="submit" disabled={saving}>{saving ? "Saving…" : draft.editingId ? "Save ledger changes" : "Add to shared ledger"}</Button></div>
       </form>
     </Card> : null}
 
@@ -333,7 +376,7 @@ export default function AccountingPage() {
               <p className="mt-1 text-sm text-[var(--ink-muted)]">Paid by <span className="font-medium text-[var(--ink)]">{entry.paidByName}</span> · {entry.splitMode === "equal" ? `split equally between ${entry.splits.length}` : `assigned to ${entry.splits[0]?.personName || "one person"}`}</p>
               <p className="mt-1 text-xs text-[var(--ink-muted)]">{entry.dueDate ? `Due ${new Date(`${entry.dueDate}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}` : "No due date"} · Total {money.format(entry.amount)}</p>
             </div>
-            <Badge tone="info">Shared ledger</Badge>
+            <div className="flex items-center gap-2"><Badge tone="info">Shared ledger</Badge><Button type="button" size="sm" variant="secondary" onClick={() => startEdit(entry)}><Pencil className="h-3.5 w-3.5" aria-hidden="true" />Edit</Button><Button type="button" size="sm" variant="ghost" className="text-[var(--danger)]" onClick={() => void remove(entry)} disabled={saving}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" />Delete</Button></div>
           </div>
           <div className="border-t border-[var(--border)] bg-[var(--surface)]/50 px-5 py-3">
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{entry.splits.map((allocation) => {
