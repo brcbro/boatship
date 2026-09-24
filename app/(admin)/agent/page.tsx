@@ -250,7 +250,8 @@ export default function AgentPage() {
   }, [token]);
 
   useEffect(() => {
-    void loadStatus();
+    const timer = setTimeout(() => void loadStatus(), 0);
+    return () => clearTimeout(timer);
   }, [loadStatus]);
 
   async function onSubmit(e: React.FormEvent) {

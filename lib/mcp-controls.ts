@@ -1,23 +1,16 @@
 import { createHash, randomUUID } from "crypto";
 import { getPrisma } from "@/lib/prisma";
 import { getStore } from "@/lib/store";
+import { canAccessClient } from "@/lib/client-access";
+import { consumeRateLimit } from "@/lib/rate-limit";
 import type { McpContext } from "@/lib/mcp-context";
 import { sanitizeForMcp, visibleTask } from "@/lib/mcp-context";
 import type { AuthSession, ActivityLog } from "@/types";
 
-const buckets = new Map<string, { startedAt: number; count: number }>();
-const WINDOW_MS = 60_000;
 const MAX_REQUESTS = Number(process.env.MCP_RATE_LIMIT_PER_MINUTE || 120);
 
-export function checkMcpRateLimit(identityId: string) {
-  const now = Date.now();
-  const current = buckets.get(identityId);
-  if (!current || now - current.startedAt >= WINDOW_MS) {
-    buckets.set(identityId, { startedAt: now, count: 1 });
-    return true;
-  }
-  current.count += 1;
-  return current.count <= MAX_REQUESTS;
+export async function checkMcpRateLimit(identityId: string) {
+  return consumeRateLimit({ scope: "mcp", identity: identityId, max: MAX_REQUESTS, windowSeconds: 60 });
 }
 
 export function deviceFingerprint(req: Request) {
@@ -90,12 +83,13 @@ function approvalDecision(activities: ActivityLog[], approvalId: string) {
   };
 }
 
-export async function listMcpWriteApprovals(status: "pending" | "approved" | "rejected" | "all" = "pending") {
+export async function listMcpWriteApprovals(status: "pending" | "approved" | "rejected" | "all" = "pending", reviewer?: AuthSession) {
   const store = await getStore();
   const activities = await store.listAllActivity();
   const requests = activities.filter((entry) => entry.action === "mcp.approval.requested" && typeof entry.meta?.approvalId === "string");
   const results = [];
   for (const request of requests) {
+    if (reviewer && !await canAccessClient(reviewer, request.clientId)) continue;
     const approvalId = String(request.meta.approvalId);
     const decision = approvalDecision(activities, approvalId);
     const resolvedStatus = decision?.status || "pending";
@@ -122,6 +116,12 @@ export async function reviewMcpWriteApproval(input: { approvalId: string; decisi
   const activities = await store.listAllActivity();
   const request = activities.find((entry) => entry.action === "mcp.approval.requested" && entry.meta?.approvalId === input.approvalId);
   if (!request) throw new Error("MCP approval request not found");
+  if (!await canAccessClient(input.reviewer, request.clientId)) {
+    throw new Response(JSON.stringify({ error: "Forbidden" }), {
+      status: 403,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
   if (input.decision === "rejected" && !input.reason?.trim()) throw new Error("A reason is required when rejecting a request");
   const current = approvalDecision(activities, input.approvalId);
   if (current) throw new Error(`This request has already been ${current.status}`);

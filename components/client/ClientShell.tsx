@@ -11,6 +11,7 @@ import {
   Menu,
   MessageCircle,
   MoreHorizontal,
+  UserRound,
   ClipboardCheck,
   X,
 } from "lucide-react";
@@ -75,6 +76,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
 
           <div className="flex shrink-0 items-center gap-2">
             <NotificationBell tone="light" />
+            <Link href="/portal/account" prefetch={false} aria-label="Account settings" title="Account settings" className={cn("hidden h-10 w-10 items-center justify-center rounded-lg border border-[var(--border)] text-[var(--ink)] transition hover:bg-[var(--surface-2)] xl:inline-flex", isActive(pathname, "/portal/account") && "bg-[var(--surface-2)]")}><UserRound className="h-4 w-4" aria-hidden="true" /></Link>
             <div className="hidden max-w-72 text-right 2xl:block">
               <p className="truncate text-sm font-medium text-[var(--ink)]">
                 {loading ? "…" : session?.name || "Client"}
@@ -124,6 +126,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
                   {item.label}
                 </Link>
               ))}
+              <Link href="/portal/account" prefetch={false} onClick={() => setOpen(false)} aria-current={isActive(pathname, "/portal/account") ? "page" : undefined} className={cn("flex min-h-11 items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition", isActive(pathname, "/portal/account") ? "bg-[var(--surface-2)] text-[var(--ink)]" : "text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]")}><UserRound className="h-4 w-4" aria-hidden="true" />Account settings</Link>
             </nav>
             <div className="mt-3 flex items-center justify-between border-t border-[var(--border)] pt-3">
               <div>

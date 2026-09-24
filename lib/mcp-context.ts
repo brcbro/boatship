@@ -4,6 +4,7 @@ import type {
   AuthSession,
 } from "@/types";
 import { getStore, type DataStore } from "@/lib/store";
+import { filterAssignedClients } from "@/lib/client-access";
 
 export interface McpContext {
   store: DataStore;
@@ -12,19 +13,14 @@ export interface McpContext {
   projectIds: Set<string> | null;
   scopes: Set<string>;
   identityId?: string;
+  assignedClientIds: Set<string> | null;
 }
 
-function canSeeClient(context: McpContext, client: Client, tasks: Task[]) {
+function canSeeClient(context: McpContext, client: Client) {
   if (context.projectIds && !context.projectIds.has(client.id)) return false;
   if (context.session.role === "admin") return true;
   if (context.session.role === "client") return context.session.clientId === client.id;
-  return (
-    client.assignedTeamMemberId === context.session.uid ||
-    tasks.some((task) =>
-      task.clientId === client.id &&
-      (task.assignedTo === context.session.uid || task.watcherIds.includes(context.session.uid))
-    )
-  );
+  return context.assignedClientIds?.has(client.id) ?? false;
 }
 
 export async function createMcpContext(
@@ -34,13 +30,18 @@ export async function createMcpContext(
   scopes: readonly string[] = ["tasks:read", "projects:read", "context:read"],
   identityId?: string
 ): Promise<McpContext> {
+  const store = await getStore();
+  const assignedClientIds = session.role === "team"
+    ? new Set((await filterAssignedClients(session, await store.listClients())).map((client) => client.id))
+    : null;
   return {
-    store: await getStore(),
+    store,
     session,
     mcpId,
     projectIds: projectIds?.length ? new Set(projectIds) : null,
     scopes: new Set(scopes),
     identityId,
+    assignedClientIds,
   };
 }
 
@@ -68,7 +69,7 @@ async function allVisibleData(context: McpContext) {
     context.store.listAllTasks(),
     context.store.listAllActivity(),
   ]);
-  const visibleClients = clients.filter((client) => canSeeClient(context, client, tasks));
+  const visibleClients = clients.filter((client) => canSeeClient(context, client));
   const ids = new Set(visibleClients.map((client) => client.id));
   return {
     clients: visibleClients,
@@ -92,16 +93,14 @@ export async function visibleTasks(context: McpContext, clientId?: string) {
     if (context.session.role === "client") {
       return task.clientId === context.session.clientId && task.assignedRole === "client";
     }
-    return task.assignedTo === context.session.uid || task.watcherIds.includes(context.session.uid) ||
-      client.assignedTeamMemberId === context.session.uid;
+    return context.assignedClientIds?.has(client.id) ?? false;
   });
 }
 
 export async function visibleClient(context: McpContext, clientId: string) {
   const client = await context.store.getClient(clientId);
   if (!client) return null;
-  const tasks = await context.store.listTasks(clientId);
-  return canSeeClient(context, client, tasks) ? client : null;
+  return canSeeClient(context, client) ? client : null;
 }
 
 export async function visibleTask(context: McpContext, taskId: string) {

@@ -37,7 +37,11 @@ export function parseMentionUserIds(text: string, users: MentionUser[]): string[
   return Array.from(ids);
 }
 
-export function TaskComments({
+export function TaskComments(props: TaskCommentsProps) {
+  return <TaskCommentsForTask key={props.taskId} {...props} />;
+}
+
+function TaskCommentsForTask({
   taskId,
   users = [],
   className,
@@ -52,11 +56,8 @@ export function TaskComments({
   const [error, setError] = useState("");
   const [body, setBody] = useState("");
   const [loaded, setLoaded] = useState(false);
-  const [mentionUsers, setMentionUsers] = useState<MentionUser[]>(users);
-
-  useEffect(() => {
-    setMentionUsers(users);
-  }, [users]);
+  const [fetchedMentionUsers, setFetchedMentionUsers] = useState<MentionUser[]>([]);
+  const mentionUsers = users.length ? users : fetchedMentionUsers;
 
   useEffect(() => {
     if (users.length || !token) return;
@@ -64,7 +65,7 @@ export function TaskComments({
     void (async () => {
       try {
         const data = await apiFetch<{ users: MentionUser[] }>("/api/users", { token });
-        if (!cancelled) setMentionUsers(data.users || []);
+        if (!cancelled) setFetchedMentionUsers(data.users || []);
       } catch {
         // Clients cannot list users; mentions still work if parent passes users.
       }
@@ -92,12 +93,10 @@ export function TaskComments({
   }, [taskId, token]);
 
   useEffect(() => {
-    setLoaded(false);
-    setComments([]);
-    setBody("");
-    setError("");
-    if (!collapsible || open) void load();
-  }, [taskId, collapsible, open, load]);
+    if (collapsible && !open) return;
+    const timer = setTimeout(() => void load(), 0);
+    return () => clearTimeout(timer);
+  }, [collapsible, open, load]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();

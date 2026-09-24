@@ -1,6 +1,7 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles, requireSession } from "@/lib/auth";
-import { canAccessClient, isStaff } from "@/lib/rbac";
+import { canAccessClient } from "@/lib/client-access";
+import { isStaff } from "@/lib/rbac";
 import { getStore } from "@/lib/store";
 import type { ClientStatus, PipelineStage } from "@/types";
 
@@ -21,7 +22,7 @@ export async function GET(req: Request, { params }: Params) {
   return handleApi(async () => {
     const session = await requireSession(req);
     const { id } = await params;
-    if (!canAccessClient(session, id)) {
+    if (!await canAccessClient(session, id)) {
       throw jsonError("Forbidden", 403);
     }
 
@@ -53,6 +54,7 @@ export async function PATCH(req: Request, { params }: Params) {
     const store = await getStore();
     const existing = await store.getClient(id);
     if (!existing) throw jsonError("Client not found", 404);
+    if (!await canAccessClient(session, id)) throw jsonError("Forbidden", 403);
 
     const body = (await req.json().catch(() => ({}))) as {
       name?: string;
@@ -77,6 +79,7 @@ export async function PATCH(req: Request, { params }: Params) {
     }
     if (body.status !== undefined) patch.status = body.status;
     if (body.assignedTeamMemberId !== undefined) {
+      if (session.role === "team" && body.assignedTeamMemberId !== session.uid) throw jsonError("Forbidden", 403);
       patch.assignedTeamMemberId = body.assignedTeamMemberId;
     }
     if (body.templateId !== undefined) patch.templateId = body.templateId;

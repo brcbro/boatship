@@ -2,7 +2,7 @@ import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles, requireSession } from "@/lib/auth";
 import { appBaseUrl } from "@/lib/client-status";
 import { documentReviewedEmailHtml, sendEmail } from "@/lib/email";
-import { canAccessClient } from "@/lib/rbac";
+import { canAccessClient } from "@/lib/client-access";
 import { getStore } from "@/lib/store";
 import { dispatchWebhooks } from "@/lib/webhooks";
 import type { DocumentStatus, DocumentVersion } from "@/types";
@@ -18,7 +18,7 @@ export async function GET(req: Request, { params }: Params) {
     const store = await getStore();
     const document = await store.getDocument(id);
     if (!document) throw jsonError("Document not found", 404);
-    if (!canAccessClient(session, document.clientId)) {
+    if (!await canAccessClient(session, document.clientId)) {
       throw jsonError("Forbidden", 403);
     }
     return { document };
@@ -32,7 +32,7 @@ export async function PATCH(req: Request, { params }: Params) {
     const store = await getStore();
     const existing = await store.getDocument(id);
     if (!existing) throw jsonError("Document not found", 404);
-    if (!canAccessClient(session, existing.clientId)) {
+    if (!await canAccessClient(session, existing.clientId)) {
       throw jsonError("Forbidden", 403);
     }
 

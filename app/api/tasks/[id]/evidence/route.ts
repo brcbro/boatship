@@ -1,6 +1,6 @@
 import { handleApi } from "@/lib/api";
 import { requireSession } from "@/lib/auth";
-import { canAccessClient } from "@/lib/rbac";
+import { canAccessClient } from "@/lib/client-access";
 import { getStore } from "@/lib/store";
 import { getTaskQuality } from "@/lib/git-quality";
 
@@ -12,7 +12,7 @@ export async function GET(req: Request, { params }: Params) {
     const session = await requireSession(req);
     const { id } = await params;
     const task = await (await getStore()).getTask(id);
-    if (!task || !canAccessClient(session, task.clientId)) return { evidence: [], runs: [], approval: null };
+    if (!task || !await canAccessClient(session, task.clientId)) return { evidence: [], runs: [], approval: null };
     return getTaskQuality(id);
   });
 }

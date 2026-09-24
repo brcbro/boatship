@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from "crypto";
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
 import { getStore } from "@/lib/store";
+import { publicWebhook, validateWebhookUrl } from "@/lib/webhook-security";
 import type { WebhookEvent } from "@/types";
 
 export const runtime = "nodejs";
@@ -35,7 +36,7 @@ export async function GET(req: Request) {
     const store = await getStore();
     const webhooks = await store.listWebhooks();
     const deliveries = (await store.listWebhookDeliveries()).slice(0, 50);
-    return { webhooks, deliveries, events: ALL_EVENTS };
+    return { webhooks: webhooks.map(publicWebhook), deliveries, events: ALL_EVENTS };
   });
 }
 
@@ -54,14 +55,8 @@ export async function POST(req: Request) {
     const url = body.url?.trim();
     if (!name) throw jsonError("name is required", 400);
     if (!url) throw jsonError("url is required", 400);
-    try {
-      const parsed = new URL(url);
-      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-        throw new Error("invalid");
-      }
-    } catch {
-      throw jsonError("url must be a valid http(s) URL", 400);
-    }
+    const urlError = validateWebhookUrl(url);
+    if (urlError) throw jsonError(urlError, 400);
 
     const events = parseEvents(body.events ?? ALL_EVENTS);
     if (!events || events.length === 0) {
@@ -70,17 +65,18 @@ export async function POST(req: Request) {
 
     const now = new Date().toISOString();
     const store = await getStore();
+    const generatedSecret = body.secret?.trim() ? null : randomBytes(24).toString("hex");
     const hook = await store.upsertWebhook({
       id: randomUUID(),
       name,
       url,
-      secret: body.secret?.trim() || randomBytes(24).toString("hex"),
+      secret: body.secret?.trim() || generatedSecret!,
       events,
       active: body.active !== false,
       createdAt: now,
       updatedAt: now,
     });
 
-    return { webhook: hook };
+    return { webhook: publicWebhook(hook), ...(generatedSecret ? { generatedSecret } : {}) };
   });
 }

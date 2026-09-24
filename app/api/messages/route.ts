@@ -2,7 +2,8 @@ import { handleApi, jsonError } from "@/lib/api";
 import { requireSession } from "@/lib/auth";
 import { notifyStaffForClient, notifyUser } from "@/lib/notifications";
 import { getRedisCacheVersion, redisCacheKey, withRedisCache } from "@/lib/redis-cache";
-import { canAccessClient, isStaff } from "@/lib/rbac";
+import { canAccessClient } from "@/lib/client-access";
+import { isStaff } from "@/lib/rbac";
 import { getStore } from "@/lib/store";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import type { MessageRoom } from "@/lib/realtime/message-room";
@@ -27,7 +28,7 @@ export async function GET(req: Request) {
     const session = await requireSession(req);
     const clientId = new URL(req.url).searchParams.get("clientId");
     if (!clientId) throw jsonError("clientId is required", 400);
-    if (!canAccessClient(session, clientId)) throw jsonError("Forbidden", 403);
+    if (!await canAccessClient(session, clientId)) throw jsonError("Forbidden", 403);
 
     const store = await getStore();
     const client = await store.getClient(clientId);
@@ -52,7 +53,7 @@ export async function POST(req: Request) {
     const clientId = body.clientId?.trim();
     const text = body.body?.trim();
     if (!clientId || !text) throw jsonError("clientId and body are required", 400);
-    if (!canAccessClient(session, clientId)) throw jsonError("Forbidden", 403);
+    if (!await canAccessClient(session, clientId)) throw jsonError("Forbidden", 403);
 
     const store = await getStore();
     const client = await store.getClient(clientId);

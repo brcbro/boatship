@@ -1,6 +1,7 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
 import { getStore } from "@/lib/store";
+import { publicWebhook, validateWebhookUrl } from "@/lib/webhook-security";
 import type { WebhookEvent } from "@/types";
 
 export const runtime = "nodejs";
@@ -38,7 +39,7 @@ export async function GET(req: Request, { params }: Params) {
     const webhook = await store.getWebhook(id);
     if (!webhook) throw jsonError("Webhook not found", 404);
     const deliveries = (await store.listWebhookDeliveries(id)).slice(0, 50);
-    return { webhook, deliveries };
+    return { webhook: publicWebhook(webhook), deliveries };
   });
 }
 
@@ -68,14 +69,8 @@ export async function PATCH(req: Request, { params }: Params) {
     if (body.url !== undefined) {
       const url = body.url.trim();
       if (!url) throw jsonError("url cannot be empty", 400);
-      try {
-        const parsed = new URL(url);
-        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-          throw new Error("invalid");
-        }
-      } catch {
-        throw jsonError("url must be a valid http(s) URL", 400);
-      }
+      const urlError = validateWebhookUrl(url);
+      if (urlError) throw jsonError(urlError, 400);
       next.url = url;
     }
     if (body.secret !== undefined) {
@@ -92,8 +87,10 @@ export async function PATCH(req: Request, { params }: Params) {
     }
     if (body.active !== undefined) next.active = Boolean(body.active);
 
+    const urlError = validateWebhookUrl(next.url);
+    if (urlError) throw jsonError(urlError, 400);
     const webhook = await store.upsertWebhook(next);
-    return { webhook };
+    return { webhook: publicWebhook(webhook) };
   });
 }
 

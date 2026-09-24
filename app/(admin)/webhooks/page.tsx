@@ -13,10 +13,11 @@ import {
 } from "@/components/shared/ui";
 import { apiFetch } from "@/lib/api-client";
 import { formatDateTime } from "@/lib/utils";
-import type { WebhookDelivery, WebhookEndpoint, WebhookEvent } from "@/types";
+import type { WebhookDelivery, WebhookEvent } from "@/types";
+import type { PublicWebhook } from "@/lib/webhook-security";
 
 type WebhooksResponse = {
-  webhooks: WebhookEndpoint[];
+  webhooks: PublicWebhook[];
   deliveries: WebhookDelivery[];
   events: WebhookEvent[];
 };
@@ -31,7 +32,7 @@ const EMPTY_FORM = {
 
 export default function WebhooksPage() {
   const { token, session } = useAuth();
-  const [webhooks, setWebhooks] = useState<WebhookEndpoint[]>([]);
+  const [webhooks, setWebhooks] = useState<PublicWebhook[]>([]);
   const [deliveries, setDeliveries] = useState<WebhookDelivery[]>([]);
   const [events, setEvents] = useState<WebhookEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,8 +61,11 @@ export default function WebhooksPage() {
   }, [token]);
 
   useEffect(() => {
-    if (isAdmin) void load();
-    else setLoading(false);
+    const timer = setTimeout(() => {
+      if (isAdmin) void load();
+      else setLoading(false);
+    }, 0);
+    return () => clearTimeout(timer);
   }, [isAdmin, load]);
 
   const selectedDeliveries = useMemo(() => {
@@ -84,12 +88,12 @@ export default function WebhooksPage() {
     setError("");
   }
 
-  function startEdit(hook: WebhookEndpoint) {
+  function startEdit(hook: PublicWebhook) {
     setEditingId(hook.id);
     setForm({
       name: hook.name,
       url: hook.url,
-      secret: hook.secret,
+      secret: "",
       events: [...hook.events],
       active: hook.active,
     });
@@ -136,12 +140,14 @@ export default function WebhooksPage() {
         });
         setMessage("Webhook updated.");
       } else {
-        await apiFetch("/api/webhooks", {
+        const created = await apiFetch<{ generatedSecret?: string }>("/api/webhooks", {
           method: "POST",
           token,
           body: JSON.stringify(payload),
         });
-        setMessage("Webhook created.");
+        setMessage(created.generatedSecret
+          ? `Webhook created. Save this signing secret now; it is shown only once: ${created.generatedSecret}`
+          : "Webhook created.");
         setForm(EMPTY_FORM);
         setEditingId(null);
       }
@@ -174,7 +180,7 @@ export default function WebhooksPage() {
     }
   }
 
-  async function toggleActive(hook: WebhookEndpoint) {
+  async function toggleActive(hook: PublicWebhook) {
     setBusy(true);
     setError("");
     try {

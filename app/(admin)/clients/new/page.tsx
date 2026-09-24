@@ -18,7 +18,6 @@ export default function NewClientPage() {
   const [users, setUsers] = useState<TeamUser[]>([]);
   const [templates, setTemplates] = useState<OnboardingTemplate[]>([]);
   const [loadingMeta, setLoadingMeta] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   const loadMeta = useCallback(async () => {
@@ -36,10 +35,11 @@ export default function NewClientPage() {
     } finally {
       setLoadingMeta(false);
     }
-  }, [token, session?.uid]);
+  }, [token]);
 
   useEffect(() => {
-    void loadMeta();
+    const timer = setTimeout(() => void loadMeta(), 0);
+    return () => clearTimeout(timer);
   }, [loadMeta]);
 
   if (loadingMeta) {
@@ -66,7 +66,12 @@ export default function NewClientPage() {
         title="Create a client workspace"
         description="Capture the essentials once, then start the right onboarding playbook."
       />
-      <IntakeWizard token={token} users={users} templates={templates} defaultAssigneeId={session?.uid || users[0]?.uid || ""} />
+      <IntakeWizard
+        token={token}
+        users={session?.role === "team" ? users.filter((user) => user.uid === session.uid) : users}
+        templates={templates}
+        defaultAssigneeId={session?.uid || users[0]?.uid || ""}
+      />
     </div>
   );
 }

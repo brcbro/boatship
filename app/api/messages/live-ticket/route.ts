@@ -1,7 +1,7 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireSession } from "@/lib/auth";
 import { issueMessageRealtimeTicket } from "@/lib/realtime/message-ticket";
-import { canAccessClient } from "@/lib/rbac";
+import { canAccessClient } from "@/lib/client-access";
 import { getStore } from "@/lib/store";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
@@ -25,7 +25,7 @@ export async function GET(req: Request) {
     const session = await requireSession(req);
     const clientId = new URL(req.url).searchParams.get("clientId");
     if (!clientId) throw jsonError("clientId is required", 400);
-    if (!canAccessClient(session, clientId)) throw jsonError("Forbidden", 403);
+    if (!await canAccessClient(session, clientId)) throw jsonError("Forbidden", 403);
     if (!(await (await getStore()).getClient(clientId))) throw jsonError("Client not found", 404);
 
     const secret = realtimeSecret();

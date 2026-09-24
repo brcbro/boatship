@@ -18,7 +18,7 @@ import {
 } from "@/components/shared/ui";
 import { apiFetch } from "@/lib/api-client";
 import { cn, formatDate, formatDateTime, statusLabel } from "@/lib/utils";
-import type { ClientWithProgress, PortalMessage } from "@/types";
+import type { MessageClientSummary, PortalMessage } from "@/types";
 
 function statusTone(status: string): "neutral" | "success" | "warning" | "danger" | "info" {
   if (status === "completed") return "success";
@@ -46,7 +46,7 @@ function AdminMessagesInner() {
   const searchParams = useSearchParams();
   const initialClientId = searchParams.get("clientId") || "";
 
-  const [clients, setClients] = useState<ClientWithProgress[]>([]);
+  const [clients, setClients] = useState<MessageClientSummary[]>([]);
   const [clientId, setClientId] = useState(initialClientId);
   const [messages, setMessages] = useState<PortalMessage[]>([]);
   const [body, setBody] = useState("");
@@ -60,13 +60,15 @@ function AdminMessagesInner() {
   const previousMessageCountRef = useRef(0);
 
   useEffect(() => {
-    if (initialClientId) setClientId(initialClientId);
+    if (!initialClientId) return;
+    const syncClient = window.setTimeout(() => setClientId(initialClientId), 0);
+    return () => window.clearTimeout(syncClient);
   }, [initialClientId]);
 
   const loadClients = useCallback(async () => {
     setLoadingClients(true);
     try {
-      const data = await apiFetch<{ clients: ClientWithProgress[] }>("/api/clients", { token });
+      const data = await apiFetch<{ clients: MessageClientSummary[] }>("/api/clients?view=messages", { token });
       setClients(data.clients);
       if (!pickedDefault.current && !initialClientId && data.clients[0]) {
         pickedDefault.current = true;
@@ -100,11 +102,13 @@ function AdminMessagesInner() {
   }, [clientId, token]);
 
   useEffect(() => {
-    void loadClients();
+    const initialLoad = window.setTimeout(() => void loadClients(), 0);
+    return () => window.clearTimeout(initialLoad);
   }, [loadClients]);
 
   useEffect(() => {
-    void loadMessages();
+    const initialLoad = window.setTimeout(() => void loadMessages(), 0);
+    return () => window.clearTimeout(initialLoad);
   }, [loadMessages]);
 
   const liveConnected = useMessageRealtime({

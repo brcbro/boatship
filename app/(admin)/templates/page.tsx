@@ -142,8 +142,9 @@ export default function TemplatesPage() {
   }, [token, selectedId]);
 
   useEffect(() => {
-    void load();
+    const timer = setTimeout(() => void load(), 0);
     // intentionally only on mount / token — selection changes handled below
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 

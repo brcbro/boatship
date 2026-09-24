@@ -1,6 +1,7 @@
 import { getStore } from "@/lib/store";
 import { sha256Hex } from "@/lib/password";
 import type { WebhookEvent } from "@/types";
+import { validateWebhookUrl } from "@/lib/webhook-security";
 
 export async function dispatchWebhooks(
   event: WebhookEvent,
@@ -20,6 +21,8 @@ export async function dispatchWebhooks(
       });
       const signature = sha256Hex(`${hook.secret}.${body}`);
       try {
+        const urlError = validateWebhookUrl(hook.url);
+        if (urlError) throw new Error(`Webhook destination rejected: ${urlError}`);
         const res = await fetch(hook.url, {
           method: "POST",
           headers: {
@@ -28,6 +31,7 @@ export async function dispatchWebhooks(
             "X-Boatship-Signature": signature,
           },
           body,
+          redirect: "error",
           signal: AbortSignal.timeout(8000),
         });
         await store.addWebhookDelivery({

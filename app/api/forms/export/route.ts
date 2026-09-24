@@ -1,6 +1,7 @@
-import { jsonError } from "@/lib/api";
+import { internalErrorResponse, jsonError } from "@/lib/api";
 import { requireSession } from "@/lib/auth";
-import { canAccessClient, isStaff } from "@/lib/rbac";
+import { canAccessClient } from "@/lib/client-access";
+import { isStaff } from "@/lib/rbac";
 import { getStore } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -18,7 +19,7 @@ export async function GET(req: Request) {
     if (!clientId) throw jsonError("clientId is required", 400);
 
     if (isStaff(session.role)) {
-      if (!canAccessClient(session, clientId)) throw jsonError("Forbidden", 403);
+      if (!await canAccessClient(session, clientId)) throw jsonError("Forbidden", 403);
     } else if (session.role === "client") {
       if (session.clientId !== clientId) throw jsonError("Forbidden", 403);
     } else {
@@ -96,7 +97,6 @@ export async function GET(req: Request) {
     });
   } catch (err) {
     if (err instanceof Response) return err;
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return jsonError(message, 500);
+    return internalErrorResponse(err);
   }
 }

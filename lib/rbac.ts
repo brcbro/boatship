@@ -30,11 +30,6 @@ export function canManageTemplates(role: UserRole) {
   return role === "admin";
 }
 
-export function canAccessClient(session: AuthSession, clientId: string) {
-  if (isStaff(session.role)) return true;
-  return session.role === "client" && session.clientId === clientId;
-}
-
 export function homePathForRole(role: UserRole) {
   if (role === "client") return "/portal";
   return "/dashboard";

@@ -1,6 +1,6 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireSession } from "@/lib/auth";
-import { canAccessClient } from "@/lib/rbac";
+import { canAccessClient } from "@/lib/client-access";
 import { getStore } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -29,7 +29,7 @@ export async function POST(req: Request) {
     if (!body.clientId || !body.fileName || !body.contentType) {
       throw jsonError("clientId, fileName, and contentType are required", 400);
     }
-    if (!canAccessClient(session, body.clientId)) throw jsonError("Forbidden", 403);
+    if (!await canAccessClient(session, body.clientId)) throw jsonError("Forbidden", 403);
 
     const store = await getStore();
     const client = await store.getClient(body.clientId);

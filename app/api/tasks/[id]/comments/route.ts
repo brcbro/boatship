@@ -1,7 +1,8 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireSession } from "@/lib/auth";
 import { notifyStaffForClient, notifyUser } from "@/lib/notifications";
-import { canAccessClient, isStaff } from "@/lib/rbac";
+import { canAccessClient } from "@/lib/client-access";
+import { isStaff } from "@/lib/rbac";
 import { getStore } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -23,7 +24,7 @@ export async function GET(req: Request, { params }: Params) {
     const store = await getStore();
     const task = await store.getTask(id);
     if (!task) throw jsonError("Task not found", 404);
-    if (!canAccessClient(session, task.clientId)) throw jsonError("Forbidden", 403);
+    if (!await canAccessClient(session, task.clientId)) throw jsonError("Forbidden", 403);
 
     if (session.role === "client" && task.type !== "client_facing") {
       throw jsonError("Forbidden", 403);
@@ -41,7 +42,7 @@ export async function POST(req: Request, { params }: Params) {
     const store = await getStore();
     const task = await store.getTask(id);
     if (!task) throw jsonError("Task not found", 404);
-    if (!canAccessClient(session, task.clientId)) throw jsonError("Forbidden", 403);
+    if (!await canAccessClient(session, task.clientId)) throw jsonError("Forbidden", 403);
 
     if (session.role === "client" && task.type !== "client_facing") {
       throw jsonError("Forbidden", 403);

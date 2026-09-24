@@ -1,6 +1,7 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
 import { getStore } from "@/lib/store";
+import { canAccessClient } from "@/lib/client-access";
 
 export const runtime = "nodejs";
 
@@ -9,9 +10,10 @@ export const runtime = "nodejs";
  */
 export async function GET(req: Request) {
   return handleApi(async () => {
-    await requireRoles(req, ["admin", "team"]);
+    const session = await requireRoles(req, ["admin", "team"]);
     const clientId = new URL(req.url).searchParams.get("clientId");
     if (!clientId) throw jsonError("clientId is required", 400);
+    if (!await canAccessClient(session, clientId)) throw jsonError("Forbidden", 403);
 
     const store = await getStore();
     const client = await store.getClient(clientId);

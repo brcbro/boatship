@@ -9,6 +9,7 @@
  */
 export type * from './models/StoreSnapshot'
 export type * from './models/AuthSession'
+export type * from './models/RateLimitBucket'
 export type * from './models/UserProfile'
 export type * from './models/NotificationRecord'
 export type * from './models/ComposioConnection'

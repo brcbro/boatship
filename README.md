@@ -8,7 +8,7 @@ Web app for managing client onboarding: team/admin manage clients, tasks, docume
 - Neon PostgreSQL + Prisma ORM for application data, users, sessions, and integration ownership
 - Resend for transactional email (logs to console without `RESEND_API_KEY`)
 - Composio for 250+ app integrations (Slack, Gmail, Drive, HubSpot, …)
-- Cloudflare Pages via OpenNext (`@opennextjs/cloudflare`)
+- Cloudflare Worker via OpenNext (`@opennextjs/cloudflare`)
 
 ## Quick start
 
@@ -21,22 +21,24 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ### Initial accounts
 
-Create the first administrator through your private seed or provisioning process. Default demo credentials are not displayed or enabled in hosted/production mode. Client accounts should sign in using their invitation or password-reset link.
+For a new migrated database, use the guarded [first-admin provisioning runbook](docs/operations/first-admin.md). Existing environments use authenticated account management. Default demo credentials are not enabled in hosted/production mode. Client accounts sign in using their invitation or password-reset link.
 
 ## Core flows
 
 1. Sign in as admin → **Clients** → **New client** (tasks auto-seed from Standard Onboarding)
-2. Open client → **Invite client** → copy temp password
-3. Sign out → sign in as client → complete tasks, submit form, upload documents
+2. Open client → **Invite client** → the client receives a one-time password setup link by email
+3. The client sets their password, signs in, completes tasks, submits forms, and uploads documents
 4. Sign in as admin → review documents/forms, update task status, check **Activity** / **Analytics**
 5. Optional: **Integrations** → each member securely saves their own Composio/OpenRouter credentials → connect **Google Drive** and open **Hodi**
 6. Optional: connect Slack → set `COMPOSIO_SLACK_CHANNEL` for auto-notify
 
+Invitations and password resets require `RESEND_API_KEY` and a valid `RESEND_FROM` sender. The API returns an error when email delivery is unavailable instead of creating an unusable invitation.
+
 ## Environment
 
 Copy `.env.example` to `.env.local` and set the pooled Neon `DATABASE_URL` plus direct `DIRECT_URL`.
-Run `npm run db:push` once to create the Prisma schema in Neon. The application refuses to use the local file store unless `ALLOW_LOCAL_STORE=1` is explicitly set for demo-only work.
-If you have existing demo data, run `npm run db:import-local` once after `db:push` to move `.data/store.json` into Neon.
+Run `npm run db:deploy` to apply reviewed Prisma migrations to the intended Neon database. The application refuses to use the local file store unless `ALLOW_LOCAL_STORE=1` is explicitly set for demo-only work.
+Keep demo data in explicit `ALLOW_LOCAL_STORE=1` mode. The old `db:import-local` shortcut is retired because it could replace populated data and import fixed demo credentials; see the [operations runbooks](docs/operations/README.md) before planning a reviewed data migration.
 
 Passwords are stored as scrypt hashes, and login sessions are opaque database records with hashed tokens.
 

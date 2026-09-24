@@ -391,6 +391,7 @@ type FieldRefInputType<Model, FieldType> = Model extends never ? never : FieldRe
 export const ModelName = {
   StoreSnapshot: 'StoreSnapshot',
   AuthSession: 'AuthSession',
+  RateLimitBucket: 'RateLimitBucket',
   UserProfile: 'UserProfile',
   NotificationRecord: 'NotificationRecord',
   ComposioConnection: 'ComposioConnection',
@@ -431,7 +432,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "storeSnapshot" | "authSession" | "userProfile" | "notificationRecord" | "composioConnection" | "userProviderSecret" | "mcpIdentity" | "mcpProjectAccess" | "mcpAuditEvent" | "gitRepositoryConnection" | "product" | "productActivity" | "productMember" | "productMilestone" | "productWorkItem" | "productRelease" | "productReleaseWorkItem" | "gitTaskLink" | "definitionOfDonePolicy" | "gitValidationRun" | "gitEvidence" | "taskManagerApproval" | "hodiQueueItem" | "hodiActionProposal" | "hodiCommunicationProposal" | "hodiAutomationRuleState" | "hodiAutomationRun"
+    modelProps: "storeSnapshot" | "authSession" | "rateLimitBucket" | "userProfile" | "notificationRecord" | "composioConnection" | "userProviderSecret" | "mcpIdentity" | "mcpProjectAccess" | "mcpAuditEvent" | "gitRepositoryConnection" | "product" | "productActivity" | "productMember" | "productMilestone" | "productWorkItem" | "productRelease" | "productReleaseWorkItem" | "gitTaskLink" | "definitionOfDonePolicy" | "gitValidationRun" | "gitEvidence" | "taskManagerApproval" | "hodiQueueItem" | "hodiActionProposal" | "hodiCommunicationProposal" | "hodiAutomationRuleState" | "hodiAutomationRun"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -580,6 +581,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.AuthSessionCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.AuthSessionCountAggregateOutputType> | number
+        }
+      }
+    }
+    RateLimitBucket: {
+      payload: Prisma.$RateLimitBucketPayload<ExtArgs>
+      fields: Prisma.RateLimitBucketFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.RateLimitBucketFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RateLimitBucketPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.RateLimitBucketFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RateLimitBucketPayload>
+        }
+        findFirst: {
+          args: Prisma.RateLimitBucketFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RateLimitBucketPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.RateLimitBucketFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RateLimitBucketPayload>
+        }
+        findMany: {
+          args: Prisma.RateLimitBucketFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RateLimitBucketPayload>[]
+        }
+        create: {
+          args: Prisma.RateLimitBucketCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RateLimitBucketPayload>
+        }
+        createMany: {
+          args: Prisma.RateLimitBucketCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.RateLimitBucketCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RateLimitBucketPayload>[]
+        }
+        delete: {
+          args: Prisma.RateLimitBucketDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RateLimitBucketPayload>
+        }
+        update: {
+          args: Prisma.RateLimitBucketUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RateLimitBucketPayload>
+        }
+        deleteMany: {
+          args: Prisma.RateLimitBucketDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.RateLimitBucketUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.RateLimitBucketUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RateLimitBucketPayload>[]
+        }
+        upsert: {
+          args: Prisma.RateLimitBucketUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RateLimitBucketPayload>
+        }
+        aggregate: {
+          args: Prisma.RateLimitBucketAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateRateLimitBucket>
+        }
+        groupBy: {
+          args: Prisma.RateLimitBucketGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.RateLimitBucketGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.RateLimitBucketCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.RateLimitBucketCountAggregateOutputType> | number
         }
       }
     }
@@ -2475,6 +2550,7 @@ export type TransactionIsolationLevel = (typeof TransactionIsolationLevel)[keyof
 export const StoreSnapshotScalarFieldEnum = {
   id: 'id',
   data: 'data',
+  version: 'version',
   updatedAt: 'updatedAt'
 } as const
 
@@ -2489,6 +2565,15 @@ export const AuthSessionScalarFieldEnum = {
 } as const
 
 export type AuthSessionScalarFieldEnum = (typeof AuthSessionScalarFieldEnum)[keyof typeof AuthSessionScalarFieldEnum]
+
+
+export const RateLimitBucketScalarFieldEnum = {
+  key: 'key',
+  count: 'count',
+  expiresAt: 'expiresAt'
+} as const
+
+export type RateLimitBucketScalarFieldEnum = (typeof RateLimitBucketScalarFieldEnum)[keyof typeof RateLimitBucketScalarFieldEnum]
 
 
 export const UserProfileScalarFieldEnum = {
@@ -2977,6 +3062,20 @@ export type EnumQueryModeFieldRefInput<$PrismaModel> = FieldRefInputType<$Prisma
 
 
 /**
+ * Reference to a field of type 'Int'
+ */
+export type IntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Int'>
+    
+
+
+/**
+ * Reference to a field of type 'Int[]'
+ */
+export type ListIntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Int[]'>
+    
+
+
+/**
  * Reference to a field of type 'DateTime'
  */
 export type DateTimeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'DateTime'>
@@ -2994,20 +3093,6 @@ export type ListDateTimeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaM
  * Reference to a field of type 'Boolean'
  */
 export type BooleanFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Boolean'>
-    
-
-
-/**
- * Reference to a field of type 'Int'
- */
-export type IntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Int'>
-    
-
-
-/**
- * Reference to a field of type 'Int[]'
- */
-export type ListIntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Int[]'>
     
 
 
@@ -3113,6 +3198,7 @@ export interface PrismaClientOptions {
 export type GlobalOmitConfig = {
   storeSnapshot?: Prisma.StoreSnapshotOmit
   authSession?: Prisma.AuthSessionOmit
+  rateLimitBucket?: Prisma.RateLimitBucketOmit
   userProfile?: Prisma.UserProfileOmit
   notificationRecord?: Prisma.NotificationRecordOmit
   composioConnection?: Prisma.ComposioConnectionOmit

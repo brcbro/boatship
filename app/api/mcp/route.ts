@@ -40,7 +40,7 @@ async function authenticate(req: Request) {
 export async function POST(req: Request) {
   const auth = await authenticate(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (auth.context.identityId && !checkMcpRateLimit(auth.context.identityId)) return NextResponse.json({ error: "MCP rate limit exceeded" }, { status: 429, headers: { "Retry-After": "60" } });
+  if (auth.context.identityId && !(await checkMcpRateLimit(auth.context.identityId))) return NextResponse.json({ error: "MCP rate limit exceeded" }, { status: 429, headers: { "Retry-After": "60" } });
   let body: McpJsonRpcRequest;
   try {
     body = (await req.json()) as McpJsonRpcRequest;

@@ -19,6 +19,7 @@ datasource db {
 model StoreSnapshot {
   id        String   @id
   data      Json
+  version   Int      @default(0)
   updatedAt DateTime @updatedAt
 }
 
@@ -29,6 +30,16 @@ model AuthSession {
   createdAt DateTime @default(now())
 
   @@index([userId])
+  @@index([expiresAt])
+}
+
+// Atomic request counters shared by all Worker isolates. Keys are SHA-256
+// digests of a scope and principal; no email, token, or IP is stored here.
+model RateLimitBucket {
+  key       String   @id
+  count     Int
+  expiresAt DateTime
+
   @@index([expiresAt])
 }
 

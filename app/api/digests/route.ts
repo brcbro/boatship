@@ -3,12 +3,13 @@ import { requireRoles } from "@/lib/auth";
 import { appBaseUrl } from "@/lib/client-status";
 import { digestEmailHtml, sendEmail } from "@/lib/email";
 import { getStore } from "@/lib/store";
+import { filterAssignedClients } from "@/lib/client-access";
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   return handleApi(async () => {
-    await requireRoles(req, ["admin", "team"]);
+    const session = await requireRoles(req, ["admin", "team"]);
     const store = await getStore();
     const base = appBaseUrl(req);
     const now = new Date();
@@ -18,7 +19,8 @@ export async function POST(req: Request) {
       (u) =>
         (u.role === "admin" || u.role === "team") &&
         u.digestEnabled !== false &&
-        Boolean(u.email)
+        Boolean(u.email) &&
+        (session.role === "admin" || u.uid === session.uid)
     );
 
     const [clients, tasks, documents] = await Promise.all([
@@ -26,13 +28,14 @@ export async function POST(req: Request) {
       store.listAllTasks(),
       store.listAllDocuments(),
     ]);
-    const clientMap = new Map(clients.map((c) => [c.id, c]));
+    const clientMap = new Map((await filterAssignedClients(session, clients)).map((c) => [c.id, c]));
 
     const overdueTasks = tasks.filter((t) => {
+      if (!clientMap.has(t.clientId)) return false;
       if (!t.dueDate || t.status === "completed") return false;
       return new Date(t.dueDate).getTime() < now.getTime();
     });
-    const pendingDocs = documents.filter((d) => d.status === "pending_review");
+    const pendingDocs = documents.filter((d) => clientMap.has(d.clientId) && d.status === "pending_review");
 
     const sent: Array<{ userId: string; to: string; overdue: number; pending: number }> = [];
     const skipped: Array<{ userId: string; reason: string }> = [];
@@ -42,10 +45,7 @@ export async function POST(req: Request) {
         .filter((t) => {
           if (user.role === "admin") return true;
           const client = clientMap.get(t.clientId);
-          return (
-            t.assignedTo === user.uid ||
-            client?.assignedTeamMemberId === user.uid
-          );
+          return client?.assignedTeamMemberId === user.uid;
         })
         .slice(0, 20)
         .map((t) => {

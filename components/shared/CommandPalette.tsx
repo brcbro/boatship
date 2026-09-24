@@ -87,6 +87,9 @@ export function CommandPalette({ variant }: { variant: "admin" | "client" }) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setOpen((v) => !v);
+        setQ("");
+        setResults([]);
+        setActive(0);
       }
     }
     window.addEventListener("keydown", onKey);
@@ -94,12 +97,7 @@ export function CommandPalette({ variant }: { variant: "admin" | "client" }) {
   }, []);
 
   useEffect(() => {
-    if (!open) {
-      setQ("");
-      setResults([]);
-      setActive(0);
-      return;
-    }
+    if (!open) return;
     const t = setTimeout(() => inputRef.current?.focus(), 20);
     return () => clearTimeout(t);
   }, [open]);
@@ -132,12 +130,11 @@ export function CommandPalette({ variant }: { variant: "admin" | "client" }) {
     return () => clearTimeout(t);
   }, [q, open, runSearch]);
 
-  useEffect(() => {
-    setActive(0);
-  }, [items.length, q]);
-
   function close() {
     setOpen(false);
+    setQ("");
+    setResults([]);
+    setActive(0);
   }
 
   function go(href: string) {
@@ -161,9 +158,9 @@ export function CommandPalette({ variant }: { variant: "admin" | "client" }) {
       setActive((i) => Math.max(i - 1, 0));
       return;
     }
-    if (e.key === "Enter" && items[active]) {
+    if (e.key === "Enter" && items[Math.min(active, items.length - 1)]) {
       e.preventDefault();
-      go(items[active].href);
+      go(items[Math.min(active, items.length - 1)].href);
     }
   }
 
@@ -189,7 +186,10 @@ export function CommandPalette({ variant }: { variant: "admin" | "client" }) {
           <input
             ref={inputRef}
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setActive(0);
+            }}
             placeholder="Search or jump to…"
             className="min-w-0 flex-1 bg-transparent text-sm text-[var(--ink)] outline-none placeholder:text-[var(--ink-muted)]"
             aria-label="Search"
@@ -231,7 +231,7 @@ export function CommandPalette({ variant }: { variant: "admin" | "client" }) {
                       onMouseEnter={() => setActive(idx)}
                       className={cn(
                         "flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition",
-                        idx === active
+                        idx === Math.min(active, items.length - 1)
                           ? "bg-[var(--surface-2)] text-[var(--ink)]"
                           : "text-[var(--ink)] hover:bg-[var(--surface-2)]/70"
                       )}

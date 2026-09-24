@@ -14,6 +14,7 @@ import type {
   FormSubmission,
   FormTemplate,
   IntegrationRun,
+  MessageClientSummary,
   NotificationKind,
   OnboardingTemplate,
   PipelineStage,
@@ -321,7 +322,7 @@ function migrateComment(
   };
 }
 
-async function ensureSeed(data: StoreData) {
+async function ensureSeed(data: StoreData, seedDemoUsers = false) {
   const ts = now();
 
   if (!Array.isArray(data.taskComments)) data.taskComments = [];
@@ -382,7 +383,7 @@ async function ensureSeed(data: StoreData) {
     }
   }
 
-  if (data.users.length === 0) {
+  if (seedDemoUsers && data.users.length === 0) {
     data.users.push({
       uid: "seed_admin",
       email: "admin@boatship.local",
@@ -422,6 +423,7 @@ export interface DataStore {
     tag?: string;
     pipelineStage?: PipelineStage;
   }): Promise<Client[]>;
+  listClientMessageSummaries(): Promise<MessageClientSummary[]>;
   getClient(id: string): Promise<Client | null>;
   createClient(
     input: Omit<
@@ -616,7 +618,10 @@ class LocalStore implements DataStore {
     } catch {
       this.cache = emptyStore();
     }
-    await ensureSeed(this.cache);
+    await ensureSeed(
+      this.cache,
+      process.env.ALLOW_LOCAL_STORE === "1" && process.env.NODE_ENV !== "production"
+    );
     await this.persist(this.cache);
     return this.cache;
   }
@@ -1327,6 +1332,36 @@ class LocalStore implements DataStore {
     });
   }
 
+  async listClientMessageSummaries(): Promise<MessageClientSummary[]> {
+    const data = await this.read();
+    const totals = new Map<string, { totalTasks: number; completedTasks: number }>();
+    for (const task of data.tasks) {
+      const count = totals.get(task.clientId) ?? { totalTasks: 0, completedTasks: 0 };
+      count.totalTasks += 1;
+      if (task.status === "completed") count.completedTasks += 1;
+      totals.set(task.clientId, count);
+    }
+    const names = new Map(data.users.map((user) => [user.uid, user.name]));
+    return [...data.clients]
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map((client) => {
+        const count = totals.get(client.id) ?? { totalTasks: 0, completedTasks: 0 };
+        return {
+          id: client.id,
+          name: client.name,
+          companyName: client.companyName,
+          status: client.status,
+          pipelineStage: client.pipelineStage,
+          tags: client.tags,
+          ...count,
+          progress: calcProgress(count.completedTasks, count.totalTasks),
+          assignedTeamMemberName: client.assignedTeamMemberId
+            ? names.get(client.assignedTeamMemberId) ?? null
+            : null,
+        };
+      });
+  }
+
   async listAgentChatSessions(userId: string) {
     return (await this.read()).agentChatSessions
       .filter((session) => session.userId === userId)
@@ -1657,20 +1692,53 @@ class PrismaStore extends LocalStore {
   override async mutateProjectOps<T = Record<string, unknown>>(
     fn: (data: T) => void | T | Promise<void | T>
   ) {
-    const prisma = getPrisma();
-    const snapshot = await prisma.storeSnapshot.findUnique({ where: { id: "main" } });
-    if (!snapshot) return super.mutateProjectOps(fn);
+    return super.mutateProjectOps(fn);
+  }
 
-    const data = { ...emptyStore(), ...(snapshot.data as Partial<StoreData>) };
-    const current = data.projectOps as T;
-    const result = await fn(current);
-    data.projectOps = current as unknown as Record<string, unknown>;
-    await prisma.storeSnapshot.update({
-      where: { id: "main" },
-      data: { data: data as unknown as Prisma.InputJsonValue },
-    });
-    this.cache = data;
-    return (result === undefined ? current : result) as T;
+  protected override async mutate<T>(fn: (data: StoreData) => T | Promise<T>): Promise<T> {
+    const prisma = getPrisma();
+    // The callback may be replayed after a conflicting write. Only publish its
+    // result and cache after the corresponding version has been committed.
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      let snapshot = await prisma.storeSnapshot.findUnique({ where: { id: "main" } });
+      if (!snapshot) {
+        // Initialization must never replace a snapshot created by another
+        // request while this one was building its initial data.
+        const initial = emptyStore();
+        await ensureSeed(initial);
+        try {
+          snapshot = await prisma.storeSnapshot.create({
+            data: { id: "main", data: initial as unknown as Prisma.InputJsonValue },
+          });
+        } catch (error) {
+          if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
+            throw error;
+          }
+          continue;
+        }
+      }
+
+      const data = { ...emptyStore(), ...(snapshot.data as Partial<StoreData>) };
+      await ensureSeed(data);
+      const result = await fn(data);
+      const updated = await prisma.storeSnapshot.updateMany({
+        where: { id: "main", version: snapshot.version },
+        data: {
+          data: data as unknown as Prisma.InputJsonValue,
+          version: { increment: 1 },
+        },
+      });
+      if (updated.count === 1) {
+        this.cache = data;
+        await bumpRedisCacheVersion();
+        return result;
+      }
+
+      // A retry reads a fresh record. A small jitter reduces repeat clashes
+      // when several Worker isolates are writing the same snapshot.
+      await new Promise((resolve) => setTimeout(resolve, Math.min(5 * (attempt + 1), 40) + Math.random() * 10));
+    }
+    throw new Error("Store snapshot changed too often; please retry the request");
   }
 
   protected override async read(): Promise<StoreData> {
@@ -1686,13 +1754,21 @@ class PrismaStore extends LocalStore {
     if (!snapshot) {
       const data = emptyStore();
       await ensureSeed(data);
-      this.cache = data;
-      await getPrisma().storeSnapshot.upsert({
-        where: { id: "main" },
-        create: { id: "main", data: data as unknown as Prisma.InputJsonValue },
-        update: { data: data as unknown as Prisma.InputJsonValue },
-      });
-      return data;
+      try {
+        await prisma.storeSnapshot.create({
+          data: { id: "main", data: data as unknown as Prisma.InputJsonValue },
+        });
+        this.cache = data;
+        return data;
+      } catch (error) {
+        if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
+          throw error;
+        }
+        // Another request initialized the row first. Use its committed data.
+        const committed = await prisma.storeSnapshot.findUniqueOrThrow({ where: { id: "main" } });
+        this.cache = { ...emptyStore(), ...(committed.data as Partial<StoreData>) };
+        return this.cache;
+      }
     }
 
     const data = { ...emptyStore(), ...(snapshot.data as Partial<StoreData>) };
@@ -1702,13 +1778,8 @@ class PrismaStore extends LocalStore {
   }
 
   protected override async persist(data: StoreData) {
-    this.cache = data;
-    await getPrisma().storeSnapshot.upsert({
-      where: { id: "main" },
-      create: { id: "main", data: data as unknown as Prisma.InputJsonValue },
-      update: { data: data as unknown as Prisma.InputJsonValue },
-    });
-    await bumpRedisCacheVersion();
+    void data;
+    throw new Error("PrismaStore writes must use a versioned mutation");
   }
 }
 

@@ -1,6 +1,7 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
 import { getStore } from "@/lib/store";
+import { canAccessClient } from "@/lib/client-access";
 import type { ClientStatus } from "@/types";
 
 export const runtime = "nodejs";
@@ -19,6 +20,10 @@ export async function POST(req: Request) {
       ? body.ids.map((id) => String(id).trim()).filter(Boolean)
       : [];
     if (!ids.length) throw jsonError("ids is required", 400);
+    if (session.role === "team") {
+      for (const id of ids) if (!await canAccessClient(session, id)) throw jsonError("Forbidden", 403);
+      if (body.assignedTeamMemberId !== undefined && body.assignedTeamMemberId !== session.uid) throw jsonError("Forbidden", 403);
+    }
 
     const patch: {
       status?: ClientStatus;

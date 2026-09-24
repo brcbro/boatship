@@ -1,6 +1,7 @@
-import { jsonError } from "@/lib/api";
+import { internalErrorResponse, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
 import { hasPermission } from "@/lib/rbac";
+import { canAccessClient, filterAssignedClients } from "@/lib/client-access";
 import { getStore } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -23,8 +24,16 @@ export async function GET(req: Request) {
     }
 
     const clientId = new URL(req.url).searchParams.get("clientId") || undefined;
+    if (clientId && !await canAccessClient(session, clientId)) {
+      return jsonError("Forbidden", 403);
+    }
     const store = await getStore();
     let activity = await store.listAllActivity();
+    if (session.role === "team") {
+      const assignedIds = new Set((await filterAssignedClients(session, await store.listClients()))
+        .map((client) => client.id));
+      activity = activity.filter((entry) => assignedIds.has(entry.clientId));
+    }
     if (clientId) {
       activity = activity.filter((a) => a.clientId === clientId);
     }
@@ -58,8 +67,6 @@ export async function GET(req: Request) {
     });
   } catch (err) {
     if (err instanceof Response) return err;
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    console.error(message, err);
-    return jsonError(message, 500);
+    return internalErrorResponse(err);
   }
 }

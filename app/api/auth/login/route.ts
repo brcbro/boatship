@@ -1,33 +1,12 @@
-import { jsonError, jsonOk } from "@/lib/api";
+import { internalErrorResponse, jsonError, jsonOk } from "@/lib/api";
 import { createDatabaseSession, SESSION_COOKIE } from "@/lib/auth";
+import { isUnsafeDemoUser } from "@/lib/demo-users";
 import { verifyPassword } from "@/lib/password";
+import { consumeAccountAndIpLimit } from "@/lib/rate-limit";
 import { getStore } from "@/lib/store";
 import type { AuthSession } from "@/types";
 
 export const runtime = "nodejs";
-
-const RATE_LIMIT_MAX = 20;
-const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
-
-type RateBucket = { count: number; resetAt: number };
-const loginAttempts = new Map<string, RateBucket>();
-
-function checkRateLimit(email: string): boolean {
-  const now = Date.now();
-  const key = email.toLowerCase();
-  const bucket = loginAttempts.get(key);
-  if (!bucket || now >= bucket.resetAt) {
-    loginAttempts.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-    return true;
-  }
-  if (bucket.count >= RATE_LIMIT_MAX) return false;
-  bucket.count += 1;
-  return true;
-}
-
-function clearRateLimit(email: string) {
-  loginAttempts.delete(email.toLowerCase());
-}
 
 function sessionCookieOptions() {
   return {
@@ -56,14 +35,18 @@ export async function POST(req: Request) {
       return jsonError("Email and password are required", 400);
     }
 
-    if (!checkRateLimit(email)) {
+    if (!(await consumeAccountAndIpLimit({ scope: "login", account: email, req, accountMax: 20, ipMax: 80, windowSeconds: 900 }))) {
       return jsonError("Too many login attempts. Try again in 15 minutes.", 429);
     }
 
     const store = await getStore();
     const user = await store.getUserByEmail(email);
-    if (!user) {
+    if (!user || isUnsafeDemoUser(user)) {
       return jsonError("Invalid email or password", 401);
+    }
+
+    if (user.mustResetPassword) {
+      return jsonError("Set your password using the link sent to your email before signing in", 403);
     }
 
     let ok = false;
@@ -81,8 +64,6 @@ export async function POST(req: Request) {
       return jsonError("Invalid email or password", 401);
     }
 
-    clearRateLimit(email);
-
     const session: AuthSession = {
       uid: user.uid,
       email: user.email,
@@ -98,8 +79,6 @@ export async function POST(req: Request) {
     return response;
   } catch (err) {
     if (err instanceof Response) return err;
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    console.error(message, err);
-    return jsonError(message, 500);
+    return internalErrorResponse(err);
   }
 }

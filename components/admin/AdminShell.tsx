@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -21,6 +22,7 @@ import {
   ShieldCheck,
   Users,
   UsersRound,
+  UserRound,
   Webhook,
   KeyRound,
   X,
@@ -179,6 +181,17 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </div>
         <NotificationBell tone="dark" className="shrink-0" />
       </div>
+      <Link
+        href="/account"
+        prefetch={false}
+        onClick={() => setOpen(false)}
+        title={compact ? "Account settings" : undefined}
+        aria-current={isActive(pathname, "/account") ? "page" : undefined}
+        className={cn("mb-2 flex min-h-10 items-center rounded-lg text-sm font-medium text-slate-200 transition hover:bg-white/[0.07] hover:text-white", compact ? "justify-center px-2" : "gap-2 px-3", isActive(pathname, "/account") && "bg-white/[0.14] text-white")}
+      >
+        <UserRound className="h-4 w-4" aria-hidden="true" />
+        {compact ? <span className="sr-only">Account settings</span> : "Account settings"}
+      </Link>
       <Button
         variant="secondary"
         size="sm"
@@ -207,7 +220,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         <div className={cn("mb-8 flex items-center", collapsed ? "justify-center" : "justify-between px-2")}>
           {collapsed ? null : (
             <Link href="/dashboard" className="flex items-center gap-2.5">
-              <img src="/brand/boatship-logo-white.png" alt="Boatship" className="h-8 w-auto max-w-[9.5rem] object-contain" />
+              <Image src="/brand/boatship-logo-white.png" width={1432} height={370} alt="Boatship" className="h-8 w-auto max-w-[9.5rem] object-contain" />
             </Link>
           )}
           <button
@@ -227,7 +240,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       {/* Mobile top bar */}
       <div className="sticky top-0 z-40 flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3 lg:hidden">
         <Link href="/dashboard" className="flex items-center gap-2">
-          <img src="/brand/boatship-logo-black.png" alt="Boatship" className="h-8 w-auto max-w-[10rem] object-contain" />
+          <Image src="/brand/boatship-logo-black.png" width={1428} height={366} alt="Boatship" className="h-8 w-auto max-w-[10rem] object-contain" />
         </Link>
         <div className="flex items-center gap-1">
           <NotificationBell tone="light" />
@@ -263,7 +276,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             className="absolute inset-y-0 left-0 flex w-[min(18rem,calc(100vw-2rem))] flex-col overflow-y-auto bg-[var(--brand)] px-4 py-6 text-white shadow-xl"
           >
             <div className="mb-8 flex items-center justify-between px-2">
-              <img src="/brand/boatship-logo-white.png" alt="Boatship" className="h-7 w-auto max-w-[9rem] object-contain" />
+              <Image src="/brand/boatship-logo-white.png" width={1432} height={370} alt="Boatship" className="h-7 w-auto max-w-[9rem] object-contain" />
               <button
                 ref={closeButtonRef}
                 type="button"

@@ -51,9 +51,10 @@ export default function PortalFormsPage() {
   const selected = forms.find((f) => f.id === selectedId) || null;
   const selectedTemplate = selected ? templateMap.get(selected.formTemplateId) : undefined;
   const canMarkSubmitted = selected?.status === "not_started";
+  const clientId = session?.clientId;
 
   const load = useCallback(async () => {
-    if (!session?.clientId) {
+    if (!clientId) {
       setError("No client account is linked to this user.");
       setLoading(false);
       return;
@@ -64,7 +65,7 @@ export default function PortalFormsPage() {
     try {
       const [formsRes, templatesRes] = await Promise.all([
         apiFetch<{ forms: FormSubmission[] }>(
-          `/api/forms?clientId=${encodeURIComponent(session.clientId)}`,
+          `/api/forms?clientId=${encodeURIComponent(clientId)}`,
           { token }
         ),
         apiFetch<{ templates: FormTemplate[] }>("/api/forms/templates", { token }),
@@ -76,11 +77,12 @@ export default function PortalFormsPage() {
     } finally {
       setLoading(false);
     }
-  }, [session?.clientId, token]);
+  }, [clientId, token]);
 
   useEffect(() => {
     if (authLoading) return;
-    void load();
+    const timer = setTimeout(() => void load(), 0);
+    return () => clearTimeout(timer);
   }, [authLoading, load]);
 
   function openForm(formId: string) {

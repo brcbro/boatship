@@ -1,6 +1,6 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireSession } from "@/lib/auth";
-import { canAccessClient } from "@/lib/rbac";
+import { canAccessClient } from "@/lib/client-access";
 import { getStore } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
         400
       );
     }
-    if (!canAccessClient(session, body.clientId)) throw jsonError("Forbidden", 403);
+    if (!await canAccessClient(session, body.clientId)) throw jsonError("Forbidden", 403);
 
     if (!ALLOWED_TYPES.has(body.contentType.toLowerCase())) {
       throw jsonError("File type must be pdf, png, jpg, jpeg, or webp", 400);

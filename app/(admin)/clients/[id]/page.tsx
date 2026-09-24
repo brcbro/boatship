@@ -18,7 +18,7 @@ import {
   Textarea,
 } from "@/components/shared/ui";
 import { apiFetch } from "@/lib/api-client";
-import { cn, formatDate, formatDateTime, statusLabel } from "@/lib/utils";
+import { formatDate, formatDateTime, statusLabel } from "@/lib/utils";
 import { TaskBoard } from "@/components/shared/TaskBoard";
 import { ClientWorkspaceNav } from "@/components/clients/ClientWorkspaceNav";
 import type {
@@ -93,6 +93,7 @@ export default function ClientDetailPage() {
   const [users, setUsers] = useState<TeamUser[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
+  const [documentCheckedAt, setDocumentCheckedAt] = useState(() => Date.now());
   const [selectedDocs, setSelectedDocs] = useState<Set<string>>(new Set());
   const [forms, setForms] = useState<FormSubmission[]>([]);
   const [formTemplates, setFormTemplates] = useState<FormTemplate[]>([]);
@@ -105,8 +106,6 @@ export default function ClientDetailPage() {
   // Invite modal
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteResult, setInviteResult] = useState<{
-    tempPassword: string;
-    loginUrl: string;
     email: string;
   } | null>(null);
 
@@ -181,6 +180,7 @@ export default function ClientDetailPage() {
       setFlag(c.client.customFields?.Flag || "");
       setTasks([...t.tasks].sort((x, y) => x.order - y.order));
       setDocuments(d.documents);
+      setDocumentCheckedAt(Date.now());
       setSelectedDocs(new Set());
       setForms(f.forms);
       setFormTemplates(ft.templates);
@@ -203,7 +203,8 @@ export default function ClientDetailPage() {
   }, [id, token]);
 
   useEffect(() => {
-    void load();
+    const timer = setTimeout(() => void load(), 0);
+    return () => clearTimeout(timer);
   }, [load]);
 
   async function patchClient(patch: Record<string, unknown>) {
@@ -251,8 +252,6 @@ export default function ClientDetailPage() {
     setMessage("");
     try {
       const data = await apiFetch<{
-        tempPassword: string;
-        loginUrl: string;
         user: { email: string };
       }>(`/api/clients/${id}/invite`, {
         method: "POST",
@@ -260,8 +259,6 @@ export default function ClientDetailPage() {
         body: JSON.stringify({}),
       });
       setInviteResult({
-        tempPassword: data.tempPassword,
-        loginUrl: data.loginUrl,
         email: data.user.email,
       });
       setInviteOpen(true);
@@ -927,7 +924,7 @@ export default function ClientDetailPage() {
                           {doc.expiresAt ? (
                             <span
                               className={
-                                new Date(doc.expiresAt).getTime() < Date.now()
+                                new Date(doc.expiresAt).getTime() < documentCheckedAt
                                   ? "text-[var(--danger,#b91c1c)]"
                                   : undefined
                               }
@@ -1406,18 +1403,9 @@ export default function ClientDetailPage() {
               Client invited
             </h3>
             <p className="mt-2 text-sm text-[var(--ink-muted)]">
-              An invite email was sent to <strong>{inviteResult.email}</strong>. Share the temporary
-              password if needed:
+              An invite email was sent to <strong>{inviteResult.email}</strong>. They can use its
+              one-time link to set their password and open the portal.
             </p>
-            <div className="mt-4 rounded-lg bg-[var(--surface-2)] p-3 text-sm">
-              <p>
-                <span className="text-[var(--ink-muted)]">Temp password:</span>{" "}
-                <code className="font-semibold">{inviteResult.tempPassword}</code>
-              </p>
-              <p className="mt-2 break-all">
-                <span className="text-[var(--ink-muted)]">Login:</span> {inviteResult.loginUrl}
-              </p>
-            </div>
             <div className="mt-5 flex justify-end">
               <Button type="button" onClick={() => setInviteOpen(false)}>
                 Done

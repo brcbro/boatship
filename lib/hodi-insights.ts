@@ -1,5 +1,6 @@
 import { evaluateOnboardingHealth, isCurrentOnboardingTask, type OnboardingBlocker } from "@/lib/onboarding-health";
 import { getStore } from "@/lib/store";
+import { filterAssignedClients, requireClientAccess } from "@/lib/client-access";
 import type { ActivityLog, AppUser, AuthSession, Client, DocumentRecord, FormSubmission, OnboardingTemplate, Task } from "@/types";
 
 export type HodiEvidence = {
@@ -153,7 +154,10 @@ function buildProfile(input: {
 
 export async function buildHodiClientInsights(session: AuthSession, clientId?: string): Promise<HodiClientInsight[]> {
   const store = await getStore();
-  const clients = clientId ? [await store.getClient(clientId)].filter(Boolean) as Client[] : await store.listClients();
+  if (clientId) await requireClientAccess(session, clientId);
+  const clients = clientId
+    ? [await store.getClient(clientId)].filter(Boolean) as Client[]
+    : await filterAssignedClients(session, await store.listClients());
   const [users, templates, allTasks, allDocuments, allForms, allActivity] = await Promise.all([
     store.listUsers(),
     store.listTemplates(),

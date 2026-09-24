@@ -2,6 +2,7 @@ import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
 import { dispatchWebhooks } from "@/lib/webhooks";
 import { getStore } from "@/lib/store";
+import { canAccessClient } from "@/lib/client-access";
 import type { DocumentStatus } from "@/types";
 
 export const runtime = "nodejs";
@@ -37,6 +38,7 @@ export async function POST(req: Request) {
         missing.push(id);
         continue;
       }
+      if (!await canAccessClient(session, existing.clientId)) throw jsonError("Forbidden", 403);
 
       const patch: { status: DocumentStatus; reviewNote?: string } = {
         status: body.status,

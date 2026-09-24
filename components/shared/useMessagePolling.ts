@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-const MESSAGE_REFRESH_INTERVAL = 5_000;
+const MESSAGE_REFRESH_INTERVAL = 15_000;
 
 /** Keeps an active message thread fresh without reloading the route. */
 export function useMessagePolling(refresh: () => Promise<void>, enabled: boolean) {

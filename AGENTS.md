@@ -7,3 +7,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+## Architecture record
+
+Before changing behavior, read `architecture/README.md` and the relevant architecture file. In the same change as any material code, data model, integration, deployment, or user-flow change, update the affected architecture documentation and `architecture/status.md` when implementation status changes. Keep documentation grounded in the current code and migrations; distinguish implemented behavior from plans and environment-dependent integrations. Do not include secrets or private data.

@@ -11,6 +11,9 @@ type Connection = { clientId: string; uid: string };
 /** One hibernatable WebSocket room per client conversation. */
 export class MessageRoom extends DurableObject {
   async fetch(request: Request) {
+    if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
+      return new Response("WebSocket upgrade required", { status: 426 });
+    }
     const clientId = request.headers.get("x-boatship-client-id");
     const uid = request.headers.get("x-boatship-user-id");
     if (!clientId || !uid) return new Response("Unauthorized", { status: 401 });

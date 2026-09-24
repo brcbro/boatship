@@ -3,6 +3,7 @@ import { createHash, randomBytes } from "crypto";
 import type { AuthSession, UserRole } from "@/types";
 import { getStore } from "@/lib/store";
 import { getPrisma } from "@/lib/prisma";
+import { isUnsafeDemoUser } from "@/lib/demo-users";
 import {
   SESSION_COOKIE,
   encodeLocalSession,
@@ -42,7 +43,7 @@ async function getDatabaseSession(token: string): Promise<AuthSession | null> {
   }
 
   const user = await (await getStore()).getUser(record.userId);
-  if (!user) return null;
+  if (!user || user.mustResetPassword || isUnsafeDemoUser(user)) return null;
   return {
     uid: user.uid,
     email: user.email,

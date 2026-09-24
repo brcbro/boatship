@@ -7,11 +7,12 @@ import {
 import { randomUUID } from "crypto";
 import type { AgentChatMessage } from "@/types";
 import { BOATSHIP_AGENT_SYSTEM, getAgentModel, isLlmConfiguredForUser } from "@/lib/agent";
-import { jsonError } from "@/lib/api";
+import { internalErrorResponse, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
 import { buildBoatshipRagContext } from "@/lib/boatship-rag";
 import { createBoatshipAgentSession, isComposioConfiguredForUser } from "@/lib/composio";
 import { getStore } from "@/lib/store";
+import { consumeRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -90,6 +91,9 @@ function withPersistedHistory(messages: UIMessage[], history: AgentChatMessage[]
 export async function POST(req: Request) {
   try {
     const session = await requireRoles(req, ["admin", "team"]);
+    if (!(await consumeRateLimit({ scope: "agent-chat", identity: session.uid, max: 30, windowSeconds: 3600 }))) {
+      return jsonError("Too many chat requests. Try again later.", 429);
+    }
 
     if (!(await isLlmConfiguredForUser(session.uid))) {
       return jsonError("OPENROUTER_API_KEY, OPENAI_API_KEY, or AI_GATEWAY_API_KEY is not set", 503);
@@ -176,8 +180,6 @@ export async function POST(req: Request) {
     });
   } catch (err) {
     if (err instanceof Response) return err;
-    const message = err instanceof Error ? err.message : "Agent request failed";
-    console.error("[agent/chat]", message, err);
-    return jsonError(message, 500);
+    return internalErrorResponse(err);
   }
 }

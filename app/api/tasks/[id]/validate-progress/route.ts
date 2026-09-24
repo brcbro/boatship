@@ -1,7 +1,8 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireSession } from "@/lib/auth";
 import { validateGitProgress } from "@/lib/git-validation";
-import { canAccessClient, isStaff } from "@/lib/rbac";
+import { canAccessClient } from "@/lib/client-access";
+import { isStaff } from "@/lib/rbac";
 import { getStore } from "@/lib/store";
 import { getPolicy, evaluateQuality, persistValidation } from "@/lib/git-quality";
 import type { GitCheckName, GitValidationRequest } from "@/lib/git-validation-types";
@@ -34,7 +35,7 @@ export async function POST(req: Request, { params }: Params) {
     const store = await getStore();
     const task = await store.getTask(id);
     if (!task) throw jsonError("Task not found", 404);
-    if (!canAccessClient(session, task.clientId)) throw jsonError("Forbidden", 403);
+    if (!await canAccessClient(session, task.clientId)) throw jsonError("Forbidden", 403);
     if (!isStaff(session.role) && task.assignedTo !== session.uid) throw jsonError("Only the assigned user can validate this task", 403);
 
     const request = parseRequest(await req.json().catch(() => ({})));

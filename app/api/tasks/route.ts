@@ -1,6 +1,6 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles, requireSession } from "@/lib/auth";
-import { canAccessClient } from "@/lib/rbac";
+import { canAccessClient } from "@/lib/client-access";
 import { getStore } from "@/lib/store";
 import type { AssignedRole, TaskStatus, TaskType } from "@/types";
 import { appBaseUrl, syncClientStatusFromTasks } from "@/lib/client-status";
@@ -13,7 +13,7 @@ export async function GET(req: Request) {
     const session = await requireSession(req);
     const clientId = new URL(req.url).searchParams.get("clientId");
     if (!clientId) throw jsonError("clientId is required", 400);
-    if (!canAccessClient(session, clientId)) throw jsonError("Forbidden", 403);
+    if (!await canAccessClient(session, clientId)) throw jsonError("Forbidden", 403);
 
     const store = await getStore();
     const client = await store.getClient(clientId);
@@ -55,6 +55,7 @@ export async function POST(req: Request) {
     const store = await getStore();
     const client = await store.getClient(body.clientId);
     if (!client) throw jsonError("Client not found", 404);
+    if (!await canAccessClient(session, body.clientId)) throw jsonError("Forbidden", 403);
 
     const existingTasks = await store.listTasks(body.clientId);
     const order =

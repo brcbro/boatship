@@ -10,7 +10,7 @@ export async function GET(req: Request) {
     if (!session || !isApprovalReviewer(session)) throw jsonError("Manager or admin access required", 403);
     const value = new URL(req.url).searchParams.get("status");
     const status = value === "approved" || value === "rejected" || value === "all" ? value : "pending";
-    return { approvals: await listMcpWriteApprovals(status) };
+    return { approvals: await listMcpWriteApprovals(status, session) };
   });
 }
 

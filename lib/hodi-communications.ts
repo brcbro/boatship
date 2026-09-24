@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "crypto";
 import { Prisma } from "@/generated/prisma/client";
 import type { AuthSession } from "@/types";
 import { hasPermission } from "@/lib/rbac";
+import { requireClientAccess } from "@/lib/client-access";
 import { getPrisma } from "@/lib/prisma";
 import { getStore } from "@/lib/store";
 
@@ -91,6 +92,7 @@ async function buildPlan(type: HodiCommunicationType, payload: HodiCommunication
   assertCanCommunicate(session);
   const clientId = text(payload.clientId);
   if (!clientId) throw new Error("clientId is required");
+  await requireClientAccess(session, clientId);
   const client = await (await getStore()).getClient(clientId);
   if (!client) throw new Error("Client not found");
   const channel = assertChannel(payload.channel);
@@ -134,6 +136,7 @@ export async function proposeHodiCommunication(type: HodiCommunicationType, payl
 export async function approveHodiCommunication(type: HodiCommunicationType, payload: HodiCommunicationPayload, approvalToken: string, session: AuthSession) {
   assertType(type);
   assertCanCommunicate(session);
+  await requireClientAccess(session, text(payload.clientId));
   const db = getPrisma();
   const proposal = await db.hodiCommunicationProposal.findUnique({ where: { approvalToken } });
   if (!proposal || proposal.userId !== session.uid || proposal.type !== type || proposal.payloadHash !== payloadHash(type, payload)) throw new Error("Approval token is missing or does not match this communication draft");

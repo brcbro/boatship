@@ -2,7 +2,8 @@ import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles, requireSession } from "@/lib/auth";
 import { syncClientStatusFromTasks } from "@/lib/client-status";
 import { notifyIntegrations } from "@/lib/composio";
-import { canAccessClient, isStaff } from "@/lib/rbac";
+import { canAccessClient } from "@/lib/client-access";
+import { isStaff } from "@/lib/rbac";
 import { getStore } from "@/lib/store";
 import { dispatchWebhooks } from "@/lib/webhooks";
 import { getPolicy } from "@/lib/git-quality";
@@ -77,7 +78,7 @@ export async function PATCH(req: Request, { params }: Params) {
     const store = await getStore();
     const existing = await store.getTask(id);
     if (!existing) throw jsonError("Task not found", 404);
-    if (!canAccessClient(session, existing.clientId)) {
+    if (!await canAccessClient(session, existing.clientId)) {
       throw jsonError("Forbidden", 403);
     }
 
@@ -278,6 +279,7 @@ export async function DELETE(req: Request, { params }: Params) {
     const store = await getStore();
     const existing = await store.getTask(id);
     if (!existing) throw jsonError("Task not found", 404);
+    if (!await canAccessClient(session, existing.clientId)) throw jsonError("Forbidden", 403);
 
     await store.deleteTask(id);
     await store.addActivity({

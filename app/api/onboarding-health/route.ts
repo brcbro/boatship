@@ -2,17 +2,19 @@ import { handleApi } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
 import { evaluateOnboardingHealth } from "@/lib/onboarding-health";
 import { getStore } from "@/lib/store";
+import { filterAssignedClients, requireClientAccess } from "@/lib/client-access";
 
 export const runtime = "nodejs";
 
 export async function GET(req: Request) {
   return handleApi(async () => {
-    await requireRoles(req, ["admin", "team"]);
+    const session = await requireRoles(req, ["admin", "team"]);
     const store = await getStore();
     const clientId = new URL(req.url).searchParams.get("clientId");
+    if (clientId) await requireClientAccess(session, clientId);
     const clients = clientId
       ? [await store.getClient(clientId)].filter(Boolean)
-      : await store.listClients();
+      : await filterAssignedClients(session, await store.listClients());
 
     const health = await Promise.all(
       clients.map(async (client) =>

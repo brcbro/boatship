@@ -1,5 +1,6 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireSession } from "@/lib/auth";
+import { filterAssignedClients } from "@/lib/client-access";
 import { isStaff } from "@/lib/rbac";
 import { getStore } from "@/lib/store";
 
@@ -38,7 +39,7 @@ export async function GET(req: Request) {
 
     let clients: NonNullable<Awaited<ReturnType<typeof store.getClient>>>[] = [];
     if (staff) {
-      clients = await store.listClients();
+      clients = await filterAssignedClients(session, await store.listClients());
     } else if (session.clientId) {
       const own = await store.getClient(session.clientId);
       if (own) clients = [own];

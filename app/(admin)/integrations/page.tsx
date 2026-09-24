@@ -124,16 +124,21 @@ function IntegrationsContent() {
   }, [token]);
 
   useEffect(() => {
-    void load();
-    void loadSecretStatuses();
+    const timer = setTimeout(() => {
+      void load();
+      void loadSecretStatuses();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [load, loadSecretStatuses]);
 
   useEffect(() => {
     const connected = searchParams.get("connected");
-    if (connected) {
+    if (!connected) return;
+    const timer = setTimeout(() => {
       setMessage(`${connected} connected successfully. You can disconnect anytime below.`);
       void load();
-    }
+    }, 0);
+    return () => clearTimeout(timer);
   }, [searchParams, load]);
 
   async function connect(slug: string) {
@@ -147,7 +152,7 @@ function IntegrationsContent() {
         body: JSON.stringify({ toolkit: slug }),
       });
       if (res.redirectUrl) {
-        window.location.href = res.redirectUrl;
+        window.location.assign(res.redirectUrl);
         return;
       }
       setError("No connect URL returned");

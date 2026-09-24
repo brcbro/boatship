@@ -71,7 +71,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // The marketing home page is public. Avoid a Worker invocation plus the
     // session/database lookup for every anonymous landing-page visit.
     if (pathname === "/") {
-      setLoading(false);
       return;
     }
 
@@ -85,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // requests with an expired token and briefly render an "Unauthorized"
     // error before this provider redirects to login.
     void refresh();
-  }, [refresh]);
+  }, [pathname, refresh]);
 
   const login = useCallback(
     async (email: string, password: string) => {
@@ -115,8 +114,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [router]);
 
   const value = useMemo(
-    () => ({ session, token, loading, login, logout, refresh }),
-    [session, token, loading, login, logout, refresh]
+    () => ({ session, token, loading: pathname === "/" ? false : loading, login, logout, refresh }),
+    [session, token, loading, pathname, login, logout, refresh]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

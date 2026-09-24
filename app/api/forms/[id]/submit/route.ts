@@ -6,7 +6,7 @@ import {
   isNativeTemplate,
   missingRequiredFields,
 } from "@/lib/form-fields";
-import { canAccessClient } from "@/lib/rbac";
+import { canAccessClient } from "@/lib/client-access";
 import { getStore } from "@/lib/store";
 import { dispatchWebhooks } from "@/lib/webhooks";
 import type { FormSubmission } from "@/types";
@@ -22,7 +22,7 @@ export async function POST(req: Request, { params }: Params) {
     const store = await getStore();
     const form = await store.getForm(id);
     if (!form) throw jsonError("Form not found", 404);
-    if (!canAccessClient(session, form.clientId)) throw jsonError("Forbidden", 403);
+    if (!await canAccessClient(session, form.clientId)) throw jsonError("Forbidden", 403);
 
     const body = (await req.json().catch(() => ({}))) as {
       responses?: FormSubmission["responses"];

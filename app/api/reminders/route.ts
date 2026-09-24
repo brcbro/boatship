@@ -9,6 +9,7 @@ import {
 } from "@/lib/email";
 import { notifyStaffForClient, notifyUser } from "@/lib/notifications";
 import { getStore } from "@/lib/store";
+import { filterAssignedClients, requireClientAccess } from "@/lib/client-access";
 import { evaluateOnboardingHealth } from "@/lib/onboarding-health";
 import type { Client } from "@/types";
 
@@ -17,12 +18,13 @@ export const runtime = "nodejs";
 /** Review-only reminder queue. GET never sends email, notifications, or writes data. */
 export async function GET(req: Request) {
   return handleApi(async () => {
-    await requireRoles(req, ["admin", "team"]);
+    const session = await requireRoles(req, ["admin", "team"]);
     const store = await getStore();
     const clientId = new URL(req.url).searchParams.get("clientId");
+    if (clientId) await requireClientAccess(session, clientId);
     const clients = clientId
       ? [await store.getClient(clientId)].filter(Boolean)
-      : await store.listClients();
+      : await filterAssignedClients(session, await store.listClients());
     const health = await Promise.all(
       clients.map(async (client) =>
         evaluateOnboardingHealth(
@@ -64,13 +66,16 @@ export async function POST(req: Request) {
     }
 
     const store = await getStore();
+    if (body.clientId) await requireClientAccess(session, body.clientId);
+    const visibleClients = await filterAssignedClients(session, await store.listClients());
+    const visibleIds = new Set(visibleClients.map((client) => client.id));
     const base = appBaseUrl(req);
     const now = new Date();
 
     if (body.type === "escalate") {
       const clients = body.clientId
         ? ([await store.getClient(body.clientId)].filter(Boolean) as Client[])
-        : await store.listClients();
+        : visibleClients;
       if (body.clientId && clients.length === 0) throw jsonError("Client not found", 404);
 
       const escalated: Array<{ taskId: string; clientId: string }> = [];
@@ -129,7 +134,7 @@ export async function POST(req: Request) {
       const horizon = now.getTime() + windowMs;
       const docs = body.clientId
         ? await store.listDocuments(body.clientId)
-        : await store.listAllDocuments();
+        : (await store.listAllDocuments()).filter((doc) => visibleIds.has(doc.clientId));
 
       if (body.clientId) {
         const client = await store.getClient(body.clientId);
@@ -217,7 +222,7 @@ export async function POST(req: Request) {
     if (body.type === "overdue") {
       const clients = body.clientId
         ? ([await store.getClient(body.clientId)].filter(Boolean) as Client[])
-        : await store.listClients();
+        : visibleClients;
 
       if (body.clientId && clients.length === 0) {
         throw jsonError("Client not found", 404);
@@ -313,7 +318,7 @@ export async function POST(req: Request) {
     // nudge
     const clients = body.clientId
       ? ([await store.getClient(body.clientId)].filter(Boolean) as Client[])
-      : (await store.listClients()).filter((c) => c.status === "in_progress");
+      : visibleClients.filter((c) => c.status === "in_progress");
 
     if (body.clientId && clients.length === 0) {
       throw jsonError("Client not found", 404);

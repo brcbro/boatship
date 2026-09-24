@@ -1,5 +1,6 @@
-import { handleApi, jsonError } from "@/lib/api";
+import { handleApi, internalErrorResponse } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
+import { filterAssignedClients } from "@/lib/client-access";
 import { getStore } from "@/lib/store";
 import { getRedisCacheVersion, withRedisCache } from "@/lib/redis-cache";
 import type { ClientStatus } from "@/types";
@@ -18,9 +19,9 @@ export async function GET(req: Request) {
 
   if (format === "csv") {
     try {
-      await requireRoles(req, ["admin", "team"]);
+      const session = await requireRoles(req, ["admin", "team"]);
       const store = await getStore();
-      const clients = await store.listClients();
+      const clients = await filterAssignedClients(session, await store.listClients());
       const users = await store.listUsers();
       const userMap = new Map(users.map((u) => [u.uid, u]));
 
@@ -73,18 +74,17 @@ export async function GET(req: Request) {
       });
     } catch (err) {
       if (err instanceof Response) return err;
-      const message = err instanceof Error ? err.message : "Unexpected error";
-      return jsonError(message, 500);
+      return internalErrorResponse(err);
     }
   }
 
   return handleApi(async () => {
-    await requireRoles(req, ["admin", "team"]);
+    const session = await requireRoles(req, ["admin", "team"]);
     const store = await getStore();
     const cacheVersion = await getRedisCacheVersion();
 
-    return withRedisCache("analytics", cacheVersion, 60, async () => {
-    const clients = await store.listClients();
+    return withRedisCache(`analytics:${session.role}:${session.uid}`, cacheVersion, 60, async () => {
+    const clients = await filterAssignedClients(session, await store.listClients());
     const users = await store.listUsers();
 
     const clientsByStatus: Record<ClientStatus, number> = {

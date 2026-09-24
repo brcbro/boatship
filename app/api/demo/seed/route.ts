@@ -1,4 +1,4 @@
-import { handleApi, jsonError } from "@/lib/api";
+import { handleApi } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
 import { getStore } from "@/lib/store";
 

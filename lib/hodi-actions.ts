@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "crypto";
 import type { AuthSession, Task, TaskPriority, TaskStatus, TaskType } from "@/types";
 import { hasPermission } from "@/lib/rbac";
+import { requireClientAccess } from "@/lib/client-access";
 import { getStore } from "@/lib/store";
 import { createAccountingEntry, listAccountingEntries, updateAccountingEntry, validateAccountingInput } from "@/lib/accounting";
 import { consumeHodiActionProposal, createHodiActionProposal, finishHodiActionProposal, releaseHodiActionProposal } from "@/lib/hodi-queue";
@@ -157,6 +158,17 @@ async function buildWeeklyReport(clientId: string) {
 
 async function preview(action: HodiAction, payload: ActionPayload, session: AuthSession) {
   const clientId = text(payload.clientId);
+  if (session.role === "team") {
+    if (action === "create_client") {
+      const assigneeId = optionalText(payload.assignedTeamMemberId) || session.uid;
+      if (assigneeId !== session.uid) throw new Error("Team members can assign new clients only to themselves");
+    } else if (["apply_template", "create_task", "weekly_status_report"].includes(action)) {
+      if (clientId) await requireClientAccess(session, clientId);
+    } else if (["update_task", "assign_task", "block_task"].includes(action)) {
+      const task = await (await getStore()).getTask(text(payload.taskId));
+      if (task) await requireClientAccess(session, task.clientId);
+    }
+  }
   switch (action) {
     case "create_client": {
       assertCanManage(session);

@@ -5,15 +5,24 @@ import { provisionClientDriveFolder } from "@/lib/drive-provision";
 import { getStore } from "@/lib/store";
 import { dispatchWebhooks } from "@/lib/webhooks";
 import { getRedisCacheVersion, redisCacheKey, withRedisCache } from "@/lib/redis-cache";
+import { filterAssignedClients } from "@/lib/client-access";
 import type { ClientStatus, ClientWithProgress, PipelineStage } from "@/types";
 
 export const runtime = "nodejs";
 
 export async function GET(req: Request) {
   return handleApi(async () => {
-    await requireRoles(req, ["admin", "team"]);
+    const session = await requireRoles(req, ["admin", "team"]);
     const store = await getStore();
     const { searchParams } = new URL(req.url);
+    if (searchParams.get("view") === "messages") {
+      const assignedIds = new Set((await filterAssignedClients(session, await store.listClients())).map((client) => client.id));
+      const cacheVersion = await getRedisCacheVersion();
+      const cacheKey = await redisCacheKey("clients", `messages-summary:${session.role}:${session.uid}`);
+      return withRedisCache(cacheKey, cacheVersion, 30, async () => ({
+        clients: (await store.listClientMessageSummaries()).filter((summary) => session.role === "admin" || assignedIds.has(summary.id)),
+      }));
+    }
     const status = searchParams.get("status") as ClientStatus | null;
     const pipelineStage = searchParams.get("pipelineStage") as PipelineStage | null;
     const assignedTeamMemberId = searchParams.get("assignedTeamMemberId") || undefined;
@@ -22,16 +31,16 @@ export async function GET(req: Request) {
 
     const filters = { status, pipelineStage, assignedTeamMemberId, q, tag };
     const cacheVersion = await getRedisCacheVersion();
-    const cacheKey = await redisCacheKey("clients", JSON.stringify(filters));
+    const cacheKey = await redisCacheKey("clients", JSON.stringify({ ...filters, actor: session.uid, role: session.role }));
 
     return withRedisCache(cacheKey, cacheVersion, 30, async () => {
-      const clients = await store.listClients({
+      const clients = await filterAssignedClients(session, await store.listClients({
         status: status || undefined,
         pipelineStage: pipelineStage || undefined,
         assignedTeamMemberId,
         q,
         tag,
-      });
+      }));
       const users = await store.listUsers();
       const userMap = new Map(users.map((u) => [u.uid, u]));
 
@@ -87,6 +96,9 @@ export async function POST(req: Request) {
         : undefined;
 
     const store = await getStore();
+    if (session.role === "team" && body.assignedTeamMemberId !== undefined && body.assignedTeamMemberId !== session.uid) {
+      throw jsonError("Forbidden", 403);
+    }
     const client = await store.createClient({
       name: body.name.trim(),
       companyName: body.companyName.trim(),

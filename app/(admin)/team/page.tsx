@@ -81,8 +81,6 @@ export default function TeamPage() {
   const [editPerms, setEditPerms] = useState<StaffPermission[]>([]);
   const [savingPerms, setSavingPerms] = useState(false);
   const [inviteResult, setInviteResult] = useState<{
-    tempPassword: string;
-    loginUrl: string;
     email: string;
   } | null>(null);
 
@@ -100,7 +98,8 @@ export default function TeamPage() {
   }, [token]);
 
   useEffect(() => {
-    void load();
+    const timer = setTimeout(() => void load(), 0);
+    return () => clearTimeout(timer);
   }, [load]);
 
   async function onInvite(e: FormEvent) {
@@ -113,8 +112,6 @@ export default function TeamPage() {
     try {
       const data = await apiFetch<{
         user: TeamUser;
-        tempPassword: string;
-        loginUrl: string;
       }>("/api/users/invite", {
         method: "POST",
         token,
@@ -126,8 +123,6 @@ export default function TeamPage() {
         }),
       });
       setInviteResult({
-        tempPassword: data.tempPassword,
-        loginUrl: data.loginUrl,
         email: data.user.email,
       });
       setMessage(`Invited ${data.user.name}.`);
@@ -346,12 +341,8 @@ export default function TeamPage() {
               <p>
                 Invite sent to <strong>{inviteResult.email}</strong>
               </p>
-              <p className="mt-2">
-                <span className="text-[var(--ink-muted)]">Temp password:</span>{" "}
-                <code className="font-semibold">{inviteResult.tempPassword}</code>
-              </p>
-              <p className="mt-1 break-all">
-                <span className="text-[var(--ink-muted)]">Login:</span> {inviteResult.loginUrl}
+              <p className="mt-2 text-[var(--ink-muted)]">
+                They can use the link in the email to set their password and sign in.
               </p>
             </div>
           ) : null}

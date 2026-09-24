@@ -3,6 +3,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { getPrisma } from "@/lib/prisma";
 import { getStore } from "@/lib/store";
 import { buildHodiClientInsights } from "@/lib/hodi-insights";
+import { canAccessClient, filterAssignedClients } from "@/lib/client-access";
 import type { AuthSession } from "@/types";
 
 export type HodiQueueStatus = "open" | "in_progress" | "snoozed" | "dismissed" | "completed";
@@ -15,7 +16,11 @@ export type HodiQueueItemInput = {
 };
 
 function json(value: unknown) { return value as Prisma.InputJsonValue; }
-function canSee(session: AuthSession, clientId: string | null) { return session.role !== "client" || Boolean(session.clientId && clientId && session.clientId === clientId); }
+async function canSee(session: AuthSession, clientId: string | null, ownerId: string | null) {
+  if (session.role === "admin") return true;
+  if (clientId) return canAccessClient(session, clientId);
+  return session.role === "team" && ownerId === session.uid;
+}
 function normalisePriority(value: string | undefined): HodiPriority {
   return value && value in HODI_PRIORITY_RANK ? value as HodiPriority : "medium";
 }
@@ -50,7 +55,7 @@ export async function upsertHodiQueueItem(input: HodiQueueItemInput) {
 export async function listHodiQueue(session: AuthSession, filters: { status?: string; clientId?: string; ownerId?: string; includeDismissed?: boolean } = {}) {
   if (session.role === "client" && !session.clientId) return [];
   const clientId = filters.clientId || (session.role === "client" ? session.clientId || undefined : undefined);
-  if (clientId && !canSee(session, clientId)) throw new Error("Forbidden");
+  if (clientId && !await canSee(session, clientId, null)) throw new Error("Forbidden");
   const items = await getPrisma().hodiQueueItem.findMany({ where: {
     ...(clientId ? { clientId } : {}), ...(filters.ownerId ? { ownerId: filters.ownerId } : {}),
     ...(filters.status ? { status: filters.status } : {}),
@@ -59,12 +64,13 @@ export async function listHodiQueue(session: AuthSession, filters: { status?: st
   }, orderBy: [{ dueAt: "asc" }, { updatedAt: "desc" }] });
   // Prisma sorts this legacy string column lexically. Rank it explicitly so urgent
   // work consistently appears before high, medium, and low priority work.
-  return queueOrder(items);
+  const visible = await Promise.all(items.map(async (item) => await canSee(session, item.clientId, item.ownerId) ? item : null));
+  return queueOrder(visible.filter((item): item is NonNullable<typeof item> => item !== null));
 }
 
 export async function getHodiQueueItem(id: string, session: AuthSession) {
   const item = await getPrisma().hodiQueueItem.findUnique({ where: { id } });
-  if (!item || !canSee(session, item.clientId)) throw new Error("Queue item not found");
+  if (!item || !await canSee(session, item.clientId, item.ownerId)) throw new Error("Queue item not found");
   return item;
 }
 
@@ -96,12 +102,12 @@ export async function updateHodiQueueItem(id: string, session: AuthSession, inpu
 
 export async function generateHodiQueue(session: AuthSession, clientId?: string) {
   const store = await getStore();
-  const clients = clientId ? [await store.getClient(clientId)].filter(Boolean) : await store.listClients();
+  const clients = clientId ? [await store.getClient(clientId)].filter(Boolean) : await filterAssignedClients(session, await store.listClients());
   const insights = await buildHodiClientInsights(session, clientId);
   const generated = [];
   for (const insight of insights) {
     const client = clients.find((item) => item?.id === insight.profile.clientId);
-    if (!client || !canSee(session, client.id)) continue;
+    if (!client || !await canSee(session, client.id, null)) continue;
     for (const [index, recommendation] of insight.recommendations.entries()) {
       const task = recommendation.evidence.find((item) => item.source === "Task");
       generated.push(await upsertHodiQueueItem({
@@ -116,14 +122,17 @@ export async function generateHodiQueue(session: AuthSession, clientId?: string)
   const now = new Date();
   await getPrisma().hodiActionProposal.updateMany({ where: { status: { in: ["pending", "approved", "executing"] }, expiresAt: { lte: now } }, data: { status: "expired" } });
   const pending = await getPrisma().hodiActionProposal.findMany({ where: { status: { in: ["pending", "approved"] }, expiresAt: { gt: now } } });
-  for (const proposal of pending) generated.push(await upsertHodiQueueItem({ dedupeKey: `proposal:${proposal.id}`, kind: "approval", source: "hodi-action", title: `Approve ${proposal.action}`, summary: `Hodi action ${proposal.action} is waiting for approval.`, ownerId: proposal.userId, priority: "high", metadata: { proposalId: proposal.id } }));
+  for (const proposal of pending) {
+    if (session.role !== "admin" && proposal.userId !== session.uid) continue;
+    generated.push(await upsertHodiQueueItem({ dedupeKey: `proposal:${proposal.id}`, kind: "approval", source: "hodi-action", title: `Approve ${proposal.action}`, summary: `Hodi action ${proposal.action} is waiting for approval.`, ownerId: proposal.userId, priority: "high", metadata: { proposalId: proposal.id } }));
+  }
   return generated;
 }
 
 export async function listHodiActionProposals(session: AuthSession, status = "pending") {
   const now = new Date();
   await getPrisma().hodiActionProposal.updateMany({ where: { status: { in: ["pending", "approved", "executing"] }, expiresAt: { lte: now } }, data: { status: "expired" } });
-  const where = session.role === "admin" || session.role === "team" ? { status } : { userId: session.uid, status };
+  const where = session.role === "admin" ? { status } : { userId: session.uid, status };
   return getPrisma().hodiActionProposal.findMany({ where, orderBy: { createdAt: "desc" } });
 }
 
@@ -155,6 +164,7 @@ export async function reviewHodiActionProposal(id: string, reviewer: AuthSession
   if (status === "rejected" && !reason?.trim()) throw new Error("A reason is required when rejecting");
   const proposal = await getPrisma().hodiActionProposal.findUnique({ where: { id } });
   if (!proposal) throw new Error("Action proposal not found");
+  if (reviewer.role === "team" && proposal.userId !== reviewer.uid) throw new Error("Forbidden");
   if (proposal.status !== "pending" || proposal.expiresAt.getTime() <= Date.now()) throw new Error("Action proposal is no longer reviewable");
   return getPrisma().hodiActionProposal.update({ where: { id }, data: { status, approvedBy: reviewer.uid, approvedAt: new Date(), rejectedReason: reason?.trim() || null } });
 }

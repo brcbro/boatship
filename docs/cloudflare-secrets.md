@@ -14,6 +14,10 @@ npx wrangler secret put BOATSHIP_SECRETS_MASTER_KEY
 
 `COMPOSIO_API_KEY` and `OPENROUTER_API_KEY` may remain server-wide fallback secrets, but hosted users should normally enter their own credentials through the secure Integrations panel. Those values are encrypted in Neon and are never returned after submission.
 
+Configure `WEBHOOK_ALLOWED_ORIGINS` as a comma-separated list of exact HTTPS origins before enabling outbound webhooks. An empty value disables new destinations and delivery. Review ownership of each approved domain before adding it. Rotate older webhook signing secrets that may have been exposed through previous API responses.
+
+Apply pending Prisma migrations before deploying code that uses the versioned snapshot and shared rate-limit tables (`npm run db:deploy` is part of `npm run deploy`).
+
 Security rules:
 
 - Do not use `NEXT_PUBLIC_` for any provider credential.

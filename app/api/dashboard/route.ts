@@ -2,6 +2,7 @@ import { handleApi } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
 import { evaluateOnboardingHealth } from "@/lib/onboarding-health";
 import { getStore } from "@/lib/store";
+import { filterAssignedClients } from "@/lib/client-access";
 import { calcProgress } from "@/lib/utils";
 import type { ClientStatus, ClientWithProgress } from "@/types";
 
@@ -15,18 +16,22 @@ export const runtime = "nodejs";
  */
 export async function GET(req: Request) {
   return handleApi(async () => {
-    await requireRoles(req, ["admin", "team"]);
+    const session = await requireRoles(req, ["admin", "team"]);
     const store = await getStore();
 
     // Deliberately await the first snapshot-backed read before the others.
     // Concurrent cold reads could otherwise each fetch the same JSON document.
-    const allClients = await store.listClients();
-    const [users, tasks, forms, documents] = await Promise.all([
+    const allClients = await filterAssignedClients(session, await store.listClients());
+    const visibleIds = new Set(allClients.map((client) => client.id));
+    const [users, allTasks, allForms, allDocuments] = await Promise.all([
       store.listUsers(),
       store.listAllTasks(),
       store.listAllForms(),
       store.listAllDocuments(),
     ]);
+    const tasks = allTasks.filter((task) => visibleIds.has(task.clientId));
+    const forms = allForms.filter((form) => visibleIds.has(form.clientId));
+    const documents = allDocuments.filter((document) => visibleIds.has(document.clientId));
 
     const tasksByClient = new Map<string, typeof tasks>();
     const formsByClient = new Map<string, typeof forms>();

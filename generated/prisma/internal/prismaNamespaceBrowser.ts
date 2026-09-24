@@ -21,6 +21,7 @@ export const Decimal = runtime.Decimal
 export const ModelName = {
   StoreSnapshot: 'StoreSnapshot',
   AuthSession: 'AuthSession',
+  RateLimitBucket: 'RateLimitBucket',
   UserProfile: 'UserProfile',
   NotificationRecord: 'NotificationRecord',
   ComposioConnection: 'ComposioConnection',
@@ -66,6 +67,7 @@ export type TransactionIsolationLevel = (typeof TransactionIsolationLevel)[keyof
 export const StoreSnapshotScalarFieldEnum = {
   id: 'id',
   data: 'data',
+  version: 'version',
   updatedAt: 'updatedAt'
 } as const
 
@@ -80,6 +82,15 @@ export const AuthSessionScalarFieldEnum = {
 } as const
 
 export type AuthSessionScalarFieldEnum = (typeof AuthSessionScalarFieldEnum)[keyof typeof AuthSessionScalarFieldEnum]
+
+
+export const RateLimitBucketScalarFieldEnum = {
+  key: 'key',
+  count: 'count',
+  expiresAt: 'expiresAt'
+} as const
+
+export type RateLimitBucketScalarFieldEnum = (typeof RateLimitBucketScalarFieldEnum)[keyof typeof RateLimitBucketScalarFieldEnum]
 
 
 export const UserProfileScalarFieldEnum = {

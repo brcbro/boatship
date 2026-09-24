@@ -3,15 +3,17 @@ import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
 import { getPrisma } from "@/lib/prisma";
 import { getStore } from "@/lib/store";
+import { canAccessClient } from "@/lib/client-access";
 
 export const runtime = "nodejs";
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(req: Request, { params }: Params) {
   return handleApi(async () => {
-    await requireRoles(req, ["admin", "team"]);
+    const session = await requireRoles(req, ["admin", "team"]);
     const task = await (await getStore()).getTask((await params).id);
     if (!task) throw jsonError("Task not found", 404);
+    if (!await canAccessClient(session, task.clientId)) throw jsonError("Forbidden", 403);
     return { policy: await getPrisma().definitionOfDonePolicy.findFirst({ where: { projectId: task.clientId, OR: [{ taskType: null }, { taskType: task.type }] }, orderBy: { updatedAt: "desc" } }) };
   });
 }

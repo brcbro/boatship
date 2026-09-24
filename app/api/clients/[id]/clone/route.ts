@@ -1,6 +1,7 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
 import { getStore } from "@/lib/store";
+import { canAccessClient } from "@/lib/client-access";
 
 export const runtime = "nodejs";
 
@@ -13,6 +14,7 @@ export async function POST(req: Request, { params }: Params) {
     const store = await getStore();
     const source = await store.getClient(id);
     if (!source) throw jsonError("Client not found", 404);
+    if (!await canAccessClient(session, id)) throw jsonError("Forbidden", 403);
 
     const body = (await req.json().catch(() => ({}))) as {
       primaryContactEmail?: string;

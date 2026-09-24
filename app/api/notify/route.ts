@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
 import { appBaseUrl } from "@/lib/client-status";
@@ -9,6 +10,7 @@ import {
   taskAssignedEmailHtml,
 } from "@/lib/email";
 import { getStore } from "@/lib/store";
+import { filterAssignedClients, requireClientAccess } from "@/lib/client-access";
 
 export const runtime = "nodejs";
 
@@ -27,12 +29,13 @@ export async function POST(req: Request) {
     };
 
     if (!body.type) throw jsonError("type is required", 400);
+    if (body.clientId) await requireClientAccess(session, body.clientId);
 
     const store = await getStore();
     const base = appBaseUrl(req);
 
     if (body.type === "overdue_scan") {
-      const clients = await store.listClients();
+      const clients = await filterAssignedClients(session, await store.listClients());
       const now = Date.now();
       const sent: Array<{ taskId: string; to: string }> = [];
 
@@ -83,20 +86,41 @@ export async function POST(req: Request) {
     }
 
     if (body.type === "invite") {
+      if (!process.env.RESEND_API_KEY) throw jsonError("Email delivery is not configured", 503);
       if (!body.clientId) throw jsonError("clientId is required", 400);
       const client = await store.getClient(body.clientId);
       if (!client) throw jsonError("Client not found", 404);
-      const to = body.to || body.email || client.primaryContactEmail;
-      const name = body.name || client.name;
+      const to = (body.to || body.email || client.primaryContactEmail).trim().toLowerCase();
+      const name = (body.name || client.name).trim();
+      if (!to || !name) throw jsonError("Email and name are required", 400);
+      const existing = await store.getUserByEmail(to);
+      if (existing && (existing.role !== "client" || existing.clientId !== client.id)) {
+        throw jsonError("This email already belongs to another account", 400);
+      }
+      const inviteToken = randomUUID().replace(/-/g, "");
+      const inviteTokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
       await sendEmail({
         to,
         subject: `You're invited to Boatship onboarding — ${client.companyName}`,
         html: inviteEmailHtml({
           name,
           companyName: client.companyName,
-          loginUrl: `${base}/login`,
-          tempPassword: "Welcome123!",
+          loginUrl: `${base}/login?reset=${encodeURIComponent(inviteToken)}`,
+          ctaLabel: "Set your password & open portal",
         }),
+      });
+      await store.upsertUser({
+        uid: existing?.uid || randomUUID(),
+        email: to,
+        name,
+        role: "client",
+        clientId: client.id,
+        createdAt: existing?.createdAt || new Date().toISOString(),
+        inviteToken,
+        inviteTokenExpiresAt,
+        mustResetPassword: true,
+        password: null,
+        passwordHash: null,
       });
       await store.addActivity({
         clientId: client.id,
@@ -114,7 +138,7 @@ export async function POST(req: Request) {
       }
       const client = await store.getClient(body.clientId);
       const task = await store.getTask(body.taskId);
-      if (!client || !task) throw jsonError("Client or task not found", 404);
+      if (!client || !task || task.clientId !== client.id) throw jsonError("Client or task not found", 404);
       const to = body.to || client.primaryContactEmail;
       await sendEmail({
         to,
@@ -159,6 +183,7 @@ export async function POST(req: Request) {
     }
 
     if (body.type === "custom") {
+      if (session.role !== "admin") throw jsonError("Forbidden", 403);
       if (!body.to || !body.subject || !body.html) {
         throw jsonError("to, subject, and html are required for custom emails", 400);
       }

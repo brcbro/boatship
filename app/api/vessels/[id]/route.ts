@@ -1,5 +1,6 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
+import { canAccessClient } from "@/lib/client-access";
 import { isStaff } from "@/lib/rbac";
 import { getStore } from "@/lib/store";
 import type { Vessel } from "@/types";
@@ -17,6 +18,7 @@ export async function PATCH(req: Request, { params }: Params) {
     const store = await getStore();
     const existing = await store.getVessel(id);
     if (!existing) throw jsonError("Vessel not found", 404);
+    if (!await canAccessClient(session, existing.clientId)) throw jsonError("Forbidden", 403);
 
     const body = (await req.json().catch(() => ({}))) as {
       name?: string;
@@ -67,6 +69,7 @@ export async function DELETE(req: Request, { params }: Params) {
     const store = await getStore();
     const existing = await store.getVessel(id);
     if (!existing) throw jsonError("Vessel not found", 404);
+    if (!await canAccessClient(session, existing.clientId)) throw jsonError("Forbidden", 403);
 
     await store.deleteVessel(id);
 

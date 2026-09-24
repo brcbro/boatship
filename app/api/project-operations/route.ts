@@ -1,6 +1,7 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles, requireSession } from "@/lib/auth";
-import { canAccessClient } from "@/lib/rbac";
+import { canAccessClient, filterAssignedClients } from "@/lib/client-access";
+import { getStore } from "@/lib/store";
 import { createApproval, createMilestone, executeProjectIntegration, listProjectOps, updateApproval, weeklyEvidenceReport } from "@/lib/project-operations";
 
 export const runtime = "nodejs";
@@ -11,11 +12,17 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const requestedClientId = url.searchParams.get("clientId") || undefined;
     const clientId = session.role === "client" ? session.clientId || undefined : requestedClientId;
-    if (requestedClientId && !canAccessClient(session, requestedClientId)) throw jsonError("Forbidden", 403);
-    if (clientId && !canAccessClient(session, clientId)) throw jsonError("Forbidden", 403);
+    if (requestedClientId && !await canAccessClient(session, requestedClientId)) throw jsonError("Forbidden", 403);
+    if (clientId && !await canAccessClient(session, clientId)) throw jsonError("Forbidden", 403);
     const ops = await listProjectOps();
     const reports = session.role === "client" ? [] : await weeklyEvidenceReport(clientId);
-    return { ...ops, milestones: session.role === "client" || clientId ? ops.milestones.filter((item) => item.clientId === clientId) : ops.milestones, approvals: session.role === "client" || clientId ? ops.approvals.filter((item) => item.clientId === clientId) : ops.approvals, reports };
+    const visibleIds = session.role === "team"
+      ? new Set((await filterAssignedClients(session, await (await getStore()).listClients())).map((client) => client.id))
+      : null;
+    const visible = (id: string) =>
+      (session.role === "client" ? id === session.clientId : !clientId || id === clientId) &&
+      (!visibleIds || visibleIds.has(id));
+    return { ...ops, milestones: ops.milestones.filter((item) => visible(item.clientId)), approvals: ops.approvals.filter((item) => visible(item.clientId)), reports: reports.filter((item) => visible(item.clientId)) };
   });
 }
 
@@ -25,7 +32,7 @@ export async function POST(req: Request) {
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
     const action = String(body.action || "");
     const clientId = String(body.clientId || "");
-    if (clientId && !canAccessClient(session, clientId)) throw jsonError("Forbidden", 403);
+    if (clientId && !await canAccessClient(session, clientId)) throw jsonError("Forbidden", 403);
     if (action === "milestone") {
       await requireRoles(req, ["admin", "team"]);
       if (!clientId || !String(body.title || "").trim()) throw jsonError("clientId and title are required", 400);
@@ -46,7 +53,7 @@ export async function POST(req: Request) {
       if (reviewNote.length > 2000) throw jsonError("Review note must be 2000 characters or less", 400);
       const approval = (await listProjectOps()).approvals.find((item) => item.id === approvalId);
       if (!approval) throw jsonError("Approval not found", 404);
-      if (!canAccessClient(session, approval.clientId)) throw jsonError("Forbidden", 403);
+      if (!await canAccessClient(session, approval.clientId)) throw jsonError("Forbidden", 403);
       if (approval.status !== "pending") throw jsonError("This approval has already been reviewed", 409);
       const updated = await updateApproval(approvalId, status, session.uid, reviewNote || null);
       if (!updated) throw jsonError("This approval has already been reviewed", 409);

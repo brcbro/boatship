@@ -31,6 +31,7 @@ export default {
     const room = env.MESSAGE_ROOM.getByName(`client:${claims.clientId}`);
     return room.fetch("https://message-room.internal/connect", {
       headers: {
+        Upgrade: "websocket",
         "x-boatship-client-id": claims.clientId,
         "x-boatship-user-id": claims.uid,
       },

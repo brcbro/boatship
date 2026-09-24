@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { CheckCircle2, Copy, Mail, MessageCircleMore, ShieldAlert, Smartphone, Unplug } from "lucide-react";
 import { Button, Card } from "@/components/shared/ui";
-import type { HodiCommunicationChannel, HodiCommunicationPlan, HodiCommunicationType } from "@/lib/hodi-communications";
+import type { HodiCommunicationChannel, HodiCommunicationPlan } from "@/lib/hodi-communications";
 
 type Props = {
   plan: HodiCommunicationPlan;

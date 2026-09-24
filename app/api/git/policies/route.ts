@@ -2,14 +2,20 @@ import { randomUUID } from "crypto";
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
 import { getPrisma } from "@/lib/prisma";
+import { canAccessClient, filterAssignedClients } from "@/lib/client-access";
+import { getStore } from "@/lib/store";
 
 export const runtime = "nodejs";
 
 export async function GET(req: Request) {
   return handleApi(async () => {
-    await requireRoles(req, ["admin", "team"]);
+    const session = await requireRoles(req, ["admin", "team"]);
     const projectId = new URL(req.url).searchParams.get("projectId");
-    return { policies: await getPrisma().definitionOfDonePolicy.findMany({ where: projectId ? { projectId } : undefined, orderBy: { updatedAt: "desc" } }) };
+    if (projectId && !await canAccessClient(session, projectId)) throw jsonError("Forbidden", 403);
+    const visibleIds = session.role === "team"
+      ? (await filterAssignedClients(session, await (await getStore()).listClients())).map((client) => client.id)
+      : null;
+    return { policies: await getPrisma().definitionOfDonePolicy.findMany({ where: projectId ? { projectId } : visibleIds ? { projectId: { in: visibleIds } } : undefined, orderBy: { updatedAt: "desc" } }) };
   });
 }
 

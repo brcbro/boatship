@@ -30,7 +30,6 @@ export function inviteEmailHtml(params: {
   name: string;
   companyName: string;
   loginUrl: string;
-  tempPassword?: string;
   ctaLabel?: string;
 }) {
   const cta = params.ctaLabel || "Sign in to your portal";
@@ -39,11 +38,7 @@ export function inviteEmailHtml(params: {
       <h1 style="color:#0b1f3a">Welcome to Boatship Onboarding</h1>
       <p>Hi ${params.name},</p>
       <p>You've been invited to complete onboarding for <strong>${params.companyName}</strong>.</p>
-      ${
-        params.tempPassword
-          ? `<p>Temporary password: <code>${params.tempPassword}</code></p>`
-          : ""
-      }
+      <p>Use the link below to set your password. It can only be used once.</p>
       <p><a href="${params.loginUrl}" style="background:#0b1f3a;color:#fff;padding:12px 18px;text-decoration:none;border-radius:6px;display:inline-block">${cta}</a></p>
     </div>
   `;
@@ -141,15 +136,14 @@ export function teamInviteEmailHtml(params: {
   name: string;
   role: string;
   loginUrl: string;
-  tempPassword: string;
 }) {
   return `
     <div style="font-family:Georgia,serif;color:#0f172a;line-height:1.5">
       <h2>You're on the Boatship team</h2>
       <p>Hi ${params.name},</p>
       <p>You've been invited as <strong>${params.role}</strong>.</p>
-      <p>Temporary password: <code>${params.tempPassword}</code></p>
-      <p><a href="${params.loginUrl}" style="background:#0b1f3a;color:#fff;padding:12px 18px;text-decoration:none;border-radius:6px;display:inline-block">Sign in</a></p>
+      <p>Use the link below to set your password. It can only be used once.</p>
+      <p><a href="${params.loginUrl}" style="background:#0b1f3a;color:#fff;padding:12px 18px;text-decoration:none;border-radius:6px;display:inline-block">Set your password</a></p>
     </div>
   `;
 }

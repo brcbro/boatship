@@ -6,6 +6,7 @@ import {
   listBoatshipConnections,
 } from "@/lib/composio";
 import { getStore } from "@/lib/store";
+import { filterAssignedClients } from "@/lib/client-access";
 
 export const runtime = "nodejs";
 
@@ -116,7 +117,8 @@ export async function GET(req: Request) {
     }
 
     const store = await getStore();
-    const [clients, tasks] = await Promise.all([store.listClients(), store.listAllTasks()]);
+    const [allClients, tasks] = await Promise.all([store.listClients(), store.listAllTasks()]);
+    const clients = await filterAssignedClients(session, allClients);
     const clientMap = new Map(clients.map((client) => [client.id, client]));
     const events: CalendarEvent[] = tasks.flatMap((task) => {
       if (!task.dueDate || !clientMap.has(task.clientId)) return [];

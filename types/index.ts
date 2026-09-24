@@ -397,3 +397,13 @@ export interface ClientWithProgress extends Client {
   assignedTeamMemberName?: string | null;
   vesselCount?: number;
 }
+
+export type MessageClientSummary = Pick<
+  Client,
+  "id" | "name" | "companyName" | "status" | "pipelineStage" | "tags"
+> & {
+  progress: number;
+  totalTasks: number;
+  completedTasks: number;
+  assignedTeamMemberName: string | null;
+};

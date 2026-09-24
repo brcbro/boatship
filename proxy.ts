@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, decodeLocalSession } from "@/lib/session";
+import { isCrossOriginCookieMutation } from "@/lib/request-origin";
 
 const PUBLIC_PATHS = [
   "/login",
@@ -15,7 +16,7 @@ const ADMIN_PATHS = [
   "/products", "/workspace", "/calendar", "/messages", "/templates",
   "/forms", "/analytics", "/accounting", "/integrations", "/webhooks",
   "/mcp", "/compliance", "/hodi", "/automations", "/agent",
-  "/tasks", "/reminders",
+  "/tasks", "/reminders", "/account",
 ];
 
 function matchesRoute(pathname: string, route: string) {
@@ -24,6 +25,10 @@ function matchesRoute(pathname: string, route: string) {
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  if (isCrossOriginCookieMutation(request, SESSION_COOKIE)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   if (
     pathname.startsWith("/_next") ||

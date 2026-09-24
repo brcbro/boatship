@@ -1,5 +1,6 @@
 import type { AuthSession, Client } from "@/types";
 import { isStaff } from "@/lib/rbac";
+import { filterAssignedClients } from "@/lib/client-access";
 import { getStore } from "@/lib/store";
 import { buildHodiClientInsights } from "@/lib/hodi-insights";
 import { listAccountingEntries } from "@/lib/accounting";
@@ -70,8 +71,9 @@ export async function retrieveBoatshipKnowledge(query: string, session: AuthSess
   if (!isStaff(session.role)) return [] as KnowledgeChunk[];
 
   const store = await getStore();
-  const clients = await store.listClients();
+  const clients = await filterAssignedClients(session, await store.listClients());
   const clientById = new Map(clients.map((client) => [client.id, client]));
+  const visibleIds = new Set(clients.map((client) => client.id));
   const [users, tasks, documents, forms, vessels, activity, templates, messages, notifications, accountingEntries] = await Promise.all([
     store.listUsers(),
     store.listAllTasks(),
@@ -82,10 +84,16 @@ export async function retrieveBoatshipKnowledge(query: string, session: AuthSess
     store.listTemplates(),
     Promise.all(clients.map((client) => store.listMessages(client.id))).then((items) => items.flat()),
     store.listNotifications(session.uid),
-    listAccountingEntries(),
+    session.role === "admin" ? listAccountingEntries() : Promise.resolve([]),
   ]);
+  const visibleTasks = tasks.filter((task) => visibleIds.has(task.clientId));
+  const visibleDocuments = documents.filter((document) => visibleIds.has(document.clientId));
+  const visibleForms = forms.filter((form) => visibleIds.has(form.clientId));
+  const visibleActivity = activity.filter((entry) => visibleIds.has(entry.clientId));
+  const visibleUsers = users.filter((user) => session.role === "admin" || user.uid === session.uid || (user.clientId && visibleIds.has(user.clientId)));
+  const visibleNotifications = notifications.filter((notification) => !notification.clientId || visibleIds.has(notification.clientId));
   const taskComments = (
-    await Promise.all(tasks.map((task) => store.listTaskComments(task.id)))
+    await Promise.all(visibleTasks.map((task) => store.listTaskComments(task.id)))
   ).flat();
   const hodiInsights = await buildHodiClientInsights(session);
 
@@ -137,7 +145,7 @@ export async function retrieveBoatshipKnowledge(query: string, session: AuthSess
       text: `Hodi project memory for ${insight.profile.clientName}. Service: ${insight.profile.service.value || "not recorded"}; phase: ${insight.profile.currentPhase.value}; health: ${insight.health.state} (${insight.health.score}/100). Recommendations: ${insight.recommendations.map((item) => item.summary).join(" ")}.`,
     })),
     ...onboardingChunks,
-    ...users.map((user) => ({
+    ...visibleUsers.map((user) => ({
       source: `staff:${user.name}`,
       updatedAt: user.createdAt,
       text: `Staff member ${user.name}. Email: ${user.email}; role: ${user.role}; permissions: ${user.permissions?.join(", ") || "full role access"}.`,
@@ -147,17 +155,17 @@ export async function retrieveBoatshipKnowledge(query: string, session: AuthSess
       updatedAt: client.updatedAt,
       text: `Client ${displayClient(client)}. Status: ${client.status}; pipeline stage: ${client.pipelineStage}; tags: ${client.tags.join(", ") || "none"}; paused: ${client.pauseReason || "no"}.`,
     })),
-    ...tasks.map((task) => ({
+    ...visibleTasks.map((task) => ({
       source: `task:${task.title}`,
       updatedAt: task.completedAt || task.createdAt,
       text: `Task for ${displayClient(clientOrUnknown(clientById.get(task.clientId)))}: ${task.title}. Status: ${task.status}; priority: ${task.priority}; due: ${task.dueDate || "none"}; overdue: ${task.dueDate && task.status !== "completed" && Date.parse(task.dueDate) < Date.now() ? "yes" : "no"}; section: ${task.section}; description: ${task.description}; notes: ${task.internalNotes}.`,
     })),
-    ...documents.map((document) => ({
+    ...visibleDocuments.map((document) => ({
       source: `document:${document.fileName}`,
       updatedAt: document.uploadedAt,
       text: `Document for ${displayClient(clientOrUnknown(clientById.get(document.clientId)))}: ${document.fileName}. Type: ${document.documentType || document.contentType}; review status: ${document.status}; review note: ${document.reviewNote || "none"}; expires: ${document.expiresAt || "not recorded"}.`,
     })),
-    ...forms.map((form) => ({
+    ...visibleForms.map((form) => ({
       source: `form:${form.id}`,
       updatedAt: form.reviewedAt || form.submittedAt || undefined,
       text: `Form for ${displayClient(clientOrUnknown(clientById.get(form.clientId)))}. Status: ${form.status}; responses: ${compact(form.responses)}; risk score: ${form.riskScore ?? "not scored"}; submitted: ${form.submittedAt || "not submitted"}; review note: ${form.reviewNote || "none"}.`,
@@ -167,7 +175,7 @@ export async function retrieveBoatshipKnowledge(query: string, session: AuthSess
       updatedAt: vessel.updatedAt,
       text: `Vessel for ${displayClient(clientOrUnknown(clientById.get(vessel.clientId)))}: ${vessel.name}; IMO ${vessel.imo}; flag ${vessel.flag}; type ${vessel.vesselType}; class society ${vessel.classSociety}; notes: ${vessel.notes}.`,
     })),
-    ...activity.map((entry) => ({
+    ...visibleActivity.map((entry) => ({
       source: `activity:${entry.action}`,
       updatedAt: entry.timestamp,
       text: `Activity for ${displayClient(clientOrUnknown(clientById.get(entry.clientId)))}: ${entry.action} by ${entry.actorName} at ${entry.timestamp}. Details: ${compact(entry.meta)}.`,
@@ -187,7 +195,7 @@ export async function retrieveBoatshipKnowledge(query: string, session: AuthSess
       updatedAt: comment.createdAt,
       text: `Task comment by ${comment.authorName}: ${comment.body}.`,
     })),
-    ...notifications.map((notification) => ({
+    ...visibleNotifications.map((notification) => ({
       source: `notification:${notification.kind}`,
       updatedAt: notification.createdAt,
       text: `Notification: ${notification.title}. ${notification.body}`,
