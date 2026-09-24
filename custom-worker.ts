@@ -1,3 +1,5 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore OpenNext creates this module after the standalone typecheck step.
 import { default as nextWorker } from "./.open-next/worker.js";
 import { MessageRoom } from "./lib/realtime/message-room";
 import { verifyMessageRealtimeTicket } from "./lib/realtime/message-ticket";
@@ -13,6 +15,8 @@ function upgradeRequired() {
 
 export { MessageRoom };
 // Preserve OpenNext's cache Durable Object exports should they be enabled later.
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore OpenNext creates this module after the standalone typecheck step.
 export { DOQueueHandler, DOShardedTagCache, BucketCachePurge } from "./.open-next/worker.js";
 
 export default {

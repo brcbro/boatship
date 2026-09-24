@@ -30,7 +30,7 @@ Local verification on 2026-09-25: `npm test` (12 passing), `npm run lint`, `npm 
 
 Commit `99ec6c6` was pushed to GitHub `master`, and Cloudflare deployed Worker version `b082fae3-cf38-4957-a68b-1d99472ab191` at `https://boatship.cohortix.in`. Live anonymous smoke checks returned 200 for `/`, `/login`, and `/api/auth/session` (`session: null`), and 401 for unauthenticated `/api/clients`. Authenticated staff/client workflows were not exercised because no production credentials were used. Cloudflare listed the core database, secrets master key, and realtime secrets by name without exposing their values. The existing `https://httpbin.org` webhook origin is not allowlisted, so outbound delivery to it remains blocked.
 
-The first GitHub CI run for `99ec6c6` failed at `npm ci`: the lockfile omitted top-level `@emnapi/core` and `@emnapi/runtime` entries required on Linux. A follow-up lockfile/development-dependency correction was prepared; its CI result must be checked after push. This does not change the deployed application runtime code.
+The first GitHub CI run for `99ec6c6` failed at `npm ci`: the lockfile omitted top-level `@emnapi/core` and `@emnapi/runtime` entries required on Linux. Commit `1176932` fixed the clean install; its CI run then reached typecheck and found that `custom-worker.ts` imports an OpenNext module generated only during packaging. The two generated-module import lines now have narrowly scoped TypeScript suppressions so a clean checkout can typecheck while Wrangler still bundles the Worker. Recheck CI after pushing this correction. The dependency metadata and type annotations do not change the deployed Worker behavior.
 
 ## Known boundaries and open work
 
