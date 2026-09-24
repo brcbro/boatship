@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Check, ChevronDown, ChevronRight, Plus } from "lucide-react";
 import {
@@ -87,6 +87,7 @@ type TaskBoardProps = {
     section: string;
   }) => Promise<void> | void;
   onReorder?: (task: Task, direction: -1 | 1) => Promise<void> | void;
+  initialOpenTaskId?: string | null;
 };
 
 export function TaskBoard({
@@ -98,8 +99,10 @@ export function TaskBoard({
   onDelete,
   onCreate,
   onReorder,
+  initialOpenTaskId,
 }: TaskBoardProps) {
   const [openId, setOpenId] = useState<string | null>(null);
+  const openedInitialRef = useRef<string | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
   const [groupBy, setGroupBy] = useState<"section" | "status">("section");
@@ -116,8 +119,24 @@ export function TaskBoard({
   );
 
   useEffect(() => {
-    if (openId && !tasks.some((t) => t.id === openId)) setOpenId(null);
+    if (!openId || tasks.some((t) => t.id === openId)) return;
+    const timeoutId = window.setTimeout(() => setOpenId(null), 0);
+    return () => window.clearTimeout(timeoutId);
   }, [tasks, openId]);
+
+  useEffect(() => {
+    if (!initialOpenTaskId) {
+      openedInitialRef.current = null;
+      return;
+    }
+    if (openedInitialRef.current !== initialOpenTaskId && tasks.some((task) => task.id === initialOpenTaskId)) {
+      const timeoutId = window.setTimeout(() => {
+        openedInitialRef.current = initialOpenTaskId;
+        setOpenId(initialOpenTaskId);
+      }, 0);
+      return () => window.clearTimeout(timeoutId);
+    }
+  }, [initialOpenTaskId, tasks]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -248,30 +267,29 @@ export function TaskBoard({
 
   function renderListRow(task: Task) {
     const blocked = isDependencyBlocked(task, tasks);
+    const waitingOn = (task.dependsOnTaskIds || [])
+      .map((id) => tasks.find((candidate) => candidate.id === id))
+      .filter((dependency) => !dependency || dependency.status !== "completed")
+      .map((dependency) => dependency?.title || "a missing task");
     return (
       <li key={task.id}>
-        <button
-          type="button"
-          onClick={() => setOpenId(task.id)}
+        <div
           className={cn(
-            "flex min-h-11 w-full items-center gap-2 px-2.5 text-left transition hover:bg-[var(--surface-2)]/60 sm:h-9 sm:min-h-0",
+            "flex min-h-11 w-full items-center gap-1 px-1 text-left transition hover:bg-[var(--surface-2)]/60 sm:h-9",
             openId === task.id && "bg-[var(--surface-2)]",
             blocked && task.status !== "completed" && "opacity-90"
           )}
         >
-          <span
-            role="checkbox"
-            aria-checked={task.status === "completed"}
-            aria-disabled={blocked && task.status !== "completed"}
-            tabIndex={0}
+          <button
+            type="button"
+            disabled={busy || (blocked && task.status !== "completed")}
+            aria-pressed={task.status === "completed"}
+            aria-label={task.status === "completed" ? `Reopen ${task.title}` : blocked ? `Complete ${task.title}. Waiting on ${waitingOn.join(", ")}` : `Complete ${task.title}`}
+            title={task.status === "completed" ? `Reopen ${task.title}` : blocked ? `Complete ${waitingOn.join(", ")} first` : `Mark ${task.title} complete`}
             onClick={(e) => void toggleComplete(task, e)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                e.stopPropagation();
-                void toggleComplete(task, e as unknown as React.MouseEvent);
-              }
-            }}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md disabled:cursor-not-allowed sm:h-9 sm:w-9"
+          >
+            <span
             className={cn(
               "flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border transition",
               task.status === "completed"
@@ -280,10 +298,12 @@ export function TaskBoard({
                   ? "cursor-not-allowed border-[var(--border)] bg-[var(--surface-2)] opacity-60"
                   : "border-[var(--border)] bg-[var(--surface-raised)] hover:border-[var(--ink)]"
             )}
-          >
+            >
             {task.status === "completed" ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
-          </span>
+            </span>
+          </button>
 
+          <button type="button" onClick={() => setOpenId(task.id)} className="flex min-h-11 min-w-0 flex-1 items-center gap-2 py-1 pr-2 text-left sm:min-h-9">
           <span className={cn("h-1.5 w-1.5 flex-shrink-0 rounded-full", statusDot(task.status))} />
 
           <span
@@ -298,7 +318,8 @@ export function TaskBoard({
           </span>
 
           {renderTaskBadges(task)}
-        </button>
+          </button>
+        </div>
       </li>
     );
   }
@@ -603,12 +624,15 @@ export function TaskDetailModal({
 
   useEffect(() => {
     if (!task) return;
-    setTitle(task.title);
-    setDescription(task.description || "");
-    setInternalNotes(task.internalNotes || "");
-    setSection(task.section || "General");
-    setDueDate(task.dueDate ? task.dueDate.slice(0, 10) : "");
-    setNewSubtask("");
+    const timeoutId = window.setTimeout(() => {
+      setTitle(task.title);
+      setDescription(task.description || "");
+      setInternalNotes(task.internalNotes || "");
+      setSection(task.section || "General");
+      setDueDate(task.dueDate ? task.dueDate.slice(0, 10) : "");
+      setNewSubtask("");
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
   }, [task]);
 
   async function saveField(patch: Record<string, unknown>) {

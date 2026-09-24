@@ -494,7 +494,7 @@ export default function ClientDetailPage() {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(data.error || `Export failed (${res.status})`);
       }
       const blob = await res.blob();

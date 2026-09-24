@@ -14,6 +14,7 @@ import {
 import { apiFetch } from "@/lib/api-client";
 import { formatDate, statusLabel } from "@/lib/utils";
 import type { ClientStatus, ClientWithProgress } from "@/types";
+import type { ProductSummary } from "@/types/product";
 
 type Analytics = {
   totalClients: number;
@@ -64,6 +65,8 @@ export default function DashboardPage() {
   const { token } = useAuth();
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [clients, setClients] = useState<ClientWithProgress[]>([]);
+  const [products, setProducts] = useState<ProductSummary[]>([]);
+  const [productsError, setProductsError] = useState("");
   const [healthByClientId, setHealthByClientId] = useState<Record<string, OnboardingHealth>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -71,17 +74,35 @@ export default function DashboardPage() {
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
+    setProductsError("");
     try {
-      const data = await apiFetch<{
+      const dashboardRequest = apiFetch<{
         analytics: Analytics;
         clients: ClientWithProgress[];
         health: OnboardingHealth[];
       }>("/api/dashboard", { token });
+      const productsRequest = apiFetch<{ products: ProductSummary[] }>(
+        "/api/products",
+        { token }
+      );
+      const [data, productResult] = await Promise.all([
+        dashboardRequest,
+        productsRequest.then(
+          (value) => ({ ok: true as const, value }),
+          (reason: unknown) => ({ ok: false as const, reason })
+        ),
+      ]);
       setAnalytics(data.analytics);
       setClients(data.clients);
       setHealthByClientId(
         Object.fromEntries(data.health.map((item) => [item.clientId, item]))
       );
+      if (productResult.ok) {
+        setProducts(productResult.value.products);
+      } else {
+        setProducts([]);
+        setProductsError("Product summary is unavailable right now.");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load dashboard");
     } finally {
@@ -95,7 +116,11 @@ export default function DashboardPage() {
   }, [load]);
 
   if (loading) {
-    return <p className="text-sm text-[var(--ink-muted)]">Loading dashboard…</p>;
+    return <div role="status" aria-label="Loading dashboard" className="animate-pulse space-y-6">
+      <div className="space-y-2"><div className="h-9 w-36 rounded bg-[var(--surface-2)]" /><div className="h-4 w-72 max-w-full rounded bg-[var(--surface-2)]" /></div>
+      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-6"><div className="h-6 w-44 rounded bg-[var(--surface-2)]" /><div className="mt-5 space-y-3"><div className="h-12 rounded bg-[var(--surface-2)]" /><div className="h-12 rounded bg-[var(--surface-2)]" /></div></div>
+      <div className="grid gap-4 sm:grid-cols-3">{[0, 1, 2].map((item) => <div key={item} className="h-28 rounded-xl bg-[var(--surface-2)]" />)}</div>
+    </div>;
   }
 
   if (error) {
@@ -113,12 +138,16 @@ export default function DashboardPage() {
   }
 
   const byStatus = analytics?.clientsByStatus;
+  const needsAttention = clients.filter((client) => {
+    const health = healthByClientId[client.id];
+    return health?.state === "blocked_internally" || health?.state === "waiting_on_client" || client.status === "on_hold";
+  });
 
   return (
     <div>
       <PageHeader
-        title="Dashboard"
-        description="Onboarding overview across your clients."
+        title="Today"
+        description="Client work that needs a decision or follow-up."
         actions={
           <Link href="/clients/new">
             <Button type="button">New client</Button>
@@ -126,7 +155,35 @@ export default function DashboardPage() {
         }
       />
 
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section aria-labelledby="attention-heading" className="mb-8 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-5 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 id="attention-heading" className="font-[family-name:var(--font-display)] text-xl text-[var(--ink)]">Needs attention</h2>
+            <p className="mt-1 text-sm text-[var(--ink-muted)]">Review stalled clients and overdue work before the rest of the portfolio.</p>
+          </div>
+          <Link href="/workload" className="text-sm font-medium text-[var(--accent)] hover:underline">View workload</Link>
+        </div>
+        <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_14rem]">
+          <div className="space-y-2">
+            {needsAttention.length ? needsAttention.slice(0, 5).map((client) => (
+              <Link key={client.id} href={`/clients/${client.id}`} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[var(--surface-2)] px-4 py-3 transition hover:bg-slate-100">
+                <span className="font-medium text-[var(--ink)]">{client.companyName || client.name}</span>
+                <Badge tone={healthByClientId[client.id] ? healthTone(healthByClientId[client.id].state) : "danger"}>
+                  {healthByClientId[client.id] ? healthLabels[healthByClientId[client.id].state] : statusLabel(client.status)}
+                </Badge>
+              </Link>
+            )) : <p className="rounded-lg bg-[var(--surface-2)] px-4 py-4 text-sm text-[var(--ink-muted)]">No clients are currently marked as blocked or waiting.</p>}
+            {needsAttention.length > 5 ? <Link href="/clients" className="inline-block pt-1 text-sm font-medium text-[var(--accent)] hover:underline">View all {needsAttention.length} clients</Link> : null}
+          </div>
+          <Link href="/workload" className="rounded-lg bg-[var(--surface-2)] px-4 py-4 transition hover:bg-slate-100">
+            <span className="block text-sm text-[var(--ink-muted)]">Overdue client tasks</span>
+            <span className="mt-2 block font-[family-name:var(--font-display)] text-3xl tabular-nums text-[var(--ink)]">{analytics?.overdueTasks ?? 0}</span>
+            <span className="mt-2 block text-sm font-medium text-[var(--accent)]">View team workload →</span>
+          </Link>
+        </div>
+      </section>
+
+      <div className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <Card>
           <p className="text-sm text-[var(--ink-muted)]">Total clients</p>
           <p className="mt-2 font-[family-name:var(--font-display)] text-3xl text-[var(--ink)]">
@@ -149,12 +206,6 @@ export default function DashboardPage() {
               </Badge>
             ))}
           </div>
-        </Card>
-        <Card>
-          <p className="text-sm text-[var(--ink-muted)]">Overdue tasks</p>
-          <p className="mt-2 font-[family-name:var(--font-display)] text-3xl text-[var(--ink)]">
-            {analytics?.overdueTasks ?? 0}
-          </p>
         </Card>
         <Card>
           <p className="text-sm text-[var(--ink-muted)]">Avg onboarding days</p>
@@ -245,6 +296,69 @@ export default function DashboardPage() {
           </div>
         )}
       </Card>
+
+      <section className="mt-8" aria-labelledby="products-heading">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 id="products-heading" className="font-[family-name:var(--font-display)] text-xl text-[var(--ink)]">
+              Company products
+            </h2>
+            <p className="text-sm text-[var(--ink-muted)]">
+              Internal tools and SaaS work, separate from client onboarding.
+            </p>
+          </div>
+          <Link href="/products" className="text-sm font-medium text-[var(--accent)] hover:underline">
+            View products
+          </Link>
+        </div>
+        {productsError ? (
+          <p className="mb-3 text-sm text-[var(--ink-muted)]">{productsError}</p>
+        ) : null}
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <Card>
+            <p className="text-sm text-[var(--ink-muted)]">Products in your portfolio</p>
+            <p className="mt-2 font-[family-name:var(--font-display)] text-3xl text-[var(--ink)]">
+              {products.length}
+            </p>
+            <p className="mt-2 text-xs text-[var(--ink-muted)]">Visible to your account</p>
+          </Card>
+          <Card>
+            <p className="text-sm text-[var(--ink-muted)]">Open product work</p>
+            <p className="mt-2 font-[family-name:var(--font-display)] text-3xl text-[var(--ink)]">
+              {products.reduce((count, product) => count + product.openWorkCount, 0)}
+            </p>
+            <p className="mt-2 text-xs text-[var(--ink-muted)]">Tracked separately from client tasks</p>
+          </Card>
+          <Card>
+            <p className="text-sm text-[var(--ink-muted)]">Live products</p>
+            <p className="mt-2 font-[family-name:var(--font-display)] text-3xl text-[var(--ink)]">
+              {products.filter((product) => product.stage === "live").length}
+            </p>
+          </Card>
+        </div>
+        {products.length > 0 ? (
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {products.slice(0, 3).map((product) => (
+              <Card key={product.id}>
+                <div className="flex items-start justify-between gap-3">
+                  <Link href={`/products/${product.id}`} className="font-medium text-[var(--ink)] hover:text-[var(--accent)]">
+                    {product.name}
+                  </Link>
+                  <Badge tone={product.stage === "live" ? "success" : "neutral"}>
+                    {statusLabel(product.stage)}
+                  </Badge>
+                </div>
+                <p className="mt-2 text-sm text-[var(--ink-muted)]">
+                  {product.openWorkCount} open work item{product.openWorkCount === 1 ? "" : "s"}
+                  {product.ownerName ? ` · ${product.ownerName}` : ""}
+                </p>
+              </Card>
+            ))}
+          </div>
+        ) : !productsError ? (
+          <p className="mt-4 text-sm text-[var(--ink-muted)]">No company products added yet.</p>
+        ) : null}
+      </section>
     </div>
   );
 }

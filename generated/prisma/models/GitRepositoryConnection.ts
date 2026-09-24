@@ -240,6 +240,7 @@ export type GitRepositoryConnectionWhereInput = {
   taskLinks?: Prisma.GitTaskLinkListRelationFilter
   policies?: Prisma.DefinitionOfDonePolicyListRelationFilter
   evidence?: Prisma.GitEvidenceListRelationFilter
+  productReleases?: Prisma.ProductReleaseListRelationFilter
 }
 
 export type GitRepositoryConnectionOrderByWithRelationInput = {
@@ -258,6 +259,7 @@ export type GitRepositoryConnectionOrderByWithRelationInput = {
   taskLinks?: Prisma.GitTaskLinkOrderByRelationAggregateInput
   policies?: Prisma.DefinitionOfDonePolicyOrderByRelationAggregateInput
   evidence?: Prisma.GitEvidenceOrderByRelationAggregateInput
+  productReleases?: Prisma.ProductReleaseOrderByRelationAggregateInput
 }
 
 export type GitRepositoryConnectionWhereUniqueInput = Prisma.AtLeast<{
@@ -279,6 +281,7 @@ export type GitRepositoryConnectionWhereUniqueInput = Prisma.AtLeast<{
   taskLinks?: Prisma.GitTaskLinkListRelationFilter
   policies?: Prisma.DefinitionOfDonePolicyListRelationFilter
   evidence?: Prisma.GitEvidenceListRelationFilter
+  productReleases?: Prisma.ProductReleaseListRelationFilter
 }, "id">
 
 export type GitRepositoryConnectionOrderByWithAggregationInput = {
@@ -333,6 +336,7 @@ export type GitRepositoryConnectionCreateInput = {
   taskLinks?: Prisma.GitTaskLinkCreateNestedManyWithoutRepositoryInput
   policies?: Prisma.DefinitionOfDonePolicyCreateNestedManyWithoutRepositoryInput
   evidence?: Prisma.GitEvidenceCreateNestedManyWithoutRepositoryInput
+  productReleases?: Prisma.ProductReleaseCreateNestedManyWithoutRepositoryInput
 }
 
 export type GitRepositoryConnectionUncheckedCreateInput = {
@@ -351,6 +355,7 @@ export type GitRepositoryConnectionUncheckedCreateInput = {
   taskLinks?: Prisma.GitTaskLinkUncheckedCreateNestedManyWithoutRepositoryInput
   policies?: Prisma.DefinitionOfDonePolicyUncheckedCreateNestedManyWithoutRepositoryInput
   evidence?: Prisma.GitEvidenceUncheckedCreateNestedManyWithoutRepositoryInput
+  productReleases?: Prisma.ProductReleaseUncheckedCreateNestedManyWithoutRepositoryInput
 }
 
 export type GitRepositoryConnectionUpdateInput = {
@@ -369,6 +374,7 @@ export type GitRepositoryConnectionUpdateInput = {
   taskLinks?: Prisma.GitTaskLinkUpdateManyWithoutRepositoryNestedInput
   policies?: Prisma.DefinitionOfDonePolicyUpdateManyWithoutRepositoryNestedInput
   evidence?: Prisma.GitEvidenceUpdateManyWithoutRepositoryNestedInput
+  productReleases?: Prisma.ProductReleaseUpdateManyWithoutRepositoryNestedInput
 }
 
 export type GitRepositoryConnectionUncheckedUpdateInput = {
@@ -387,6 +393,7 @@ export type GitRepositoryConnectionUncheckedUpdateInput = {
   taskLinks?: Prisma.GitTaskLinkUncheckedUpdateManyWithoutRepositoryNestedInput
   policies?: Prisma.DefinitionOfDonePolicyUncheckedUpdateManyWithoutRepositoryNestedInput
   evidence?: Prisma.GitEvidenceUncheckedUpdateManyWithoutRepositoryNestedInput
+  productReleases?: Prisma.ProductReleaseUncheckedUpdateManyWithoutRepositoryNestedInput
 }
 
 export type GitRepositoryConnectionCreateManyInput = {
@@ -479,14 +486,30 @@ export type GitRepositoryConnectionMinOrderByAggregateInput = {
   updatedAt?: Prisma.SortOrder
 }
 
+export type GitRepositoryConnectionNullableScalarRelationFilter = {
+  is?: Prisma.GitRepositoryConnectionWhereInput | null
+  isNot?: Prisma.GitRepositoryConnectionWhereInput | null
+}
+
 export type GitRepositoryConnectionScalarRelationFilter = {
   is?: Prisma.GitRepositoryConnectionWhereInput
   isNot?: Prisma.GitRepositoryConnectionWhereInput
 }
 
-export type GitRepositoryConnectionNullableScalarRelationFilter = {
-  is?: Prisma.GitRepositoryConnectionWhereInput | null
-  isNot?: Prisma.GitRepositoryConnectionWhereInput | null
+export type GitRepositoryConnectionCreateNestedOneWithoutProductReleasesInput = {
+  create?: Prisma.XOR<Prisma.GitRepositoryConnectionCreateWithoutProductReleasesInput, Prisma.GitRepositoryConnectionUncheckedCreateWithoutProductReleasesInput>
+  connectOrCreate?: Prisma.GitRepositoryConnectionCreateOrConnectWithoutProductReleasesInput
+  connect?: Prisma.GitRepositoryConnectionWhereUniqueInput
+}
+
+export type GitRepositoryConnectionUpdateOneWithoutProductReleasesNestedInput = {
+  create?: Prisma.XOR<Prisma.GitRepositoryConnectionCreateWithoutProductReleasesInput, Prisma.GitRepositoryConnectionUncheckedCreateWithoutProductReleasesInput>
+  connectOrCreate?: Prisma.GitRepositoryConnectionCreateOrConnectWithoutProductReleasesInput
+  upsert?: Prisma.GitRepositoryConnectionUpsertWithoutProductReleasesInput
+  disconnect?: Prisma.GitRepositoryConnectionWhereInput | boolean
+  delete?: Prisma.GitRepositoryConnectionWhereInput | boolean
+  connect?: Prisma.GitRepositoryConnectionWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.GitRepositoryConnectionUpdateToOneWithWhereWithoutProductReleasesInput, Prisma.GitRepositoryConnectionUpdateWithoutProductReleasesInput>, Prisma.GitRepositoryConnectionUncheckedUpdateWithoutProductReleasesInput>
 }
 
 export type GitRepositoryConnectionCreateNestedOneWithoutTaskLinksInput = {
@@ -533,6 +556,94 @@ export type GitRepositoryConnectionUpdateOneRequiredWithoutEvidenceNestedInput =
   update?: Prisma.XOR<Prisma.XOR<Prisma.GitRepositoryConnectionUpdateToOneWithWhereWithoutEvidenceInput, Prisma.GitRepositoryConnectionUpdateWithoutEvidenceInput>, Prisma.GitRepositoryConnectionUncheckedUpdateWithoutEvidenceInput>
 }
 
+export type GitRepositoryConnectionCreateWithoutProductReleasesInput = {
+  id: string
+  provider: string
+  name: string
+  owner: string
+  repository: string
+  defaultBranch?: string
+  webhookSecretHash?: string | null
+  accessTokenRef?: string | null
+  active?: boolean
+  createdBy: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  taskLinks?: Prisma.GitTaskLinkCreateNestedManyWithoutRepositoryInput
+  policies?: Prisma.DefinitionOfDonePolicyCreateNestedManyWithoutRepositoryInput
+  evidence?: Prisma.GitEvidenceCreateNestedManyWithoutRepositoryInput
+}
+
+export type GitRepositoryConnectionUncheckedCreateWithoutProductReleasesInput = {
+  id: string
+  provider: string
+  name: string
+  owner: string
+  repository: string
+  defaultBranch?: string
+  webhookSecretHash?: string | null
+  accessTokenRef?: string | null
+  active?: boolean
+  createdBy: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  taskLinks?: Prisma.GitTaskLinkUncheckedCreateNestedManyWithoutRepositoryInput
+  policies?: Prisma.DefinitionOfDonePolicyUncheckedCreateNestedManyWithoutRepositoryInput
+  evidence?: Prisma.GitEvidenceUncheckedCreateNestedManyWithoutRepositoryInput
+}
+
+export type GitRepositoryConnectionCreateOrConnectWithoutProductReleasesInput = {
+  where: Prisma.GitRepositoryConnectionWhereUniqueInput
+  create: Prisma.XOR<Prisma.GitRepositoryConnectionCreateWithoutProductReleasesInput, Prisma.GitRepositoryConnectionUncheckedCreateWithoutProductReleasesInput>
+}
+
+export type GitRepositoryConnectionUpsertWithoutProductReleasesInput = {
+  update: Prisma.XOR<Prisma.GitRepositoryConnectionUpdateWithoutProductReleasesInput, Prisma.GitRepositoryConnectionUncheckedUpdateWithoutProductReleasesInput>
+  create: Prisma.XOR<Prisma.GitRepositoryConnectionCreateWithoutProductReleasesInput, Prisma.GitRepositoryConnectionUncheckedCreateWithoutProductReleasesInput>
+  where?: Prisma.GitRepositoryConnectionWhereInput
+}
+
+export type GitRepositoryConnectionUpdateToOneWithWhereWithoutProductReleasesInput = {
+  where?: Prisma.GitRepositoryConnectionWhereInput
+  data: Prisma.XOR<Prisma.GitRepositoryConnectionUpdateWithoutProductReleasesInput, Prisma.GitRepositoryConnectionUncheckedUpdateWithoutProductReleasesInput>
+}
+
+export type GitRepositoryConnectionUpdateWithoutProductReleasesInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  provider?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  owner?: Prisma.StringFieldUpdateOperationsInput | string
+  repository?: Prisma.StringFieldUpdateOperationsInput | string
+  defaultBranch?: Prisma.StringFieldUpdateOperationsInput | string
+  webhookSecretHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  accessTokenRef?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  active?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  createdBy?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  taskLinks?: Prisma.GitTaskLinkUpdateManyWithoutRepositoryNestedInput
+  policies?: Prisma.DefinitionOfDonePolicyUpdateManyWithoutRepositoryNestedInput
+  evidence?: Prisma.GitEvidenceUpdateManyWithoutRepositoryNestedInput
+}
+
+export type GitRepositoryConnectionUncheckedUpdateWithoutProductReleasesInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  provider?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  owner?: Prisma.StringFieldUpdateOperationsInput | string
+  repository?: Prisma.StringFieldUpdateOperationsInput | string
+  defaultBranch?: Prisma.StringFieldUpdateOperationsInput | string
+  webhookSecretHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  accessTokenRef?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  active?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  createdBy?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  taskLinks?: Prisma.GitTaskLinkUncheckedUpdateManyWithoutRepositoryNestedInput
+  policies?: Prisma.DefinitionOfDonePolicyUncheckedUpdateManyWithoutRepositoryNestedInput
+  evidence?: Prisma.GitEvidenceUncheckedUpdateManyWithoutRepositoryNestedInput
+}
+
 export type GitRepositoryConnectionCreateWithoutTaskLinksInput = {
   id: string
   provider: string
@@ -548,6 +659,7 @@ export type GitRepositoryConnectionCreateWithoutTaskLinksInput = {
   updatedAt?: Date | string
   policies?: Prisma.DefinitionOfDonePolicyCreateNestedManyWithoutRepositoryInput
   evidence?: Prisma.GitEvidenceCreateNestedManyWithoutRepositoryInput
+  productReleases?: Prisma.ProductReleaseCreateNestedManyWithoutRepositoryInput
 }
 
 export type GitRepositoryConnectionUncheckedCreateWithoutTaskLinksInput = {
@@ -565,6 +677,7 @@ export type GitRepositoryConnectionUncheckedCreateWithoutTaskLinksInput = {
   updatedAt?: Date | string
   policies?: Prisma.DefinitionOfDonePolicyUncheckedCreateNestedManyWithoutRepositoryInput
   evidence?: Prisma.GitEvidenceUncheckedCreateNestedManyWithoutRepositoryInput
+  productReleases?: Prisma.ProductReleaseUncheckedCreateNestedManyWithoutRepositoryInput
 }
 
 export type GitRepositoryConnectionCreateOrConnectWithoutTaskLinksInput = {
@@ -598,6 +711,7 @@ export type GitRepositoryConnectionUpdateWithoutTaskLinksInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   policies?: Prisma.DefinitionOfDonePolicyUpdateManyWithoutRepositoryNestedInput
   evidence?: Prisma.GitEvidenceUpdateManyWithoutRepositoryNestedInput
+  productReleases?: Prisma.ProductReleaseUpdateManyWithoutRepositoryNestedInput
 }
 
 export type GitRepositoryConnectionUncheckedUpdateWithoutTaskLinksInput = {
@@ -615,6 +729,7 @@ export type GitRepositoryConnectionUncheckedUpdateWithoutTaskLinksInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   policies?: Prisma.DefinitionOfDonePolicyUncheckedUpdateManyWithoutRepositoryNestedInput
   evidence?: Prisma.GitEvidenceUncheckedUpdateManyWithoutRepositoryNestedInput
+  productReleases?: Prisma.ProductReleaseUncheckedUpdateManyWithoutRepositoryNestedInput
 }
 
 export type GitRepositoryConnectionCreateWithoutPoliciesInput = {
@@ -632,6 +747,7 @@ export type GitRepositoryConnectionCreateWithoutPoliciesInput = {
   updatedAt?: Date | string
   taskLinks?: Prisma.GitTaskLinkCreateNestedManyWithoutRepositoryInput
   evidence?: Prisma.GitEvidenceCreateNestedManyWithoutRepositoryInput
+  productReleases?: Prisma.ProductReleaseCreateNestedManyWithoutRepositoryInput
 }
 
 export type GitRepositoryConnectionUncheckedCreateWithoutPoliciesInput = {
@@ -649,6 +765,7 @@ export type GitRepositoryConnectionUncheckedCreateWithoutPoliciesInput = {
   updatedAt?: Date | string
   taskLinks?: Prisma.GitTaskLinkUncheckedCreateNestedManyWithoutRepositoryInput
   evidence?: Prisma.GitEvidenceUncheckedCreateNestedManyWithoutRepositoryInput
+  productReleases?: Prisma.ProductReleaseUncheckedCreateNestedManyWithoutRepositoryInput
 }
 
 export type GitRepositoryConnectionCreateOrConnectWithoutPoliciesInput = {
@@ -682,6 +799,7 @@ export type GitRepositoryConnectionUpdateWithoutPoliciesInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   taskLinks?: Prisma.GitTaskLinkUpdateManyWithoutRepositoryNestedInput
   evidence?: Prisma.GitEvidenceUpdateManyWithoutRepositoryNestedInput
+  productReleases?: Prisma.ProductReleaseUpdateManyWithoutRepositoryNestedInput
 }
 
 export type GitRepositoryConnectionUncheckedUpdateWithoutPoliciesInput = {
@@ -699,6 +817,7 @@ export type GitRepositoryConnectionUncheckedUpdateWithoutPoliciesInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   taskLinks?: Prisma.GitTaskLinkUncheckedUpdateManyWithoutRepositoryNestedInput
   evidence?: Prisma.GitEvidenceUncheckedUpdateManyWithoutRepositoryNestedInput
+  productReleases?: Prisma.ProductReleaseUncheckedUpdateManyWithoutRepositoryNestedInput
 }
 
 export type GitRepositoryConnectionCreateWithoutEvidenceInput = {
@@ -716,6 +835,7 @@ export type GitRepositoryConnectionCreateWithoutEvidenceInput = {
   updatedAt?: Date | string
   taskLinks?: Prisma.GitTaskLinkCreateNestedManyWithoutRepositoryInput
   policies?: Prisma.DefinitionOfDonePolicyCreateNestedManyWithoutRepositoryInput
+  productReleases?: Prisma.ProductReleaseCreateNestedManyWithoutRepositoryInput
 }
 
 export type GitRepositoryConnectionUncheckedCreateWithoutEvidenceInput = {
@@ -733,6 +853,7 @@ export type GitRepositoryConnectionUncheckedCreateWithoutEvidenceInput = {
   updatedAt?: Date | string
   taskLinks?: Prisma.GitTaskLinkUncheckedCreateNestedManyWithoutRepositoryInput
   policies?: Prisma.DefinitionOfDonePolicyUncheckedCreateNestedManyWithoutRepositoryInput
+  productReleases?: Prisma.ProductReleaseUncheckedCreateNestedManyWithoutRepositoryInput
 }
 
 export type GitRepositoryConnectionCreateOrConnectWithoutEvidenceInput = {
@@ -766,6 +887,7 @@ export type GitRepositoryConnectionUpdateWithoutEvidenceInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   taskLinks?: Prisma.GitTaskLinkUpdateManyWithoutRepositoryNestedInput
   policies?: Prisma.DefinitionOfDonePolicyUpdateManyWithoutRepositoryNestedInput
+  productReleases?: Prisma.ProductReleaseUpdateManyWithoutRepositoryNestedInput
 }
 
 export type GitRepositoryConnectionUncheckedUpdateWithoutEvidenceInput = {
@@ -783,6 +905,7 @@ export type GitRepositoryConnectionUncheckedUpdateWithoutEvidenceInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   taskLinks?: Prisma.GitTaskLinkUncheckedUpdateManyWithoutRepositoryNestedInput
   policies?: Prisma.DefinitionOfDonePolicyUncheckedUpdateManyWithoutRepositoryNestedInput
+  productReleases?: Prisma.ProductReleaseUncheckedUpdateManyWithoutRepositoryNestedInput
 }
 
 
@@ -794,12 +917,14 @@ export type GitRepositoryConnectionCountOutputType = {
   taskLinks: number
   policies: number
   evidence: number
+  productReleases: number
 }
 
 export type GitRepositoryConnectionCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   taskLinks?: boolean | GitRepositoryConnectionCountOutputTypeCountTaskLinksArgs
   policies?: boolean | GitRepositoryConnectionCountOutputTypeCountPoliciesArgs
   evidence?: boolean | GitRepositoryConnectionCountOutputTypeCountEvidenceArgs
+  productReleases?: boolean | GitRepositoryConnectionCountOutputTypeCountProductReleasesArgs
 }
 
 /**
@@ -833,6 +958,13 @@ export type GitRepositoryConnectionCountOutputTypeCountEvidenceArgs<ExtArgs exte
   where?: Prisma.GitEvidenceWhereInput
 }
 
+/**
+ * GitRepositoryConnectionCountOutputType without action
+ */
+export type GitRepositoryConnectionCountOutputTypeCountProductReleasesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.ProductReleaseWhereInput
+}
+
 
 export type GitRepositoryConnectionSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -850,6 +982,7 @@ export type GitRepositoryConnectionSelect<ExtArgs extends runtime.Types.Extensio
   taskLinks?: boolean | Prisma.GitRepositoryConnection$taskLinksArgs<ExtArgs>
   policies?: boolean | Prisma.GitRepositoryConnection$policiesArgs<ExtArgs>
   evidence?: boolean | Prisma.GitRepositoryConnection$evidenceArgs<ExtArgs>
+  productReleases?: boolean | Prisma.GitRepositoryConnection$productReleasesArgs<ExtArgs>
   _count?: boolean | Prisma.GitRepositoryConnectionCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["gitRepositoryConnection"]>
 
@@ -903,6 +1036,7 @@ export type GitRepositoryConnectionInclude<ExtArgs extends runtime.Types.Extensi
   taskLinks?: boolean | Prisma.GitRepositoryConnection$taskLinksArgs<ExtArgs>
   policies?: boolean | Prisma.GitRepositoryConnection$policiesArgs<ExtArgs>
   evidence?: boolean | Prisma.GitRepositoryConnection$evidenceArgs<ExtArgs>
+  productReleases?: boolean | Prisma.GitRepositoryConnection$productReleasesArgs<ExtArgs>
   _count?: boolean | Prisma.GitRepositoryConnectionCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type GitRepositoryConnectionIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
@@ -914,6 +1048,7 @@ export type $GitRepositoryConnectionPayload<ExtArgs extends runtime.Types.Extens
     taskLinks: Prisma.$GitTaskLinkPayload<ExtArgs>[]
     policies: Prisma.$DefinitionOfDonePolicyPayload<ExtArgs>[]
     evidence: Prisma.$GitEvidencePayload<ExtArgs>[]
+    productReleases: Prisma.$ProductReleasePayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -1325,6 +1460,7 @@ export interface Prisma__GitRepositoryConnectionClient<T, Null = never, ExtArgs 
   taskLinks<T extends Prisma.GitRepositoryConnection$taskLinksArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.GitRepositoryConnection$taskLinksArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$GitTaskLinkPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   policies<T extends Prisma.GitRepositoryConnection$policiesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.GitRepositoryConnection$policiesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$DefinitionOfDonePolicyPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   evidence<T extends Prisma.GitRepositoryConnection$evidenceArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.GitRepositoryConnection$evidenceArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$GitEvidencePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  productReleases<T extends Prisma.GitRepositoryConnection$productReleasesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.GitRepositoryConnection$productReleasesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ProductReleasePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1823,6 +1959,30 @@ export type GitRepositoryConnection$evidenceArgs<ExtArgs extends runtime.Types.E
   take?: number
   skip?: number
   distinct?: Prisma.GitEvidenceScalarFieldEnum | Prisma.GitEvidenceScalarFieldEnum[]
+}
+
+/**
+ * GitRepositoryConnection.productReleases
+ */
+export type GitRepositoryConnection$productReleasesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the ProductRelease
+   */
+  select?: Prisma.ProductReleaseSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the ProductRelease
+   */
+  omit?: Prisma.ProductReleaseOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ProductReleaseInclude<ExtArgs> | null
+  where?: Prisma.ProductReleaseWhereInput
+  orderBy?: Prisma.ProductReleaseOrderByWithRelationInput | Prisma.ProductReleaseOrderByWithRelationInput[]
+  cursor?: Prisma.ProductReleaseWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.ProductReleaseScalarFieldEnum | Prisma.ProductReleaseScalarFieldEnum[]
 }
 
 /**

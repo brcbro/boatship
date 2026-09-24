@@ -69,6 +69,7 @@ function DocumentsPageInner() {
   const searchParams = useSearchParams();
   const taskIdFromQuery = searchParams.get("taskId") || "";
   const { session, token, loading: authLoading } = useAuth();
+  const clientId = session?.clientId;
 
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
   const [allTasks, setAllTasks] = useState<Task[]>([]);
@@ -92,9 +93,10 @@ function DocumentsPageInner() {
     for (const t of allTasks) map.set(t.id, t);
     return map;
   }, [allTasks]);
+  const selectedTask = taskMap.get(taskId);
 
   const load = useCallback(async () => {
-    if (!session?.clientId) {
+    if (!clientId) {
       setError("No client account is linked to this user.");
       setLoading(false);
       return;
@@ -103,7 +105,6 @@ function DocumentsPageInner() {
     setLoading(true);
     setError("");
     try {
-      const clientId = session.clientId;
       const [docsRes, tasksRes] = await Promise.all([
         apiFetch<{ documents: DocumentRecord[] }>(
           `/api/documents?clientId=${encodeURIComponent(clientId)}`,
@@ -124,15 +125,18 @@ function DocumentsPageInner() {
     } finally {
       setLoading(false);
     }
-  }, [session?.clientId, token]);
+  }, [clientId, token]);
 
   useEffect(() => {
     if (authLoading) return;
-    void load();
+    const timer = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timer);
   }, [authLoading, load]);
 
   useEffect(() => {
-    if (taskIdFromQuery) setTaskId(taskIdFromQuery);
+    if (!taskIdFromQuery) return;
+    const timer = window.setTimeout(() => setTaskId(taskIdFromQuery), 0);
+    return () => window.clearTimeout(timer);
   }, [taskIdFromQuery]);
 
   async function onUpload(e: FormEvent) {
@@ -212,10 +216,7 @@ function DocumentsPageInner() {
     return (
       <div>
         <PageHeader title="Documents" />
-        <EmptyState
-          title="No client linked"
-          description="No client account is linked to this user."
-        />
+        <Card><h2 className="text-lg font-semibold text-[var(--ink)]">Your account needs a client workspace</h2><p className="mt-2 max-w-prose text-sm leading-6 text-[var(--ink-muted)]">Ask your Boatship workspace administrator to connect your account. Share your sign-in email: <span className="font-medium text-[var(--ink)]">{session?.email || "the email you used to sign in"}</span>.</p></Card>
       </div>
     );
   }
@@ -224,7 +225,7 @@ function DocumentsPageInner() {
     <div>
       <PageHeader
         title="Documents"
-        description="Upload required files for review. PDF and images up to 10MB."
+        description="See what your team has requested and track every file through review."
       />
 
       {error ? (
@@ -238,10 +239,13 @@ function DocumentsPageInner() {
         </p>
       ) : null}
 
+      {uploadTasks.length > 0 ? <section aria-labelledby="requested-files-heading" className="mb-8"><div className="mb-3"><h2 id="requested-files-heading" className="font-[family-name:var(--font-display)] text-xl text-[var(--ink)]">Files your team needs</h2><p className="mt-1 text-sm text-[var(--ink-muted)]">Choose a request to attach your upload to the right task.</p></div><div className="space-y-3">{uploadTasks.map((task) => { const related = documents.filter((doc) => doc.taskId === task.id); const latest = related[0]; return <Card key={task.id} className="p-4 sm:p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-sm font-semibold text-[var(--ink)]">{task.title}</h3>{task.description ? <p className="mt-1 max-w-prose text-sm leading-6 text-[var(--ink-muted)]">{task.description}</p> : null}<p className="mt-2 text-xs text-[var(--ink-muted)]">{task.dueDate ? `Due ${formatDate(task.dueDate)} · ` : ""}{latest ? `Latest upload: ${statusLabel(latest.status)}` : "No file uploaded yet"}</p>{latest?.reviewNote ? <p className="mt-2 text-sm text-[var(--danger)]">Team feedback: {latest.reviewNote}</p> : null}</div><Button type="button" variant="secondary" onClick={() => { setTaskId(task.id); window.document.getElementById("document-file")?.focus(); }}>{latest?.status === "rejected" ? "Replace file" : "Upload for this task"}</Button></div></Card>; })}</div></section> : null}
+
       <Card className="mb-8">
         <h2 className="mb-4 font-[family-name:var(--font-display)] text-lg text-[var(--ink)]">
-          Upload a document
+          {selectedTask ? `Upload for ${selectedTask.title}` : "Upload another document"}
         </h2>
+        {selectedTask ? <p className="mb-4 text-sm leading-6 text-[var(--ink-muted)]">{selectedTask.description || "Attach a file requested for this task."}{selectedTask.dueDate ? ` Due ${formatDate(selectedTask.dueDate)}.` : ""}</p> : <p className="mb-4 text-sm text-[var(--ink-muted)]">Use this for files your team has not specifically requested.</p>}
         <form onSubmit={(e) => void onUpload(e)} className="space-y-4">
           <div>
             <Label htmlFor="document-file">File</Label>

@@ -9,11 +9,13 @@ export async function GET(req: Request) {
   return handleApi(async () => {
     const session = await requireSession(req);
     const url = new URL(req.url);
-    const clientId = url.searchParams.get("clientId") || undefined;
+    const requestedClientId = url.searchParams.get("clientId") || undefined;
+    const clientId = session.role === "client" ? session.clientId || undefined : requestedClientId;
+    if (requestedClientId && !canAccessClient(session, requestedClientId)) throw jsonError("Forbidden", 403);
     if (clientId && !canAccessClient(session, clientId)) throw jsonError("Forbidden", 403);
     const ops = await listProjectOps();
     const reports = session.role === "client" ? [] : await weeklyEvidenceReport(clientId);
-    return { ...ops, milestones: clientId ? ops.milestones.filter((item) => item.clientId === clientId) : ops.milestones, approvals: clientId ? ops.approvals.filter((item) => item.clientId === clientId) : ops.approvals, reports };
+    return { ...ops, milestones: session.role === "client" || clientId ? ops.milestones.filter((item) => item.clientId === clientId) : ops.milestones, approvals: session.role === "client" || clientId ? ops.approvals.filter((item) => item.clientId === clientId) : ops.approvals, reports };
   });
 }
 
@@ -36,7 +38,19 @@ export async function POST(req: Request) {
     }
     if (action === "approval-review") {
       await requireRoles(req, ["admin", "team", "client"]);
-      return { approval: await updateApproval(String(body.approvalId || ""), body.status === "approved" ? "approved" : "changes_requested", session.uid) };
+      const approvalId = String(body.approvalId || "");
+      const status = body.status;
+      const reviewNote = String(body.reviewNote || "").trim();
+      if (!approvalId || (status !== "approved" && status !== "changes_requested")) throw jsonError("A valid approval and decision are required", 400);
+      if (status === "changes_requested" && !reviewNote) throw jsonError("Explain what needs to change", 400);
+      if (reviewNote.length > 2000) throw jsonError("Review note must be 2000 characters or less", 400);
+      const approval = (await listProjectOps()).approvals.find((item) => item.id === approvalId);
+      if (!approval) throw jsonError("Approval not found", 404);
+      if (!canAccessClient(session, approval.clientId)) throw jsonError("Forbidden", 403);
+      if (approval.status !== "pending") throw jsonError("This approval has already been reviewed", 409);
+      const updated = await updateApproval(approvalId, status, session.uid, reviewNote || null);
+      if (!updated) throw jsonError("This approval has already been reviewed", 409);
+      return { approval: updated };
     }
     if (action === "integration") {
       await requireRoles(req, ["admin", "team"]);

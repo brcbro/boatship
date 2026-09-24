@@ -29,6 +29,13 @@ export const ModelName = {
   McpProjectAccess: 'McpProjectAccess',
   McpAuditEvent: 'McpAuditEvent',
   GitRepositoryConnection: 'GitRepositoryConnection',
+  Product: 'Product',
+  ProductActivity: 'ProductActivity',
+  ProductMember: 'ProductMember',
+  ProductMilestone: 'ProductMilestone',
+  ProductWorkItem: 'ProductWorkItem',
+  ProductRelease: 'ProductRelease',
+  ProductReleaseWorkItem: 'ProductReleaseWorkItem',
   GitTaskLink: 'GitTaskLink',
   DefinitionOfDonePolicy: 'DefinitionOfDonePolicy',
   GitValidationRun: 'GitValidationRun',
@@ -199,6 +206,105 @@ export const GitRepositoryConnectionScalarFieldEnum = {
 } as const
 
 export type GitRepositoryConnectionScalarFieldEnum = (typeof GitRepositoryConnectionScalarFieldEnum)[keyof typeof GitRepositoryConnectionScalarFieldEnum]
+
+
+export const ProductScalarFieldEnum = {
+  id: 'id',
+  name: 'name',
+  slug: 'slug',
+  type: 'type',
+  description: 'description',
+  stage: 'stage',
+  ownerId: 'ownerId',
+  visibility: 'visibility',
+  websiteUrl: 'websiteUrl',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ProductScalarFieldEnum = (typeof ProductScalarFieldEnum)[keyof typeof ProductScalarFieldEnum]
+
+
+export const ProductActivityScalarFieldEnum = {
+  id: 'id',
+  productId: 'productId',
+  actorId: 'actorId',
+  action: 'action',
+  metadata: 'metadata',
+  createdAt: 'createdAt'
+} as const
+
+export type ProductActivityScalarFieldEnum = (typeof ProductActivityScalarFieldEnum)[keyof typeof ProductActivityScalarFieldEnum]
+
+
+export const ProductMemberScalarFieldEnum = {
+  id: 'id',
+  productId: 'productId',
+  userId: 'userId',
+  role: 'role',
+  createdAt: 'createdAt'
+} as const
+
+export type ProductMemberScalarFieldEnum = (typeof ProductMemberScalarFieldEnum)[keyof typeof ProductMemberScalarFieldEnum]
+
+
+export const ProductMilestoneScalarFieldEnum = {
+  id: 'id',
+  productId: 'productId',
+  title: 'title',
+  description: 'description',
+  targetDate: 'targetDate',
+  status: 'status',
+  ownerId: 'ownerId',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ProductMilestoneScalarFieldEnum = (typeof ProductMilestoneScalarFieldEnum)[keyof typeof ProductMilestoneScalarFieldEnum]
+
+
+export const ProductWorkItemScalarFieldEnum = {
+  id: 'id',
+  productId: 'productId',
+  milestoneId: 'milestoneId',
+  title: 'title',
+  description: 'description',
+  status: 'status',
+  priority: 'priority',
+  assigneeId: 'assigneeId',
+  dueDate: 'dueDate',
+  dependencyIds: 'dependencyIds',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ProductWorkItemScalarFieldEnum = (typeof ProductWorkItemScalarFieldEnum)[keyof typeof ProductWorkItemScalarFieldEnum]
+
+
+export const ProductReleaseScalarFieldEnum = {
+  id: 'id',
+  productId: 'productId',
+  version: 'version',
+  environment: 'environment',
+  status: 'status',
+  releasedAt: 'releasedAt',
+  notes: 'notes',
+  repositoryId: 'repositoryId',
+  commitSha: 'commitSha',
+  deploymentUrl: 'deploymentUrl',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ProductReleaseScalarFieldEnum = (typeof ProductReleaseScalarFieldEnum)[keyof typeof ProductReleaseScalarFieldEnum]
+
+
+export const ProductReleaseWorkItemScalarFieldEnum = {
+  releaseId: 'releaseId',
+  workItemId: 'workItemId'
+} as const
+
+export type ProductReleaseWorkItemScalarFieldEnum = (typeof ProductReleaseWorkItemScalarFieldEnum)[keyof typeof ProductReleaseWorkItemScalarFieldEnum]
 
 
 export const GitTaskLinkScalarFieldEnum = {

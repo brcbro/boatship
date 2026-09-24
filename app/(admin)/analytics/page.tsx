@@ -160,7 +160,7 @@ export default function AnalyticsPage() {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(data.error || `Download failed (${res.status})`);
       }
       const blob = await res.blob();

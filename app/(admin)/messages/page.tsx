@@ -36,6 +36,11 @@ function messageDay(value: string) {
   }).format(new Date(value));
 }
 
+function uniqueMessages(messages: PortalMessage[]) {
+  const seen = new Set<string>();
+  return messages.filter((message) => !seen.has(message.id) && Boolean(seen.add(message.id)));
+}
+
 function AdminMessagesInner() {
   const { session, token } = useAuth();
   const searchParams = useSearchParams();
@@ -86,7 +91,7 @@ function AdminMessagesInner() {
         `/api/messages?clientId=${encodeURIComponent(clientId)}`,
         { token }
       );
-      setMessages(data.messages);
+      setMessages(uniqueMessages(data.messages));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load messages");
     } finally {
@@ -106,7 +111,7 @@ function AdminMessagesInner() {
     clientId,
     token,
     onMessage: useCallback((message: PortalMessage) => {
-      setMessages((current) => current.some((item) => item.id === message.id) ? current : [...current, message]);
+      setMessages((current) => uniqueMessages([...current, message]));
     }, []),
   });
   useMessagePolling(() => loadMessages(true), Boolean(clientId) && !liveConnected);
@@ -147,7 +152,7 @@ function AdminMessagesInner() {
         token,
         body: JSON.stringify({ clientId, body: body.trim() }),
       });
-      setMessages((prev) => [...prev, data.message]);
+      setMessages((prev) => uniqueMessages([...prev, data.message]));
       setBody("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send message");
@@ -233,7 +238,7 @@ function AdminMessagesInner() {
                   const newDay = !previous || new Date(previous.createdAt).toDateString() !== new Date(m.createdAt).toDateString();
                   const newAuthor = !previous || previous.authorId !== m.authorId || newDay;
                   return (
-                    <div key={m.id}>
+                    <div key={`${m.id}-${index}`}>
                       {newDay ? <div className="my-5 flex items-center gap-3 first:mt-0"><span className="h-px flex-1 bg-[var(--border)]" /><span className="shrink-0 text-[11px] font-medium text-[var(--ink-muted)]">{messageDay(m.createdAt)}</span><span className="h-px flex-1 bg-[var(--border)]" /></div> : null}
                       <div className={cn("flex gap-2.5", mine ? "justify-end" : "justify-start")}>
                         {!mine && newAuthor ? <div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--surface-2)] text-[10px] font-semibold text-[var(--ink-muted)]" aria-hidden="true">{m.authorName.slice(0, 1).toUpperCase()}</div> : !mine ? <div className="w-7 shrink-0" /> : null}

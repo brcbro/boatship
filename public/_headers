@@ -16,9 +16,6 @@
 /reference-home-static/assets/*
   Cache-Control: public, max-age=604800, stale-while-revalidate=86400
 
-/reference-home-static/videos/*
-  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
-
 /reference-home-static/fonts/*
   Cache-Control: public, max-age=2592000, stale-while-revalidate=604800
 

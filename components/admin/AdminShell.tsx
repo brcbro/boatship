@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   BarChart3,
   Bot,
@@ -10,12 +10,14 @@ import {
   CalendarDays,
   WalletCards,
   ClipboardCheck,
+  BellRing,
   FileText,
   Gauge,
   LayoutDashboard,
   MessageSquare,
   Menu,
   Plug,
+  Boxes,
   ShieldCheck,
   Users,
   UsersRound,
@@ -31,27 +33,39 @@ import { cn, statusLabel } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: LucideIcon; adminOnly?: boolean };
+type NavGroup = { label: string; items: readonly NavItem[] };
 
-const NAV: readonly NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/clients", label: "Clients", icon: Users },
-  { href: "/team", label: "Team", icon: UsersRound },
-  { href: "/workload", label: "Workload", icon: Gauge },
-  { href: "/projects", label: "Projects", icon: ClipboardCheck },
-  { href: "/workspace", label: "Workspace", icon: UsersRound },
-  { href: "/calendar", label: "Calendar", icon: CalendarDays },
-  { href: "/messages", label: "Messages", icon: MessageSquare },
-  { href: "/templates", label: "Templates", icon: ClipboardCheck },
-  { href: "/forms", label: "Forms", icon: FileText },
-  { href: "/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/accounting", label: "Accounting", icon: WalletCards, adminOnly: true },
-  { href: "/integrations", label: "Integrations", icon: Plug },
-  { href: "/webhooks", label: "Webhooks", icon: Webhook },
-  { href: "/mcp", label: "MCP access", icon: KeyRound },
-  { href: "/compliance", label: "Compliance", icon: ShieldCheck },
-  { href: "/hodi", label: "Hodi dashboard", icon: Bot },
-  { href: "/automations", label: "Automations", icon: Sparkles },
-  { href: "/agent", label: "Hodi", icon: Bot },
+const NAV_GROUPS: readonly NavGroup[] = [
+  { label: "Today", items: [
+    { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
+    { href: "/tasks", label: "Approval queue", icon: ClipboardCheck },
+    { href: "/messages", label: "Messages", icon: MessageSquare },
+    { href: "/reminders", label: "Reminder scan", icon: BellRing },
+  ] },
+  { label: "Client delivery", items: [
+    { href: "/clients", label: "Clients", icon: Users },
+    { href: "/projects", label: "Projects", icon: ClipboardCheck },
+    { href: "/workspace", label: "Workspace", icon: UsersRound },
+    { href: "/calendar", label: "Calendar", icon: CalendarDays },
+    { href: "/forms", label: "Forms", icon: FileText },
+  ] },
+  { label: "Products", items: [{ href: "/products", label: "Products", icon: Boxes }] },
+  { label: "Team and insight", items: [
+    { href: "/team", label: "Team", icon: UsersRound },
+    { href: "/workload", label: "Workload", icon: Gauge },
+    { href: "/analytics", label: "Analytics", icon: BarChart3 },
+    { href: "/accounting", label: "Accounting", icon: WalletCards, adminOnly: true },
+  ] },
+  { label: "Tools and settings", items: [
+    { href: "/templates", label: "Templates", icon: ClipboardCheck },
+    { href: "/hodi", label: "Hodi dashboard", icon: Bot },
+    { href: "/agent", label: "Hodi agent", icon: Bot },
+    { href: "/automations", label: "Automations", icon: Sparkles },
+    { href: "/integrations", label: "Integrations", icon: Plug },
+    { href: "/webhooks", label: "Webhooks", icon: Webhook },
+    { href: "/mcp", label: "MCP access", icon: KeyRound },
+    { href: "/compliance", label: "Compliance", icon: ShieldCheck },
+  ] },
 ] as const;
 
 function isActive(pathname: string, href: string) {
@@ -66,13 +80,35 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const drawerRef = useRef<HTMLElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) return;
     const previousOverflow = document.body.style.overflow;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const menuButton = menuButtonRef.current;
     document.body.style.overflow = "hidden";
+    closeButtonRef.current?.focus();
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+        return;
+      }
+      if (event.key !== "Tab" || !drawerRef.current) return;
+      const focusable = Array.from(drawerRef.current.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'));
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!first || !last) return;
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    }
+    document.addEventListener("keydown", onKeyDown);
     return () => {
       document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKeyDown);
+      (menuButton ?? previousFocus)?.focus();
     };
   }, [open]);
 
@@ -99,9 +135,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
   function nav(compact = false) {
     return (
-    <nav className="flex flex-col gap-1">
-      {NAV.filter((item) => !item.adminOnly || session?.role === "admin").map((item) => (
-        (() => {
+    <nav aria-label="Admin navigation" className="flex flex-col gap-5">
+      {NAV_GROUPS.map((group) => <div key={group.label} className="space-y-1">
+        {compact ? <span className="sr-only">{group.label}</span> : <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">{group.label}</p>}
+        {group.items.filter((item) => !item.adminOnly || session?.role === "admin").map((item) => {
           const Icon = item.icon;
           return <Link
             key={item.href}
@@ -109,6 +146,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             prefetch={false}
             onClick={() => setOpen(false)}
             title={compact ? item.label : undefined}
+            aria-current={isActive(pathname, item.href) ? "page" : undefined}
             className={cn(
               "group flex items-center rounded-lg py-2.5 text-sm font-medium transition-all duration-200",
               compact ? "justify-center px-2" : "gap-3 px-3",
@@ -120,8 +158,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
             {compact ? <span className="sr-only">{item.label}</span> : item.label}
           </Link>;
-        })()
-      ))}
+        })}
+      </div>)}
     </nav>
     );
   }
@@ -194,8 +232,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         <div className="flex items-center gap-1">
           <NotificationBell tone="light" />
           <button
+            ref={menuButtonRef}
             type="button"
             aria-label={open ? "Close menu" : "Open menu"}
+            aria-expanded={open}
+            aria-controls="admin-mobile-menu"
             className="flex h-11 w-11 items-center justify-center rounded-md text-[var(--ink)] hover:bg-[var(--surface-2)]"
             onClick={() => setOpen((v) => !v)}
           >
@@ -214,6 +255,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             onClick={() => setOpen(false)}
           />
           <aside
+            id="admin-mobile-menu"
+            ref={drawerRef}
             role="dialog"
             aria-modal="true"
             aria-label="Navigation menu"
@@ -222,6 +265,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             <div className="mb-8 flex items-center justify-between px-2">
               <img src="/brand/boatship-logo-white.png" alt="Boatship" className="h-7 w-auto max-w-[9rem] object-contain" />
               <button
+                ref={closeButtonRef}
                 type="button"
                 aria-label="Close"
                 className="flex h-11 w-11 items-center justify-center rounded-md hover:bg-white/10"

@@ -2,6 +2,8 @@
 
 import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
+import Image from "next/image";
 import { useAuth } from "@/components/shared/AuthProvider";
 import { Button, Card, Input, Label } from "@/components/shared/ui";
 
@@ -25,6 +27,7 @@ function LoginContent() {
   const [mode, setMode] = useState<Mode>(resetToken ? "reset" : "login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -120,19 +123,20 @@ function LoginContent() {
       ? "Enter your email and we’ll send a reset link if an account exists."
       : mode === "reset"
         ? "Choose a password to finish inviting or resetting your account."
-        : "Connected onboarding for websites, apps, marketing, content, and growth campaigns.";
+        : "Your client onboarding and delivery workspace.";
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-10">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--brand)] p-3 shadow-lg shadow-slate-900/10">
-            <img src="/brand/boatship-b-white.png" alt="Boatship" className="h-full w-full object-contain" />
+            <Image src="/brand/boatship-b-white.png" alt="Boatship" width={56} height={56} className="h-full w-full object-contain" />
           </div>
           <h1 className="font-[family-name:var(--font-display)] text-4xl text-[var(--brand)]">
             {title}
           </h1>
           <p className="mt-2 text-sm text-[var(--ink-muted)]">{subtitle}</p>
+          <Link href="/" className="mt-4 inline-block text-sm font-medium text-[var(--ink-muted)] underline underline-offset-4 hover:text-[var(--ink)]">Back to Boatship home</Link>
         </div>
 
         <Card>
@@ -150,10 +154,10 @@ function LoginContent() {
                 />
               </div>
               <div>
-                <Label htmlFor="password">Password</Label>
+                <div className="flex items-center justify-between gap-3"><Label htmlFor="password">Password</Label><button type="button" className="text-sm font-medium text-[var(--ink-muted)] underline underline-offset-2 hover:text-[var(--ink)]" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Hide password" : "Show password"}>{showPassword ? "Hide" : "Show"}</button></div>
                 <Input
                   id="password"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -214,10 +218,10 @@ function LoginContent() {
           {mode === "reset" ? (
             <form onSubmit={onReset} className="space-y-4">
               <div>
-                <Label htmlFor="new-password">New password</Label>
+                <div className="flex items-center justify-between gap-3"><Label htmlFor="new-password">New password</Label><button type="button" className="text-sm font-medium text-[var(--ink-muted)] underline underline-offset-2 hover:text-[var(--ink)]" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Hide passwords" : "Show passwords"}>{showPassword ? "Hide" : "Show"}</button></div>
                 <Input
                   id="new-password"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -229,7 +233,7 @@ function LoginContent() {
                 <Label htmlFor="confirm-password">Confirm password</Label>
                 <Input
                   id="confirm-password"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   autoComplete="new-password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}

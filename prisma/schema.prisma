@@ -177,9 +177,128 @@ model GitRepositoryConnection {
   taskLinks       GitTaskLink[]
   policies        DefinitionOfDonePolicy[]
   evidence        GitEvidence[]
+  productReleases ProductRelease[]
 
   @@index([provider, owner, repository])
   @@index([createdBy])
+}
+
+model Product {
+  id          String   @id
+  name        String
+  slug        String   @unique
+  type        String
+  description String   @default("")
+  stage       String   @default("idea")
+  ownerId     String
+  visibility  String   @default("members")
+  websiteUrl  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members    ProductMember[]
+  milestones ProductMilestone[]
+  workItems  ProductWorkItem[]
+  releases   ProductRelease[]
+  activities ProductActivity[]
+
+  @@index([ownerId])
+  @@index([stage])
+}
+
+model ProductActivity {
+  id        String   @id
+  productId String
+  actorId   String
+  action    String
+  metadata  Json
+  createdAt DateTime @default(now())
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, createdAt])
+  @@index([actorId, createdAt])
+}
+
+model ProductMember {
+  id        String   @id
+  productId String
+  userId    String
+  role      String
+  createdAt DateTime @default(now())
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, userId])
+  @@index([userId])
+}
+
+model ProductMilestone {
+  id          String    @id
+  productId   String
+  title       String
+  description String    @default("")
+  targetDate  DateTime?
+  status      String    @default("planned")
+  ownerId     String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  workItems   ProductWorkItem[]
+
+  @@index([productId, status])
+  @@index([targetDate])
+}
+
+model ProductWorkItem {
+  id            String    @id
+  productId     String
+  milestoneId   String?
+  title         String
+  description   String    @default("")
+  status        String    @default("todo")
+  priority      String    @default("medium")
+  assigneeId    String?
+  dueDate       DateTime?
+  dependencyIds String[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  product       Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  milestone     ProductMilestone? @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  releaseLinks  ProductReleaseWorkItem[]
+
+  @@index([productId, status])
+  @@index([assigneeId, status])
+  @@index([dueDate])
+}
+
+model ProductRelease {
+  id            String    @id
+  productId     String
+  version       String
+  environment   String    @default("production")
+  status        String    @default("planned")
+  releasedAt    DateTime?
+  notes         String    @default("")
+  repositoryId  String?
+  commitSha     String?
+  deploymentUrl String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  product       Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  repository    GitRepositoryConnection? @relation(fields: [repositoryId], references: [id], onDelete: SetNull)
+  workLinks     ProductReleaseWorkItem[]
+
+  @@index([productId, releasedAt])
+  @@index([repositoryId])
+}
+
+model ProductReleaseWorkItem {
+  releaseId  String
+  workItemId String
+  release    ProductRelease  @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+  workItem   ProductWorkItem @relation(fields: [workItemId], references: [id], onDelete: Cascade)
+
+  @@id([releaseId, workItemId])
+  @@index([workItemId])
 }
 
 model GitTaskLink {

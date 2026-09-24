@@ -1,0 +1,339 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-24T14:55:14.242Z",
+  "title": "Design System: Boatship",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Work Ink",
+        "canonical": "#141414",
+        "tonalRamp": [
+          "oklch(15% 0.004 0)",
+          "oklch(26% 0.004 0)",
+          "oklch(37% 0.004 0)",
+          "oklch(48% 0.004 0)",
+          "oklch(59% 0.004 0)",
+          "oklch(70% 0.004 0)",
+          "oklch(82% 0.004 0)",
+          "oklch(95% 0.004 0)"
+        ]
+      },
+      "primary-strong": {
+        "role": "primary",
+        "displayName": "Deep Ink",
+        "canonical": "#000000",
+        "tonalRamp": [
+          "oklch(15% 0 0)",
+          "oklch(26% 0 0)",
+          "oklch(37% 0 0)",
+          "oklch(48% 0 0)",
+          "oklch(59% 0 0)",
+          "oklch(70% 0 0)",
+          "oklch(82% 0 0)",
+          "oklch(95% 0 0)"
+        ]
+      },
+      "background": {
+        "role": "neutral",
+        "displayName": "Warm Paper",
+        "canonical": "#f3ebe0",
+        "tonalRamp": [
+          "oklch(15% 0.02 75)",
+          "oklch(26% 0.02 75)",
+          "oklch(37% 0.02 75)",
+          "oklch(48% 0.02 75)",
+          "oklch(59% 0.02 75)",
+          "oklch(70% 0.02 75)",
+          "oklch(82% 0.02 75)",
+          "oklch(95% 0.02 75)"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Quiet Paper",
+        "canonical": "#faf6f0",
+        "tonalRamp": [
+          "oklch(15% 0.014 75)",
+          "oklch(26% 0.014 75)",
+          "oklch(37% 0.014 75)",
+          "oklch(48% 0.014 75)",
+          "oklch(59% 0.014 75)",
+          "oklch(70% 0.014 75)",
+          "oklch(82% 0.014 75)",
+          "oklch(95% 0.014 75)"
+        ]
+      },
+      "surface-raised": {
+        "role": "neutral",
+        "displayName": "Raised Paper",
+        "canonical": "#fffdf9",
+        "tonalRamp": [
+          "oklch(15% 0.008 75)",
+          "oklch(26% 0.008 75)",
+          "oklch(37% 0.008 75)",
+          "oklch(48% 0.008 75)",
+          "oklch(59% 0.008 75)",
+          "oklch(70% 0.008 75)",
+          "oklch(82% 0.008 75)",
+          "oklch(95% 0.008 75)"
+        ]
+      },
+      "surface-muted": {
+        "role": "neutral",
+        "displayName": "Muted Paper",
+        "canonical": "#ebe2d6",
+        "tonalRamp": [
+          "oklch(15% 0.022 75)",
+          "oklch(26% 0.022 75)",
+          "oklch(37% 0.022 75)",
+          "oklch(48% 0.022 75)",
+          "oklch(59% 0.022 75)",
+          "oklch(70% 0.022 75)",
+          "oklch(82% 0.022 75)",
+          "oklch(95% 0.022 75)"
+        ]
+      },
+      "ink-muted": {
+        "role": "neutral",
+        "displayName": "Muted Ink",
+        "canonical": "#6b635a",
+        "tonalRamp": [
+          "oklch(15% 0.018 70)",
+          "oklch(26% 0.018 70)",
+          "oklch(37% 0.018 70)",
+          "oklch(48% 0.018 70)",
+          "oklch(59% 0.018 70)",
+          "oklch(70% 0.018 70)",
+          "oklch(82% 0.018 70)",
+          "oklch(95% 0.018 70)"
+        ]
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Soft Rule",
+        "canonical": "#d9cfc3",
+        "tonalRamp": [
+          "oklch(15% 0.019 75)",
+          "oklch(26% 0.019 75)",
+          "oklch(37% 0.019 75)",
+          "oklch(48% 0.019 75)",
+          "oklch(59% 0.019 75)",
+          "oklch(70% 0.019 75)",
+          "oklch(82% 0.019 75)",
+          "oklch(95% 0.019 75)"
+        ]
+      },
+      "editorial-accent": {
+        "role": "secondary",
+        "displayName": "Editorial Brown",
+        "canonical": "#9b5b35",
+        "tonalRamp": [
+          "oklch(15% 0.075 55)",
+          "oklch(26% 0.075 55)",
+          "oklch(37% 0.075 55)",
+          "oklch(48% 0.075 55)",
+          "oklch(59% 0.075 55)",
+          "oklch(70% 0.075 55)",
+          "oklch(82% 0.075 55)",
+          "oklch(95% 0.075 55)"
+        ]
+      },
+      "danger": {
+        "role": "status",
+        "displayName": "Danger",
+        "canonical": "#8b1e1e",
+        "tonalRamp": [
+          "oklch(15% 0.13 25)",
+          "oklch(26% 0.13 25)",
+          "oklch(37% 0.13 25)",
+          "oklch(48% 0.13 25)",
+          "oklch(59% 0.13 25)",
+          "oklch(70% 0.13 25)",
+          "oklch(82% 0.13 25)",
+          "oklch(95% 0.13 25)"
+        ]
+      },
+      "success": {
+        "role": "status",
+        "displayName": "Success",
+        "canonical": "#1f4d2e",
+        "tonalRamp": [
+          "oklch(15% 0.08 150)",
+          "oklch(26% 0.08 150)",
+          "oklch(37% 0.08 150)",
+          "oklch(48% 0.08 150)",
+          "oklch(59% 0.08 150)",
+          "oklch(70% 0.08 150)",
+          "oklch(82% 0.08 150)",
+          "oklch(95% 0.08 150)"
+        ]
+      },
+      "warning": {
+        "role": "status",
+        "displayName": "Warning",
+        "canonical": "#7a5a12",
+        "tonalRamp": [
+          "oklch(15% 0.08 85)",
+          "oklch(26% 0.08 85)",
+          "oklch(37% 0.08 85)",
+          "oklch(48% 0.08 85)",
+          "oklch(59% 0.08 85)",
+          "oklch(70% 0.08 85)",
+          "oklch(82% 0.08 85)",
+          "oklch(95% 0.08 85)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Editorial Display",
+        "purpose": "Public hero headings."
+      },
+      "headline": {
+        "displayName": "Page Headline",
+        "purpose": "Work area page titles."
+      },
+      "body": {
+        "displayName": "Working Body",
+        "purpose": "Instructions and content."
+      },
+      "label": {
+        "displayName": "Control Label",
+        "purpose": "Navigation and controls."
+      }
+    },
+    "shadows": [
+      {
+        "name": "card-ambient",
+        "value": "0 12px 36px rgba(20,43,53,0.045)",
+        "purpose": "Quiet depth on work cards."
+      },
+      {
+        "name": "button-rest",
+        "value": "0 8px 18px rgba(20,43,53,0.14)",
+        "purpose": "Primary action at rest."
+      },
+      {
+        "name": "hero-object",
+        "value": "22px 28px 65px rgba(66,48,31,0.12)",
+        "purpose": "Public hero illustration focal depth."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state",
+        "value": "200ms ease",
+        "purpose": "Hover and focus state changes."
+      },
+      {
+        "name": "page-enter",
+        "value": "420ms cubic-bezier(0.22,1,0.36,1)",
+        "purpose": "Short page arrival; suppressed for reduced motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "mobile",
+        "value": "640px"
+      },
+      {
+        "name": "tablet",
+        "value": "900px"
+      },
+      {
+        "name": "portal-desktop",
+        "value": "1280px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Main action on a working surface.",
+      "html": "<button class=\"ds-btn-primary\">Continue</button>",
+      "css": ".ds-btn-primary{background:var(--brand);color:#fff;min-height:44px;padding:8px 16px;border:0;border-radius:8px;font:600 14px 'DM Sans',Arial,sans-serif;box-shadow:0 8px 18px rgba(20,43,53,.14);transition:background .2s ease,transform .2s ease}.ds-btn-primary:hover{background:var(--brand-strong);transform:translateY(-2px)}.ds-btn-primary:focus-visible{outline:3px solid #9b5b35;outline-offset:3px}.ds-btn-primary:active{transform:translateY(1px)}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Supporting action beside the main action.",
+      "html": "<button class=\"ds-btn-secondary\">View details</button>",
+      "css": ".ds-btn-secondary{background:var(--surface-raised);color:var(--ink);min-height:44px;padding:8px 16px;border:1px solid var(--border);border-radius:8px;font:600 14px 'DM Sans',Arial,sans-serif;transition:background .2s ease}.ds-btn-secondary:hover{background:var(--accent-soft)}.ds-btn-secondary:focus-visible{outline:3px solid #9b5b35;outline-offset:3px}.ds-btn-secondary:active{background:var(--surface-2)}"
+    },
+    {
+      "name": "Field",
+      "kind": "input",
+      "refersTo": "field",
+      "description": "Text input for work forms.",
+      "html": "<input class=\"ds-field\" aria-label=\"Project name\" placeholder=\"Project name\">",
+      "css": ".ds-field{background:var(--surface-raised);color:var(--ink);min-height:44px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font:400 16px 'DM Sans',Arial,sans-serif;transition:border-color .2s ease,box-shadow .2s ease}.ds-field:hover{border-color:#a99989}.ds-field:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 4px rgba(20,20,20,.1)}"
+    },
+    {
+      "name": "Work Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Raised container for work summaries and actions.",
+      "html": "<article class=\"ds-card\"><h3>Project work</h3><p>See the next steps together.</p></article>",
+      "css": ".ds-card{background:var(--surface-raised);color:var(--ink);padding:20px;border:1px solid var(--border);border-radius:16px;box-shadow:0 12px 36px rgba(20,43,53,.045);font-family:'DM Sans',Arial,sans-serif;transition:box-shadow .2s ease}.ds-card h3{font:500 24px 'Source Serif 4',Georgia,serif;margin:0 0 8px}.ds-card p{color:var(--ink-muted);margin:0}.ds-card:hover{box-shadow:0 16px 42px rgba(20,43,53,.075)}.ds-card:focus-within{outline:3px solid #9b5b35;outline-offset:3px}"
+    },
+    {
+      "name": "Navigation Link",
+      "kind": "nav",
+      "description": "Active route indication for the client portal.",
+      "html": "<a class=\"ds-nav\" href=\"#\" aria-current=\"page\">Tasks</a>",
+      "css": ".ds-nav{display:inline-flex;align-items:center;min-height:44px;padding:8px 12px;border-radius:8px;color:var(--ink-muted);font:600 14px 'DM Sans',Arial,sans-serif;text-decoration:none;transition:background .2s ease,color .2s ease}.ds-nav:hover,.ds-nav[aria-current=page]{background:var(--surface-2);color:var(--ink)}.ds-nav:focus-visible{outline:3px solid #9b5b35;outline-offset:3px}"
+    },
+    {
+      "name": "Status Badge",
+      "kind": "chip",
+      "description": "Compact semantic status tag.",
+      "html": "<span class=\"ds-badge\">Complete</span>",
+      "css": ".ds-badge{display:inline-flex;padding:4px 8px;border-radius:6px;background:#dcefe7;color:var(--success);font:600 11px 'DM Sans',Arial,sans-serif;letter-spacing:.02em}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Shared Work Ledger",
+    "overview": "This is a description of the design now implemented, not a user-approved brand direction. Warm paper surfaces and dark, precise controls make client work feel calm and accountable. Editorial serif headings give the public site character; compact sans serif text keeps working screens quick to scan. Staff and client interfaces deserve equal care and equally clear routes to the next action.",
+    "keyCharacteristics": [
+      "Warm cream canvas with quiet raised surfaces.",
+      "Ink-first hierarchy with a restrained brown accent on the public site.",
+      "Dense work navigation, generous content rhythm, and visible keyboard focus."
+    ],
+    "rules": [
+      {
+        "name": "The One Accent Rule",
+        "body": "Keep status colors attached to actual status; use ink for ordinary actions.",
+        "section": "colors"
+      },
+      {
+        "name": "The Readable Work Rule",
+        "body": "Keep labels and supporting text legible at the working size; reserve very large serif type for major headings.",
+        "section": "typography"
+      },
+      {
+        "name": "The Equal Route Rule",
+        "body": "Give team and client users equally visible access to their next useful action, even though their navigation structures differ.",
+        "section": "layout"
+      },
+      {
+        "name": "The Quiet Surface Rule",
+        "body": "Default working surfaces should read clearly through tone and border before shadow.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do keep the warm paper and ink foundation across public, team, and client surfaces.",
+      "Do show task state and progress only when backed by real data.",
+      "Do preserve readable focus, hover, disabled, loading, and empty states."
+    ],
+    "donts": [
+      "Don't use semantic red, green, or amber as decoration.",
+      "Don't let promotional typography or imagery reduce the scanability of work screens.",
+      "Don't bury a primary client or team action behind an overflow menu on mobile."
+    ]
+  }
+}

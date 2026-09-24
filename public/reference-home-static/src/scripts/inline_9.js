@@ -5,7 +5,6 @@ window.addEventListener('DOMContentLoaded', function () {
   var loaderDelay = isMobile ? 1 : 4.5;
 
   var logoPaths = Array.from(document.querySelectorAll('.loader_logo path'));
-  var flexEl = document.querySelector('.flex-container');
 
   var animationStarted = false;
   var animationPrepared = false;
@@ -15,9 +14,6 @@ window.addEventListener('DOMContentLoaded', function () {
     gsap.set(logoPaths, { y: -300 });
   }
 
-  if (flexEl) {
-    gsap.set(flexEl, { scale: 0 });
-  }
 
   gsap.set('.timezone, .hero_button_wrapper', { y: 30, opacity: 0 });
   gsap.set('.nav_menu', { y: 20, opacity: 0 });
@@ -82,14 +78,6 @@ window.addEventListener('DOMContentLoaded', function () {
           ease: isMobile ? 'power3.out' : 'power1.out',
           stagger: { each: 0.10, from: 'start' }
         }, isMobile ? 0 : 0.2);
-      }
-
-      if (flexEl) {
-        tl.to(flexEl, {
-          scale: 1,
-          duration: 0.8,
-          ease: 'power1.out'
-        }, isMobile ? 0 : 0.4);
       }
 
       tl.to('.timezone, .hero_button_wrapper', {

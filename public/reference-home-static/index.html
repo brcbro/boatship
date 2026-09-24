@@ -27,7 +27,7 @@
   <meta content="width=device-width, initial-scale=1" name="viewport" />
   <link href="./css/neutomni-026b92.shared.6921541c9.min_a2e9bc.css?v=4" rel="stylesheet" type="text/css" />
   <link href="./css/revenue-window.css" rel="stylesheet" type="text/css" />
-  <link href="./css/responsive.css?v=13" rel="stylesheet" type="text/css" />
+  <link href="./css/responsive.css?v=14" rel="stylesheet" type="text/css" />
   <link rel="icon" href="/brand/boatship-favicon.png" type="image/png" />
   <style id="boatship-brand-overrides">
     .loader_logo{background:url('/brand/boatship-logo-white.png') center/contain no-repeat!important}.loader_logo svg{opacity:0!important}
@@ -1389,42 +1389,6 @@
             </div>
             <div class="pulse_dot"></div>
             <div class="cta_link small">Open for work</div>
-          </div>
-        </div>
-        <div class="flex-container">
-          <div class="flex">
-            <div class="video_wrap">
-              <div class="img w-embed"><video class="wb-video-styles-controller" wb-embed="image" playsinline loop muted
-                  preload="none" data-lazy-video style="background-image: url('');" data-wf-ignore="true">
-                  <source data-src="./videos/Scene-2-1_823606.mp4" data-wf-ignore="true" />
-                </video>
-
-
-              </div>
-              <div class="w-embed">
-                <style>
-                  .video-controller {
-                    position: absolute;
-                    left: 0%;
-                    top: 0%;
-                    right: 0%;
-                    bottom: 0%;
-                    width: 100%;
-                    height: 100%;
-                    object-fit: cover;
-                    object-position: 50% 50%;
-                  }
-
-                  .wb-video-styles-controller {
-                    width: 100%;
-                    max-width: 100%;
-                    height: 100%;
-                    display: block;
-                    object-fit: cover;
-                  }
-                </style>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -5064,24 +5028,6 @@
   <script src="./js/mobile-logo.js"></script>
   <script src="./js/mobile-process.js"></script>
   <script src="./js/boatship-brand.js"></script>
-  <script>
-    // The below-the-fold demo is 14 MB. Only attach its source shortly before
-    // it enters the viewport, rather than downloading it on every visit.
-    (function () {
-      var video = document.querySelector('[data-lazy-video]');
-      if (!video || !('IntersectionObserver' in window)) return;
-      var observer = new IntersectionObserver(function (entries) {
-        if (!entries[0].isIntersecting) return;
-        var source = video.querySelector('source[data-src]');
-        if (source) source.src = source.dataset.src;
-        video.load();
-        var play = video.play();
-        if (play) play.catch(function () {});
-        observer.disconnect();
-      }, { rootMargin: '500px 0px' });
-      observer.observe(video);
-    })();
-  </script>
 </body>
 
 </html>

@@ -13,21 +13,7 @@ const nextConfig: NextConfig = {
   // override from forcing Prisma's `?module` WASM import down an incompatible
   // bundling path during local development.
   turbopack: {},
-  // Serve the marketing export as the root document instead of nesting it in
-  // an iframe. `beforeFiles` ensures the static document wins before Next.js
-  // attempts to resolve an application route.
-  // The browser keeps `/` in its address bar while loading one static HTML
-  // document, so homepage visits do not hydrate a second Next.js application.
-  async rewrites() {
-    return {
-      beforeFiles: [
-        {
-          source: "/",
-          destination: "/reference-home-static/index.html",
-        },
-      ],
-    };
-  },
+  experimental: { globalNotFound: true },
 };
 
 export default nextConfig;

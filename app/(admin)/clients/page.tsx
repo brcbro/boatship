@@ -126,7 +126,8 @@ export default function ClientsPage() {
   }, [load]);
 
   useEffect(() => {
-    void loadSmartLists();
+    const timeoutId = window.setTimeout(() => void loadSmartLists(), 0);
+    return () => window.clearTimeout(timeoutId);
   }, [loadSmartLists]);
 
   function applySmartList(id: string) {
@@ -520,7 +521,7 @@ export default function ClientsPage() {
                       </Link>
                     </td>
                     <td className="hidden px-5 py-3 text-[var(--ink-muted)] sm:table-cell">{c.companyName}</td>
-                    <td className="hidden px-5 py-3 lg:table-cell">
+                    <td className="px-5 py-3">
                       <Badge tone={statusTone(c.status)}>{statusLabel(c.status)}</Badge>
                     </td>
                     <td className="hidden px-5 py-3 xl:table-cell">
@@ -535,7 +536,7 @@ export default function ClientsPage() {
                         </div>
                       ) : "—"}
                     </td>
-                    <td className="px-5 py-3">
+                    <td className="hidden px-5 py-3 lg:table-cell">
                       <div className="flex flex-wrap gap-1">
                         {(c.tags || []).length ? (
                           c.tags.map((t) => (

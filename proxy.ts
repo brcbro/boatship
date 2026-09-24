@@ -10,6 +10,18 @@ const PUBLIC_PATHS = [
   "/api/auth/reset-password",
 ];
 
+const ADMIN_PATHS = [
+  "/dashboard", "/clients", "/team", "/workload", "/projects",
+  "/products", "/workspace", "/calendar", "/messages", "/templates",
+  "/forms", "/analytics", "/accounting", "/integrations", "/webhooks",
+  "/mcp", "/compliance", "/hodi", "/automations", "/agent",
+  "/tasks", "/reminders",
+];
+
+function matchesRoute(pathname: string, route: string) {
+  return pathname === route || pathname.startsWith(`${route}/`);
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -22,6 +34,9 @@ export async function proxy(request: NextRequest) {
   }
 
   const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
+  const isAdminArea = ADMIN_PATHS.some((route) => matchesRoute(pathname, route));
+  const isClientArea = matchesRoute(pathname, "/portal");
+  const isProtected = isAdminArea || isClientArea;
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   const session = token ? decodeLocalSession(token) : null;
 
@@ -31,7 +46,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (!session && !isPublic && !pathname.startsWith("/api/")) {
+  if (!session && isProtected && !isPublic) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("next", pathname);
@@ -43,22 +58,6 @@ export async function proxy(request: NextRequest) {
   // verification causes expired cookies to loop between dashboard and login.
 
   if (session) {
-    const isAdminArea =
-      pathname.startsWith("/dashboard") ||
-      pathname.startsWith("/clients") ||
-      pathname.startsWith("/team") ||
-      pathname.startsWith("/workload") ||
-      pathname.startsWith("/calendar") ||
-      pathname.startsWith("/templates") ||
-      pathname.startsWith("/forms") ||
-      pathname.startsWith("/analytics") ||
-      pathname.startsWith("/integrations") ||
-      pathname.startsWith("/webhooks") ||
-      pathname.startsWith("/compliance") ||
-      pathname.startsWith("/agent") ||
-      pathname.startsWith("/messages");
-    const isClientArea = pathname.startsWith("/portal");
-
     if (session.role === "client" && isAdminArea) {
       const url = request.nextUrl.clone();
       url.pathname = "/portal";

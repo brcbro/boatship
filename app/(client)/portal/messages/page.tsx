@@ -18,6 +18,11 @@ import type { PortalMessage } from "@/types";
 
 type MessageGroup = { label: string; messages: PortalMessage[] };
 
+function uniqueMessages(messages: PortalMessage[]) {
+  const seen = new Set<string>();
+  return messages.filter((message) => !seen.has(message.id) && Boolean(seen.add(message.id)));
+}
+
 function groupMessagesByDate(messages: PortalMessage[]): MessageGroup[] {
   const groups = new Map<string, PortalMessage[]>();
   for (const message of messages) {
@@ -63,7 +68,7 @@ export default function PortalMessagesPage() {
           `/api/messages?clientId=${encodeURIComponent(clientId)}`,
           { token },
         );
-        setMessages(data.messages);
+        setMessages(uniqueMessages(data.messages));
       } catch (err) {
         setError(
           err instanceof Error ? err.message : "Failed to load messages",
@@ -84,7 +89,7 @@ export default function PortalMessagesPage() {
     clientId,
     token,
     onMessage: useCallback((message: PortalMessage) => {
-      setMessages((current) => current.some((item) => item.id === message.id) ? current : [...current, message]);
+      setMessages((current) => uniqueMessages([...current, message]));
     }, []),
   });
   useMessagePolling(() => load(true), Boolean(clientId) && !authLoading && !liveConnected);
@@ -102,7 +107,7 @@ export default function PortalMessagesPage() {
         token,
         body: JSON.stringify({ clientId, body: body.trim() }),
       });
-      setMessages((prev) => [...prev, data.message]);
+      setMessages((prev) => uniqueMessages([...prev, data.message]));
       setBody("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send message");

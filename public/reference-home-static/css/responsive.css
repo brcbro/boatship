@@ -10,6 +10,29 @@
 /* --------------------------------------------------------------------------
    1. GLOBAL OVERFLOW & BASE SAFEGUARDS
    -------------------------------------------------------------------------- */
+/* Keep the homepage hero self-contained now that the demo video is gone. */
+.section.light._30vh_mobile .container.hero {
+  height: clamp(72px, 12vh, 140px);
+  padding: 0;
+}
+
+.section.dark.video .container.video {
+  min-height: min(680px, 72svh);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.section.dark.video .h1_wrap {
+  position: relative;
+  top: auto;
+  z-index: 1;
+}
+
+.section.dark.video .hero_additional_wrap {
+  margin-top: auto;
+}
+
 html,
 body {
   width: 100%;
@@ -465,21 +488,6 @@ svg {
     box-sizing: border-box !important;
   }
 
-  .video_wrap {
-    width: 100% !important;
-    max-width: 100% !important;
-    height: auto !important;
-    aspect-ratio: 16 / 9 !important;
-    border-radius: 14px !important;
-    overflow: hidden !important;
-    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.3) !important;
-  }
-
-  .video_wrap video {
-    width: 100% !important;
-    height: 100% !important;
-    object-fit: cover !important;
-  }
 }
 
 /* --------------------------------------------------------------------------

@@ -25,6 +25,7 @@ export type ProjectApproval = {
   requestedBy: string;
   reviewedBy: string | null;
   reviewedAt: string | null;
+  reviewNote?: string | null;
   createdAt: string;
 };
 
@@ -93,9 +94,9 @@ export async function createMilestone(input: Omit<ProjectMilestone, "id" | "crea
   return milestone;
 }
 
-export async function createApproval(input: Omit<ProjectApproval, "id" | "createdAt" | "status" | "reviewedBy" | "reviewedAt">) {
+export async function createApproval(input: Omit<ProjectApproval, "id" | "createdAt" | "status" | "reviewedBy" | "reviewedAt" | "reviewNote">) {
   const { store } = await readOps();
-  const approval: ProjectApproval = { ...input, id: randomUUID(), status: "pending", reviewedBy: null, reviewedAt: null, createdAt: new Date().toISOString() };
+  const approval: ProjectApproval = { ...input, id: randomUUID(), status: "pending", reviewedBy: null, reviewedAt: null, reviewNote: null, createdAt: new Date().toISOString() };
   await store.mutateProjectOps<ProjectOpsData>((data) => {
     const next = { ...emptyOps(), ...data };
     next.approvals = [...(next.approvals || []), approval];
@@ -104,15 +105,18 @@ export async function createApproval(input: Omit<ProjectApproval, "id" | "create
   return approval;
 }
 
-export async function updateApproval(id: string, status: ProjectApproval["status"], reviewedBy: string) {
+export async function updateApproval(id: string, status: "approved" | "changes_requested", reviewedBy: string, reviewNote: string | null) {
   const { store } = await readOps();
   let updated: ProjectApproval | null = null;
   await store.mutateProjectOps<ProjectOpsData>((data) => {
     const next = { ...emptyOps(), ...data };
-    next.approvals = (next.approvals || []).map((item) => item.id === id ? (updated = { ...item, status, reviewedBy, reviewedAt: new Date().toISOString() }) : item);
+    next.approvals = (next.approvals || []).map((item) => {
+      if (item.id !== id || item.status !== "pending") return item;
+      updated = { ...item, status, reviewedBy, reviewedAt: new Date().toISOString(), reviewNote };
+      return updated;
+    });
     Object.assign(data, next);
   });
-  if (!updated) throw new Error("Approval not found");
   return updated;
 }
 

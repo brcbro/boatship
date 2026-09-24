@@ -29,7 +29,7 @@ const NAV = [
   { href: "/portal/messages", label: "Messages", icon: MessageCircle },
 ] as const;
 
-const MOBILE_NAV = NAV.slice(0, 4);
+const MOBILE_NAV = [NAV[0], NAV[1], NAV[4], NAV[5]];
 
 function isActive(pathname: string, href: string, exact?: boolean) {
   if (exact) return pathname === href;
@@ -95,6 +95,8 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
               className="inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-lg border border-[var(--border)] text-[var(--ink)] transition hover:bg-[var(--surface-2)] xl:hidden"
               onClick={() => setOpen((v) => !v)}
               aria-label={open ? "Close menu" : "Open menu"}
+              aria-expanded={open}
+              aria-controls="portal-mobile-menu"
             >
               {open ? <X size={18} /> : <Menu size={18} />}
             </button>
@@ -102,14 +104,15 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
         </div>
 
         {open ? (
-          <div className="border-t border-[var(--border)] bg-[var(--surface-raised)] px-4 py-4 xl:hidden">
-            <nav className="flex flex-col gap-1">
+          <div id="portal-mobile-menu" className="border-t border-[var(--border)] bg-[var(--surface-raised)] px-4 py-4 xl:hidden">
+            <nav className="flex flex-col gap-1" aria-label="All client sections">
               {NAV.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
                   prefetch={false}
                   onClick={() => setOpen(false)}
+                  aria-current={isActive(pathname, item.href, "exact" in item && item.exact) ? "page" : undefined}
                   className={cn(
                     "flex min-h-11 items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition",
                     isActive(pathname, item.href, "exact" in item && item.exact)
@@ -149,6 +152,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
             onClick={() => setOpen((value) => !value)}
             aria-label={open ? "Close more navigation" : "Open more navigation"}
             aria-expanded={open}
+            aria-controls="portal-mobile-menu"
             className={cn(
               "flex min-h-12 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg px-2 text-[11px] font-semibold transition",
               open ? "bg-[var(--surface-2)] text-[var(--ink)]" : "text-[var(--ink-muted)] hover:bg-[var(--surface-2)]"

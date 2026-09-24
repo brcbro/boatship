@@ -1,21 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/shared/AuthProvider";
-import { Card, EmptyState, PageHeader } from "@/components/shared/ui";
+import { Card, PageHeader } from "@/components/shared/ui";
 import { TaskBoard } from "@/components/shared/TaskBoard";
 import { apiFetch } from "@/lib/api-client";
 import type { Task } from "@/types";
 
-export default function PortalTasksPage() {
+function PortalTasksPageInner() {
+  const taskId = useSearchParams().get("taskId");
   const { session, token, loading: authLoading } = useAuth();
+  const clientId = session?.clientId;
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    if (!session?.clientId) {
+    if (!clientId) {
       setError("No client account is linked to this user.");
       setLoading(false);
       return;
@@ -25,7 +28,7 @@ export default function PortalTasksPage() {
     setError("");
     try {
       const data = await apiFetch<{ tasks: Task[] }>(
-        `/api/tasks?clientId=${encodeURIComponent(session.clientId)}`,
+        `/api/tasks?clientId=${encodeURIComponent(clientId)}`,
         { token }
       );
       setTasks(
@@ -38,11 +41,12 @@ export default function PortalTasksPage() {
     } finally {
       setLoading(false);
     }
-  }, [session?.clientId, token]);
+  }, [clientId, token]);
 
   useEffect(() => {
     if (authLoading) return;
-    void load();
+    const timer = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timer);
   }, [authLoading, load]);
 
   async function updateTask(taskId: string, patch: Record<string, unknown>) {
@@ -77,10 +81,7 @@ export default function PortalTasksPage() {
     return (
       <div>
         <PageHeader title="Tasks" />
-        <EmptyState
-          title="No client linked"
-          description="No client account is linked to this user."
-        />
+        <Card><h2 className="text-lg font-semibold text-[var(--ink)]">Your account needs a client workspace</h2><p className="mt-2 max-w-prose text-sm leading-6 text-[var(--ink-muted)]">Ask your Boatship workspace administrator to connect your account. Share your sign-in email: <span className="font-medium text-[var(--ink)]">{session?.email || "the email you used to sign in"}</span>.</p></Card>
       </div>
     );
   }
@@ -98,7 +99,11 @@ export default function PortalTasksPage() {
         </p>
       ) : null}
 
-      <TaskBoard mode="client" tasks={tasks} busy={busy} onUpdate={updateTask} />
+      <TaskBoard mode="client" tasks={tasks} busy={busy} onUpdate={updateTask} initialOpenTaskId={taskId} />
     </div>
   );
+}
+
+export default function PortalTasksPage() {
+  return <Suspense fallback={<div><PageHeader title="Tasks" description="Loading your checklist…" /><Card className="text-sm text-[var(--ink-muted)]">Loading tasks…</Card></div>}><PortalTasksPageInner /></Suspense>;
 }
