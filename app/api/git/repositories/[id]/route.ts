@@ -10,8 +10,8 @@ export async function DELETE(req: Request, { params }: Params) {
   return handleApi(async () => {
     await requireRoles(req, ["admin"]);
     const { id } = await params;
-    const result = await getPrisma().gitRepositoryConnection.updateMany({ where: { id }, data: { active: false } });
-    if (!result.count) throw jsonError("Repository not found", 404);
+    const count = await getPrisma().$executeRaw`UPDATE "GitRepositoryConnection" SET "active" = false, "updatedAt" = NOW() WHERE "id" = ${id}`;
+    if (!count) throw jsonError("Repository not found", 404);
     return { ok: true };
   });
 }

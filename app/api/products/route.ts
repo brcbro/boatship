@@ -1,7 +1,8 @@
 import { handleApi } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
 import { getPrisma } from "@/lib/prisma";
-import { id, parseBody, productSchema, recordProductActivity, requireStaffUser, uniqueSlug } from "@/lib/products";
+import { createProductWithOwner } from "@/lib/product-persistence";
+import { parseBody, productSchema, recordProductActivity, requireStaffUser, uniqueSlug } from "@/lib/products";
 import type { ProductSummary } from "@/types/product";
 
 export const runtime = "nodejs";
@@ -37,11 +38,7 @@ export async function POST(req: Request) {
     const input = parseBody(productSchema, await req.json().catch(() => ({})));
     const ownerId = input.ownerId || session.uid;
     await requireStaffUser(ownerId);
-    const db = getPrisma();
-    const product = await db.product.create({
-      data: { id: id(), name: input.name, slug: await uniqueSlug(input.name), type: input.type, description: input.description || "", stage: input.stage || "idea", ownerId, visibility: "members", websiteUrl: input.websiteUrl || null,
-        members: { create: { id: id(), userId: ownerId, role: "owner" } } },
-    });
+    const product = await createProductWithOwner(input, ownerId, await uniqueSlug(input.name));
     await recordProductActivity(product.id, session.uid, "product.created", { name: product.name, type: product.type, ownerId });
     return { product };
   });

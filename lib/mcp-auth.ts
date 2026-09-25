@@ -73,16 +73,17 @@ export async function issueMcpToken(userId: string, options: { scopes?: readonly
   const scopes = normalizeScopes(options.scopes);
   const projectIds = [...new Set((options.projectIds ?? []).filter(Boolean))];
 
-  await getPrisma().mcpIdentity.create({
-    data: {
-      id: identityId,
-      publicId,
-      userId,
-      tokenHash: hashToken(token),
-      scopes,
-      projectAccess: { create: projectIds.map((projectId) => ({ id: randomUUID(), projectId, accessLevel: "read" })) },
-    },
-  });
+  const accessIds = projectIds.map(() => randomUUID());
+  await getPrisma().$queryRaw`WITH identity AS (
+    INSERT INTO "McpIdentity" ("id", "publicId", "userId", "tokenHash", "status", "scopes", "createdAt", "updatedAt")
+    VALUES (${identityId}, ${publicId}, ${userId}, ${hashToken(token)}, 'active', ARRAY(SELECT jsonb_array_elements_text(${JSON.stringify(scopes)}::jsonb)), NOW(), NOW())
+    RETURNING "id"
+  ), access AS (
+    INSERT INTO "McpProjectAccess" ("id", "identityId", "projectId", "accessLevel", "createdAt", "updatedAt")
+    SELECT entry."id", identity."id", entry."projectId", 'read', NOW(), NOW()
+    FROM identity CROSS JOIN LATERAL jsonb_to_recordset(${JSON.stringify(projectIds.map((projectId, index) => ({ id: accessIds[index], projectId })))}::jsonb)
+      AS entry("id" text, "projectId" text) RETURNING "id"
+  ) SELECT identity."id", (SELECT COUNT(*) FROM access) AS "accessCount" FROM identity`;
   return { publicId, token, scopes };
 }
 
@@ -102,7 +103,8 @@ export async function verifyMcpToken(token: string): Promise<McpTokenClaims | nu
 }
 
 export async function revokeMcpIdentity(publicId: string) {
-  return getPrisma().mcpIdentity.updateMany({ where: { publicId, status: { not: "revoked" } }, data: { status: "revoked", revokedAt: new Date() } });
+  const count = await getPrisma().$executeRaw`UPDATE "McpIdentity" SET "status" = 'revoked', "revokedAt" = NOW(), "updatedAt" = NOW() WHERE "publicId" = ${publicId} AND "status" <> 'revoked'`;
+  return { count };
 }
 
 export async function hasMcpScope(identityId: string, scope: string) {

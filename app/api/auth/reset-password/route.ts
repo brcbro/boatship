@@ -43,7 +43,7 @@ export async function POST(req: Request) {
       inviteTokenExpiresAt: null,
       mustResetPassword: false,
     });
-    await getPrisma().authSession.deleteMany({ where: { userId: user.uid } });
+    await getPrisma().$executeRaw`DELETE FROM "AuthSession" WHERE "userId" = ${user.uid}`;
 
     return { ok: true, email: user.email };
   });

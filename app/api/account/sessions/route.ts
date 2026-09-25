@@ -38,9 +38,7 @@ export async function DELETE(req: Request) {
     const session = await requireSession(req);
     const token = currentToken(req);
     if (!token) throw jsonError("Unauthorized", 401);
-    const result = await getPrisma().authSession.deleteMany({
-      where: { userId: session.uid, tokenHash: { not: sha256Hex(token) } },
-    });
-    return { ok: true, revoked: result.count };
+    const revoked = await getPrisma().$executeRaw`DELETE FROM "AuthSession" WHERE "userId" = ${session.uid} AND "tokenHash" <> ${sha256Hex(token)}`;
+    return { ok: true, revoked };
   });
 }

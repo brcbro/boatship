@@ -28,7 +28,8 @@ const ADMIN_LINKS: NavLink[] = [
   { href: "/integrations", label: "Integrations" },
   { href: "/webhooks", label: "Webhooks" },
   { href: "/workload", label: "Workload" },
-  { href: "/agent", label: "Agent" },
+  { href: "/agent", label: "Hodi chat" },
+  { href: "/hodi", label: "Hodi work queue" },
 ];
 
 const CLIENT_LINKS: NavLink[] = [

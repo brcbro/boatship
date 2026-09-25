@@ -1,9 +1,10 @@
-import { jsonOk } from "@/lib/api";
+import { internalErrorResponse, jsonOk } from "@/lib/api";
 import { revokeDatabaseSession, SESSION_COOKIE } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
+  try {
   const authHeader = req.headers.get("authorization");
   const cookieHeader = req.headers.get("cookie") || "";
   const cookieToken = cookieHeader.match(new RegExp(`${SESSION_COOKIE}=([^;]+)`))?.[1];
@@ -18,4 +19,7 @@ export async function POST(req: Request) {
     maxAge: 0,
   });
   return response;
+  } catch (error) {
+    return internalErrorResponse(error);
+  }
 }

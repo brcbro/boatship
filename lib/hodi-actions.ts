@@ -5,17 +5,18 @@ import { requireClientAccess } from "@/lib/client-access";
 import { getStore } from "@/lib/store";
 import { createAccountingEntry, listAccountingEntries, updateAccountingEntry, validateAccountingInput } from "@/lib/accounting";
 import { consumeHodiActionProposal, createHodiActionProposal, finishHodiActionProposal, releaseHodiActionProposal } from "@/lib/hodi-queue";
+import { previewCreateFormsAction, executeCreateFormsAction } from "@/lib/hodi-create-forms";
+import { previewCreateCalendarAction, executeCreateCalendarAction } from "@/lib/hodi-create-calendar";
+import { hodiProjectCreationActions, previewHodiProjectCreation, executeHodiProjectCreation } from "@/lib/hodi-create-projects";
+import { syncClientStatusFromTasks } from "@/lib/client-status";
 
-export type HodiAction =
-  | "create_client"
-  | "apply_template"
-  | "create_task"
-  | "update_task"
-  | "assign_task"
-  | "block_task"
-  | "weekly_status_report"
-  | "create_accounting_entry"
-  | "update_accounting_entry";
+export const HODI_ACTIONS = [
+  "create_client", "apply_template", "create_task", "update_task", "assign_task", "block_task",
+  "weekly_status_report", "create_accounting_entry", "update_accounting_entry",
+  "create_form_template", "assign_form", "create_service_template", "create_calendar_event",
+  "create_project_milestone", "create_project_approval", "create_product", "create_product_milestone", "create_product_work_item", "create_product_release",
+] as const;
+export type HodiAction = (typeof HODI_ACTIONS)[number];
 
 type ActionPayload = Record<string, unknown>;
 
@@ -47,18 +48,7 @@ function payloadHash(payload: ActionPayload) {
 }
 
 function assertAction(value: unknown): asserts value is HodiAction {
-  const actions: HodiAction[] = [
-    "create_client",
-    "apply_template",
-    "create_task",
-    "update_task",
-    "assign_task",
-    "block_task",
-    "weekly_status_report",
-    "create_accounting_entry",
-    "update_accounting_entry",
-  ];
-  if (!actions.includes(value as HodiAction)) throw new Error("Unsupported Hodi action");
+  if (!HODI_ACTIONS.includes(value as HodiAction)) throw new Error("Unsupported Hodi action");
 }
 
 function assertCanManage(session: AuthSession) {
@@ -157,6 +147,13 @@ async function buildWeeklyReport(clientId: string) {
 }
 
 async function preview(action: HodiAction, payload: ActionPayload, session: AuthSession) {
+  if (action === "create_form_template" || action === "assign_form" || action === "create_service_template") {
+    return previewCreateFormsAction(action, payload, session);
+  }
+  if (action === "create_calendar_event") return previewCreateCalendarAction(action, payload, session);
+  if (hodiProjectCreationActions.includes(action as typeof hodiProjectCreationActions[number])) {
+    return previewHodiProjectCreation(action as typeof hodiProjectCreationActions[number], payload, session);
+  }
   const clientId = text(payload.clientId);
   if (session.role === "team") {
     if (action === "create_client") {
@@ -211,7 +208,9 @@ async function preview(action: HodiAction, payload: ActionPayload, session: Auth
       if (!clientId || !title) throw new Error("clientId and title are required");
       const [client, assignee] = await Promise.all([requireClient(clientId), requireStaff(optionalText(payload.assignedTo))]);
       const dueDate = validateDueDate(payload.dueDate);
-      return { title: `Create task for ${client.companyName}`, changes: [`Create “${title}”`, assignee ? `Assign ${assignee.name}` : "Leave unassigned", dueDate ? `Set due date to ${dueDate}` : "No due date"], diff: [{ field: "task", label: "Task", before: "Does not exist", after: title }, { field: "assignee", label: "Assignee", before: "Not set", after: assignee?.name || "Unassigned" }, { field: "dueDate", label: "Due date", before: "Not set", after: dueDate || "Not set" }] };
+      const formTemplateId = optionalText(payload.formTemplateId);
+      if (formTemplateId && !await (await getStore()).getFormTemplate(formTemplateId)) throw new Error("Form template not found");
+      return { title: `Create task for ${client.companyName}`, changes: [`Create “${title}”`, assignee ? `Assign ${assignee.name}` : "Leave unassigned", dueDate ? `Set due date to ${dueDate}` : "No due date", formTemplateId ? "Create a linked client form" : "No form attached"], diff: [{ field: "task", label: "Task", before: "Does not exist", after: title }, { field: "assignee", label: "Assignee", before: "Not set", after: assignee?.name || "Unassigned" }, { field: "dueDate", label: "Due date", before: "Not set", after: dueDate || "Not set" }] };
     }
     case "update_task":
     case "assign_task":
@@ -308,6 +307,16 @@ export async function executeHodiAction(
       return result;
     };
 
+  if (action === "create_form_template" || action === "assign_form" || action === "create_service_template") {
+    return complete(await executeCreateFormsAction(action, payload, session, claim.proposal.id));
+  }
+  if (action === "create_calendar_event") {
+    return complete(await executeCreateCalendarAction(action, payload, session));
+  }
+  if (hodiProjectCreationActions.includes(action as typeof hodiProjectCreationActions[number])) {
+    return complete(await executeHodiProjectCreation(action as typeof hodiProjectCreationActions[number], payload, session, claim.proposal.id));
+  }
+
   if (action === "weekly_status_report") {
     const report = await buildWeeklyReport(text(payload.clientId));
     await store.addActivity({ clientId: report.client.id, actorId: session.uid, actorName: session.name, action: "hodi.weekly_status_report_generated", meta: { proposalId: claim.proposal.id, summary: report.summary } });
@@ -360,8 +369,13 @@ export async function executeHodiAction(
       priority: (text(payload.priority) || "medium") as TaskPriority, internalNotes: text(payload.internalNotes), section: optionalText(payload.section) || undefined,
       formTemplateId: optionalText(payload.formTemplateId), requiresUpload: Boolean(payload.requiresUpload),
     });
+    if (task.formTemplateId) {
+      try { await store.createForm({ clientId, formTemplateId: task.formTemplateId, taskId: task.id }); }
+      catch (error) { await store.deleteTask(task.id); throw error; }
+    }
     await store.addActivity({ clientId, actorId: session.uid, actorName: session.name, action: "hodi.task_created", meta: { proposalId: claim.proposal.id, taskId: task.id, title: task.title } });
-    return complete({ task });
+    await syncClientStatusFromTasks(store, clientId, { notifyComplete: false });
+    return complete({ task, href: `/clients/${clientId}` });
   }
 
   const taskId = text(payload.taskId);

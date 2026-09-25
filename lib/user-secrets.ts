@@ -133,7 +133,7 @@ export async function upsertUserSecret(userId: string, providerInput: string, va
 
 export async function deleteUserSecret(userId: string, providerInput: string) {
   const provider = providerOrThrow(providerInput);
-  await getPrisma().userProviderSecret.deleteMany({ where: { userId, provider } });
+  await getPrisma().$executeRaw`DELETE FROM "UserProviderSecret" WHERE "userId" = ${userId} AND "provider" = ${provider}`;
 }
 
 export async function resolveUserSecret(userId: string | undefined, provider: UserSecretProvider) {

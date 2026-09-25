@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
+import { internalErrorResponse } from "@/lib/api";
 import { requireRoles, requireSession } from "@/lib/auth";
 import { auditExport } from "@/lib/mcp-controls";
 
 export const runtime = "nodejs";
 
 export async function GET(req: Request) {
+  try {
   const session = await requireSession(req);
   await requireRoles(req, ["admin"]);
   const url = new URL(req.url);
@@ -15,4 +17,8 @@ export async function GET(req: Request) {
     return new NextResponse(header + csv, { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": "attachment; filename=boatship-mcp-audit.csv" } });
   }
   return NextResponse.json({ events: rows });
+  } catch (error) {
+    if (error instanceof Response) return error;
+    return internalErrorResponse(error);
+  }
 }

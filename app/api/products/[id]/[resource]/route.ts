@@ -1,6 +1,7 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
 import { getPrisma } from "@/lib/prisma";
+import { createReleaseWithWorkItems } from "@/lib/product-persistence";
 import { notifyUser } from "@/lib/notifications";
 import { id, memberSchema, milestoneSchema, notifyProductMembers, parseBody, recordProductActivity, releaseSchema, requireMilestone, requireProductAccess, requireProductMember, requireRepository, requireStaffUser, validateDependencies, validateReleaseWork, workItemSchema } from "@/lib/products";
 
@@ -47,8 +48,7 @@ export async function POST(req: Request, { params }: Params) {
       const input = parseBody(releaseSchema, body);
       await requireRepository(input.repositoryId);
       await validateReleaseWork(productId, input.workItemIds || []);
-      const release = await db.productRelease.create({ data: { id: id(), productId, version: input.version, environment: input.environment || "production", status: input.status || "planned", releasedAt: input.releasedAt ? new Date(input.releasedAt) : input.status === "released" ? new Date() : null, notes: input.notes || "", repositoryId: input.repositoryId || null, commitSha: input.commitSha || null, deploymentUrl: input.deploymentUrl || null,
-        workLinks: { create: (input.workItemIds || []).map((workItemId) => ({ workItemId })) } }, include: { workLinks: { select: { workItemId: true } } } });
+      const release = await createReleaseWithWorkItems(productId, input);
       await recordProductActivity(productId, session.uid, "release.created", { releaseId: release.id, version: release.version, status: release.status });
       if (release.status === "released") await notifyProductMembers(productId, session.uid, `Released ${product.name} ${release.version}`, release.notes);
       return { release: { ...release, workItemIds: release.workLinks.map((link) => link.workItemId) } };

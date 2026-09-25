@@ -45,7 +45,7 @@ export default function NewProductPage() {
   }
   if (authLoading) return <p role="status" className="text-sm text-[var(--ink-muted)]">Loading your workspace…</p>;
   if (session?.role !== "admin") return <div><PageHeader title="New product" /><Card>Only admins can create products.</Card></div>;
-  return <div className="max-w-3xl"><PageHeader title="New product" description="Set up a Boatship owned tool or SaaS product. Add milestones and work after creation." actions={<Link href="/products" className="text-sm font-medium text-[var(--brand)] underline">Back to products</Link>} />
+  return <div className="mx-auto max-w-3xl"><PageHeader title="New product" description="Set up a Boatship owned tool or SaaS product. Add milestones and work after creation." actions={<Link href="/products" className="text-sm font-medium text-[var(--brand)] underline">Back to products</Link>} />
     <Card><form onSubmit={(event) => void submit(event)} className="space-y-5">
       {error ? <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p> : null}
       {staffWarning ? <p role="status" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{staffWarning}</p> : null}

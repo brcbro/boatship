@@ -1,6 +1,7 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
 import { getPrisma } from "@/lib/prisma";
+import { transferProductOwner } from "@/lib/product-persistence";
 import { parseBody, productSchema, recordProductActivity, requireProductAccess, requireStaffUser, uniqueSlug } from "@/lib/products";
 
 export const runtime = "nodejs";
@@ -36,14 +37,10 @@ export async function PATCH(req: Request, { params }: Params) {
     if (input.ownerId && input.ownerId !== old.ownerId && session.role !== "admin") throw jsonError("Only admins can change the owner", 403);
     if (input.ownerId) await requireStaffUser(input.ownerId);
     const db = getPrisma();
-    const product = await db.$transaction(async (tx) => {
-      const updated = await tx.product.update({ where: { id }, data: { ...input, ...(input.name && input.name !== old.name ? { slug: await uniqueSlug(input.name) } : {}) } });
-      if (input.ownerId && input.ownerId !== old.ownerId) {
-        await tx.productMember.upsert({ where: { productId_userId: { productId: id, userId: input.ownerId } }, create: { id: crypto.randomUUID(), productId: id, userId: input.ownerId, role: "owner" }, update: { role: "owner" } });
-        await tx.productMember.updateMany({ where: { productId: id, userId: old.ownerId }, data: { role: "editor" } });
-      }
-      return updated;
-    });
+    const fields = { ...input, ...(input.name && input.name !== old.name ? { slug: await uniqueSlug(input.name) } : {}) };
+    const product = input.ownerId && input.ownerId !== old.ownerId
+      ? await transferProductOwner(id, old.ownerId, input.ownerId, fields)
+      : await db.product.update({ where: { id }, data: fields });
     await recordProductActivity(id, session.uid, "product.updated", { fields: Object.keys(input), ...(input.ownerId && input.ownerId !== old.ownerId ? { previousOwnerId: old.ownerId, ownerId: input.ownerId } : {}) });
     return { product, currentUserRole: role };
   });

@@ -31,7 +31,7 @@ export async function createDatabaseSession(session: AuthSession) {
 
 export async function revokeDatabaseSession(token: string | null | undefined) {
   if (!token) return;
-  await getPrisma().authSession.deleteMany({ where: { tokenHash: tokenHash(token) } });
+  await getPrisma().$executeRaw`DELETE FROM "AuthSession" WHERE "tokenHash" = ${tokenHash(token)}`;
 }
 
 async function getDatabaseSession(token: string): Promise<AuthSession | null> {

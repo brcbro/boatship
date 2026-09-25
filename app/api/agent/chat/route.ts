@@ -2,9 +2,11 @@ import {
   convertToModelMessages,
   stepCountIs,
   streamText,
+  tool,
   type UIMessage,
 } from "ai";
 import { randomUUID } from "crypto";
+import { z } from "zod";
 import type { AgentChatMessage } from "@/types";
 import { BOATSHIP_AGENT_SYSTEM, getAgentModel, isLlmConfiguredForUser } from "@/lib/agent";
 import { internalErrorResponse, jsonError } from "@/lib/api";
@@ -13,6 +15,7 @@ import { buildBoatshipRagContext } from "@/lib/boatship-rag";
 import { createBoatshipAgentSession, isComposioConfiguredForUser } from "@/lib/composio";
 import { getStore } from "@/lib/store";
 import { consumeRateLimit } from "@/lib/rate-limit";
+import { proposeHodiAction, HODI_ACTIONS } from "@/lib/hodi-actions";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -131,23 +134,39 @@ export async function POST(req: Request) {
     );
 
     let composioSession: Awaited<ReturnType<typeof createBoatshipAgentSession>> | null = null;
-    let tools = {};
+    let connectedTools = {};
     let composioInstructions: string | undefined;
     if (await isComposioConfiguredForUser(session.uid)) {
       try {
         composioSession = await createBoatshipAgentSession(session.uid, req);
-        tools = await composioSession.tools();
+        connectedTools = await composioSession.tools();
         composioInstructions = composioSession.experimental.assistivePrompt;
       } catch (error) {
         console.error("[agent/chat composio]", error);
       }
     }
     const ragContext = await buildBoatshipRagContext(latestUserText(conversationMessages), session);
+    const tools = {
+      ...connectedTools,
+      propose_boatship_action: tool({
+        description: "Prepare a Boatship record change for the signed-in staff member to review. This tool never executes the change. Use it when asked to create, assign, or update Boatship records. Give the user the proposal title and ask them to approve it in the action card. Do not claim the change is complete before approval.",
+        inputSchema: z.object({
+          action: z.enum(HODI_ACTIONS),
+          payload: z.record(z.string(), z.unknown()),
+        }),
+        execute: async ({ action, payload }) => {
+          const proposal = await proposeHodiAction(action, payload, session);
+          return { action, preview: proposal.preview, approvalRequired: true };
+        },
+      }),
+    };
 
     const result = streamText({
       model: await getAgentModel(session.uid),
       system: [
         BOATSHIP_AGENT_SYSTEM,
+        "You can prepare Boatship changes using propose_boatship_action. It only creates a proposal. The user approves and executes in the UI. Never ask the user to paste a token or claim that a proposal has been executed. If a request involves several dependent creations, propose the first action, then continue after its result is confirmed.",
+        "Boatship proposal actions and payloads: create_client {name,companyName,primaryContactEmail,assignedTeamMemberId?,templateId?}; create_task {clientId,title,description?,dueDate?,type?}; apply_template {clientId,templateId}; create_form_template {name,description?,fields:[{key,label,type,required,options?}]}, where type is text, textarea, email, dropdown, date, file, number, or checkbox; assign_form {clientId,formTemplateId,title?,description?,dueDate?}; create_service_template {name,description?,industry?,taskList?}; create_calendar_event {title,start,end,timezone?,description?,attendeeEmails?,createMeetingRoom?}, where start and end are ISO date-times with explicit UTC offsets; create_project_milestone {clientId,title,description?,dueDate?,taskIds?}; create_project_approval {clientId,subject,description?,kind?}; create_product {name,type,description?,ownerId?}; create_product_milestone/create_product_work_item/create_product_release require productId and their respective record fields. Other supported actions are update_task, assign_task, block_task, weekly_status_report, create_accounting_entry, and update_accounting_entry. Use existing IDs from retrieved context; ask for missing required information instead of inventing it.",
         composioSession
           ? "Connected-app tools are available for the signed-in staff user. Use them only when they materially help the request."
           : "Connected-app tools are unavailable right now. Continue using the supplied Boatship context and explain that an integration may need reconnecting for external actions.",

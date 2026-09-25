@@ -25,14 +25,6 @@ type TeamUser = {
   permissions?: StaffPermission[];
 };
 
-const BOATSHIP_LEADERSHIP = [
-  { name: "Param Kalathiya", role: "Founder & CEO" },
-  { name: "Meet Pandav", role: "Head of Technology and Business Operations" },
-  { name: "Dharm Sonani", role: "Chief of Marketing and Community" },
-  { name: "Pratham Vithani", role: "Head of UI/UX and Product Design" },
-  { name: "Bhavya Sodingala", role: "Chief Operating Officer" },
-];
-
 function PermissionCheckboxes({
   value,
   onChange,
@@ -191,7 +183,7 @@ export default function TeamPage() {
     <div>
       <PageHeader
         title="Team"
-        description="Boatship leadership and staff accounts."
+        description="Staff accounts."
       />
 
       {message ? (
@@ -200,21 +192,6 @@ export default function TeamPage() {
       {error ? (
         <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>
       ) : null}
-
-      <Card className="mb-6 overflow-hidden p-0">
-        <div className="border-b border-[var(--border)] px-5 py-4">
-          <h2 className="font-[family-name:var(--font-display)] text-lg">Boatship leadership</h2>
-          <p className="mt-1 text-sm text-[var(--ink-muted)]">The people guiding Boatship.</p>
-        </div>
-        <ul className="divide-y divide-[var(--border)]">
-          {BOATSHIP_LEADERSHIP.map((member) => (
-            <li key={member.name} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3">
-              <p className="font-medium text-[var(--ink)]">{member.name}</p>
-              <p className="text-sm text-[var(--ink-muted)]">{member.role}</p>
-            </li>
-          ))}
-        </ul>
-      </Card>
 
       <div className="mb-8 grid gap-6 lg:grid-cols-2">
         <Card className="overflow-hidden p-0">

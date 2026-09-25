@@ -141,14 +141,11 @@ export async function approveHodiCommunication(type: HodiCommunicationType, payl
   const proposal = await db.hodiCommunicationProposal.findUnique({ where: { approvalToken } });
   if (!proposal || proposal.userId !== session.uid || proposal.type !== type || proposal.payloadHash !== payloadHash(type, payload)) throw new Error("Approval token is missing or does not match this communication draft");
   if (proposal.expiresAt.getTime() <= Date.now()) {
-    await db.hodiCommunicationProposal.updateMany({ where: { id: proposal.id, status: "pending" }, data: { status: "expired" } });
+    await db.$executeRaw`UPDATE "HodiCommunicationProposal" SET "status" = 'expired', "updatedAt" = NOW() WHERE "id" = ${proposal.id} AND "status" = 'pending'`;
     throw new Error("Approval token has expired. Create a new draft to review it again.");
   }
-  const approved = await db.hodiCommunicationProposal.updateMany({
-    where: { id: proposal.id, status: "pending" },
-    data: { status: "approved_ready_for_handoff", approvedBy: session.uid, approvedAt: new Date(), handoffReadyAt: new Date() },
-  });
-  if (approved.count !== 1) throw new Error("This communication has already been reviewed");
+  const approved = await db.$executeRaw`UPDATE "HodiCommunicationProposal" SET "status" = 'approved_ready_for_handoff', "approvedBy" = ${session.uid}, "approvedAt" = NOW(), "handoffReadyAt" = NOW(), "updatedAt" = NOW() WHERE "id" = ${proposal.id} AND "status" = 'pending' AND "expiresAt" > NOW()`;
+  if (approved !== 1) throw new Error("This communication has already been reviewed");
   const stored = await db.hodiCommunicationProposal.findUniqueOrThrow({ where: { id: proposal.id } });
   return {
     proposalId: stored.id,

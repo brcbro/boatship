@@ -50,9 +50,7 @@ export async function POST(req: Request) {
 
     const token = currentToken(req);
     if (token) {
-      await getPrisma().authSession.deleteMany({
-        where: { userId: user.uid, tokenHash: { not: sha256Hex(token) } },
-      });
+      await getPrisma().$executeRaw`DELETE FROM "AuthSession" WHERE "userId" = ${user.uid} AND "tokenHash" <> ${sha256Hex(token)}`;
     }
     return { ok: true };
   });

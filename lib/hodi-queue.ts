@@ -120,7 +120,7 @@ export async function generateHodiQueue(session: AuthSession, clientId?: string)
     }
   }
   const now = new Date();
-  await getPrisma().hodiActionProposal.updateMany({ where: { status: { in: ["pending", "approved", "executing"] }, expiresAt: { lte: now } }, data: { status: "expired" } });
+  await getPrisma().$executeRaw`UPDATE "HodiActionProposal" SET "status" = 'expired', "updatedAt" = NOW() WHERE "status" IN ('pending', 'approved', 'executing') AND "expiresAt" <= ${now}`;
   const pending = await getPrisma().hodiActionProposal.findMany({ where: { status: { in: ["pending", "approved"] }, expiresAt: { gt: now } } });
   for (const proposal of pending) {
     if (session.role !== "admin" && proposal.userId !== session.uid) continue;
@@ -131,7 +131,7 @@ export async function generateHodiQueue(session: AuthSession, clientId?: string)
 
 export async function listHodiActionProposals(session: AuthSession, status = "pending") {
   const now = new Date();
-  await getPrisma().hodiActionProposal.updateMany({ where: { status: { in: ["pending", "approved", "executing"] }, expiresAt: { lte: now } }, data: { status: "expired" } });
+  await getPrisma().$executeRaw`UPDATE "HodiActionProposal" SET "status" = 'expired', "updatedAt" = NOW() WHERE "status" IN ('pending', 'approved', 'executing') AND "expiresAt" <= ${now}`;
   const where = session.role === "admin" ? { status } : { userId: session.uid, status };
   return getPrisma().hodiActionProposal.findMany({ where, orderBy: { createdAt: "desc" } });
 }
@@ -145,18 +145,18 @@ export async function consumeHodiActionProposal(input: { approvalToken: string; 
   const proposal = await db.hodiActionProposal.findUnique({ where: { approvalToken: input.approvalToken } });
   if (!proposal || !["pending", "approved"].includes(proposal.status) || proposal.expiresAt.getTime() <= Date.now() || proposal.userId !== input.userId || proposal.action !== input.action || proposal.payloadHash !== input.payloadHash) throw new Error("Approval token is missing, expired, or does not match this action");
   const previousStatus: "pending" | "approved" = proposal.status === "approved" ? "approved" : "pending";
-  const updated = await db.hodiActionProposal.updateMany({ where: { id: proposal.id, status: previousStatus }, data: { status: "executing" } });
-  if (updated.count !== 1) throw new Error("This action is already being executed or has been used");
+  const updated = await db.$executeRaw`UPDATE "HodiActionProposal" SET "status" = 'executing', "updatedAt" = NOW() WHERE "id" = ${proposal.id} AND "status" = ${previousStatus} AND "expiresAt" > NOW()`;
+  if (updated !== 1) throw new Error("This action is already being executed or has been used");
   return { proposal, previousStatus };
 }
 
 export async function finishHodiActionProposal(id: string) {
-  const updated = await getPrisma().hodiActionProposal.updateMany({ where: { id, status: "executing" }, data: { status: "consumed", consumedAt: new Date() } });
-  if (updated.count !== 1) throw new Error("Action proposal could not be finalized");
+  const updated = await getPrisma().$executeRaw`UPDATE "HodiActionProposal" SET "status" = 'consumed', "consumedAt" = NOW(), "updatedAt" = NOW() WHERE "id" = ${id} AND "status" = 'executing'`;
+  if (updated !== 1) throw new Error("Action proposal could not be finalized");
 }
 
 export async function releaseHodiActionProposal(id: string, status: "pending" | "approved") {
-  await getPrisma().hodiActionProposal.updateMany({ where: { id, status: "executing" }, data: { status } });
+  await getPrisma().$executeRaw`UPDATE "HodiActionProposal" SET "status" = ${status}, "updatedAt" = NOW() WHERE "id" = ${id} AND "status" = 'executing'`;
 }
 
 export async function reviewHodiActionProposal(id: string, reviewer: AuthSession, status: "approved" | "rejected", reason?: string) {

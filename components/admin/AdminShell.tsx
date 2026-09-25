@@ -15,6 +15,7 @@ import {
   FileText,
   Gauge,
   LayoutDashboard,
+  ListTodo,
   MessageSquare,
   Menu,
   Plug,
@@ -60,8 +61,8 @@ const NAV_GROUPS: readonly NavGroup[] = [
   ] },
   { label: "Tools and settings", items: [
     { href: "/templates", label: "Templates", icon: ClipboardCheck },
-    { href: "/hodi", label: "Hodi dashboard", icon: Bot },
-    { href: "/agent", label: "Hodi agent", icon: Bot },
+    { href: "/agent", label: "Hodi chat", icon: Bot },
+    { href: "/hodi", label: "Hodi work queue", icon: ListTodo },
     { href: "/automations", label: "Automations", icon: Sparkles },
     { href: "/integrations", label: "Integrations", icon: Plug },
     { href: "/webhooks", label: "Webhooks", icon: Webhook },

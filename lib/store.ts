@@ -1565,10 +1565,7 @@ class PrismaStore extends LocalStore {
   override async deleteUser(uid: string) {
     try {
       const prisma = getPrisma();
-      await prisma.$transaction([
-        prisma.notificationRecord.deleteMany({ where: { userId: uid } }),
-        prisma.userProfile.deleteMany({ where: { uid } }),
-      ]);
+      await prisma.$executeRaw`WITH notifications AS (DELETE FROM "NotificationRecord" WHERE "userId" = ${uid}) DELETE FROM "UserProfile" WHERE "uid" = ${uid}`;
     } catch (error) {
       if (relationalStoreUnavailable(error)) return super.deleteUser(uid);
       throw error;
@@ -1658,12 +1655,9 @@ class PrismaStore extends LocalStore {
 
   override async markAllNotificationsRead(userId: string) {
     try {
-      const result = await getPrisma().notificationRecord.updateMany({
-        where: { userId, readAt: null },
-        data: { readAt: new Date() },
-      });
+      const count = await getPrisma().$executeRaw`UPDATE "NotificationRecord" SET "readAt" = ${new Date()} WHERE "userId" = ${userId} AND "readAt" IS NULL`;
       await this.syncLegacySnapshot(() => super.markAllNotificationsRead(userId));
-      return result.count;
+      return count;
     } catch (error) {
       if (relationalStoreUnavailable(error)) return super.markAllNotificationsRead(userId);
       throw error;
@@ -1674,10 +1668,7 @@ class PrismaStore extends LocalStore {
     await super.deleteClientCascade(id);
     try {
       const prisma = getPrisma();
-      await prisma.$transaction([
-        prisma.notificationRecord.deleteMany({ where: { clientId: id } }),
-        prisma.userProfile.deleteMany({ where: { clientId: id, role: "client" } }),
-      ]);
+      await prisma.$executeRaw`WITH notifications AS (DELETE FROM "NotificationRecord" WHERE "clientId" = ${id}) DELETE FROM "UserProfile" WHERE "clientId" = ${id} AND "role" = 'client'`;
     } catch (error) {
       if (!relationalStoreUnavailable(error)) throw error;
     }
@@ -1721,17 +1712,23 @@ class PrismaStore extends LocalStore {
       const data = { ...emptyStore(), ...(snapshot.data as Partial<StoreData>) };
       await ensureSeed(data);
       const result = await fn(data);
-      const updated = await prisma.storeSnapshot.updateMany({
-        where: { id: "main", version: snapshot.version },
-        data: {
-          data: data as unknown as Prisma.InputJsonValue,
-          version: { increment: 1 },
-        },
-      });
-      if (updated.count === 1) {
+      try {
+        // updateOne is a single statement in Neon HTTP mode. updateMany
+        // starts a transaction there, which the HTTP adapter cannot run.
+        await prisma.storeSnapshot.update({
+          where: { id: "main", version: snapshot.version },
+          data: {
+            data: data as unknown as Prisma.InputJsonValue,
+            version: { increment: 1 },
+          },
+        });
         this.cache = data;
         await bumpRedisCacheVersion();
         return result;
+      } catch (error) {
+        if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2025") {
+          throw error;
+        }
       }
 
       // A retry reads a fresh record. A small jitter reduces repeat clashes

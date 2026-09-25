@@ -1,6 +1,7 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
 import { getPrisma } from "@/lib/prisma";
+import { removeProductMember, updateReleaseWithWorkItems } from "@/lib/product-persistence";
 import { notifyUser } from "@/lib/notifications";
 import { memberSchema, milestoneSchema, notifyProductMembers, parseBody, recordProductActivity, releaseSchema, requireMilestone, requireProductAccess, requireProductMember, requireRepository, requireStaffUser, validateDependencies, validateReleaseWork, workItemSchema } from "@/lib/products";
 
@@ -53,7 +54,10 @@ export async function PATCH(req: Request, { params }: Params) {
       await requireRepository(input.repositoryId);
       if (input.workItemIds) await validateReleaseWork(productId, input.workItemIds);
       const { workItemIds, ...fields } = input;
-      const release = await db.productRelease.update({ where: { id: itemId }, data: { ...fields, ...(input.releasedAt !== undefined ? { releasedAt: input.releasedAt ? new Date(input.releasedAt) : null } : input.status === "released" && existing.status !== "released" ? { releasedAt: new Date() } : {}), ...(workItemIds ? { workLinks: { deleteMany: {}, create: workItemIds.map((workItemId) => ({ workItemId })) } } : {}) }, include: { workLinks: { select: { workItemId: true } } } });
+      const data = { ...fields, ...(input.releasedAt !== undefined ? { releasedAt: input.releasedAt ? new Date(input.releasedAt) : null } : input.status === "released" && existing.status !== "released" ? { releasedAt: new Date() } : {}) };
+      const release = workItemIds
+        ? await updateReleaseWithWorkItems(itemId, data, workItemIds)
+        : await db.productRelease.update({ where: { id: itemId }, data, include: { workLinks: { select: { workItemId: true } } } });
       await recordProductActivity(productId, session.uid, "release.updated", { releaseId: release.id, version: release.version, status: release.status, fields: Object.keys(input) });
       if (release.status === "released" && existing.status !== "released") await notifyProductMembers(productId, session.uid, `Released ${product.name} ${release.version}`, release.notes);
       return { release: { ...release, workItemIds: release.workLinks.map((link) => link.workItemId) } };
@@ -72,11 +76,7 @@ export async function DELETE(req: Request, { params }: Params) {
     const member = await db.productMember.findFirst({ where: { id: itemId, productId } });
     if (!member) throw jsonError("Member not found", 404);
     if (member.userId === product.ownerId) throw jsonError("Change the product owner before removing this member", 400);
-    await db.$transaction([
-      db.productWorkItem.updateMany({ where: { productId, assigneeId: member.userId }, data: { assigneeId: null } }),
-      db.productMilestone.updateMany({ where: { productId, ownerId: member.userId }, data: { ownerId: null } }),
-      db.productMember.delete({ where: { id: itemId } }),
-    ]);
+    if (!await removeProductMember(productId, itemId, member.userId)) throw jsonError("Member not found or is now the product owner", 409);
     await recordProductActivity(productId, session.uid, "member.removed", { userId: member.userId });
     return { deleted: true };
   });
