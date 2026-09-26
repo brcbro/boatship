@@ -1,5 +1,6 @@
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "crypto";
 import { getPrisma } from "@/lib/prisma";
+import { providerSyncConfig } from "@/lib/git-provider-sync";
 
 export type GitProvider = "github" | "gitlab";
 
@@ -145,7 +146,6 @@ export type ProviderSyncPlan = {
   requiredConfiguration: string[];
 };
 
-/** Deliberately does not call a provider until OAuth/app credentials are configured. */
 export function getProviderSyncPlan(repository: { id: string; provider: string; accessTokenRef: string | null }): ProviderSyncPlan {
   const provider = repository.provider === "gitlab" ? "gitlab" : "github";
   return {
@@ -158,4 +158,25 @@ export function getProviderSyncPlan(repository: { id: string; provider: string; 
       "Provider webhook secret in the deployment environment",
     ],
   };
+}
+
+export async function syncRepositoryMetadata(repository: { id: string; provider: string; owner: string; repository: string; accessTokenRef: string | null }) {
+  const plan = getProviderSyncPlan(repository);
+  const provider = plan.provider;
+  const config = providerSyncConfig(provider, repository.owner, repository.repository, repository.accessTokenRef, process.env);
+  if (!config) return plan;
+  const response = await fetch(config.url, {
+    headers: provider === "github"
+      ? { Authorization: `Bearer ${config.token}`, Accept: "application/vnd.github+json", "User-Agent": "Boatship" }
+      : { "PRIVATE-TOKEN": config.token },
+    signal: AbortSignal.timeout(10000),
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(`Git provider metadata sync failed (${response.status})`);
+  const metadata = await response.json() as { default_branch?: unknown; html_url?: unknown; web_url?: unknown };
+  const defaultBranch = typeof metadata.default_branch === "string" ? metadata.default_branch.trim() : "";
+  if (!defaultBranch || defaultBranch.length > 255) throw new Error("Git provider returned an invalid default branch");
+  const updated = await getPrisma().gitRepositoryConnection.update({ where: { id: repository.id }, data: { defaultBranch } });
+  const url = provider === "github" ? metadata.html_url : metadata.web_url;
+  return { provider, repositoryId: updated.id, status: "synced" as const, defaultBranch: updated.defaultBranch, url: typeof url === "string" ? url : null };
 }

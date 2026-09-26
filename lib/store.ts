@@ -34,6 +34,7 @@ import { SEED_FORM_TEMPLATES, SEED_ONBOARDING_TEMPLATES } from "@/lib/seed-templ
 import { getPrisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/password";
 import { bumpRedisCacheVersion } from "@/lib/redis-cache";
+import { webhookRetry } from "@/lib/webhook-retry";
 import type {
   NotificationRecord as PrismaNotificationRecord,
   UserProfile as PrismaUserProfile,
@@ -572,8 +573,10 @@ export interface DataStore {
   getWebhook(id: string): Promise<WebhookEndpoint | null>;
   upsertWebhook(hook: WebhookEndpoint): Promise<WebhookEndpoint>;
   deleteWebhook(id: string): Promise<void>;
-  addWebhookDelivery(entry: Omit<WebhookDelivery, "id" | "createdAt">): Promise<WebhookDelivery>;
+  addWebhookDeliveries(entries: Array<Omit<WebhookDelivery, "id" | "createdAt">>): Promise<WebhookDelivery[]>;
   listWebhookDeliveries(webhookId?: string): Promise<WebhookDelivery[]>;
+  claimWebhookDeliveries(limit: number): Promise<WebhookDelivery[]>;
+  finishWebhookDeliveries(results: Array<{ id: string; leaseToken: string; statusCode: number | null; error: string | null }>): Promise<void>;
 
   addIntegrationRun(entry: Omit<IntegrationRun, "id" | "createdAt">): Promise<IntegrationRun>;
   listIntegrationRuns(limit?: number): Promise<IntegrationRun[]>;
@@ -1277,22 +1280,54 @@ class LocalStore implements DataStore {
     });
   }
 
-  async addWebhookDelivery(entry: Omit<WebhookDelivery, "id" | "createdAt">) {
-    return this.mutate((data) => {
-      const record: WebhookDelivery = {
-        ...entry,
-        id: randomUUID(),
-        createdAt: now(),
-      };
-      data.webhookDeliveries.push(record);
-      return record;
-    });
-  }
-
   async listWebhookDeliveries(webhookId?: string) {
     let rows = (await this.read()).webhookDeliveries;
     if (webhookId) rows = rows.filter((d) => d.webhookId === webhookId);
-    return rows.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return rows.map((delivery) => ({ ...delivery, leaseToken: null })).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  async addWebhookDeliveries(entries: Array<Omit<WebhookDelivery, "id" | "createdAt">>) {
+    if (!entries.length) return [];
+    return this.mutate((data) => {
+      const records = entries.map((entry) => ({ ...entry, id: randomUUID(), createdAt: now() }));
+      data.webhookDeliveries.push(...records);
+      return records;
+    });
+  }
+
+  async claimWebhookDeliveries(limit: number) {
+    return this.mutate((data) => {
+      const nowMs = Date.now();
+      const claimed = data.webhookDeliveries.filter((delivery) =>
+        (delivery.state === "pending" && Date.parse(delivery.nextAttemptAt || delivery.createdAt) <= nowMs) ||
+        (delivery.state === "leased" && Date.parse(delivery.leaseUntil || "") <= nowMs)
+      ).slice(0, limit);
+      for (const delivery of claimed) {
+        delivery.state = "leased";
+        delivery.attempts = (delivery.attempts || 0) + 1;
+        delivery.leaseToken = randomUUID();
+        delivery.leaseUntil = new Date(nowMs + 30_000).toISOString();
+      }
+      return claimed.map((delivery) => ({ ...delivery }));
+    });
+  }
+
+  async finishWebhookDeliveries(results: Array<{ id: string; leaseToken: string; statusCode: number | null; error: string | null }>) {
+    if (!results.length) return;
+    await this.mutate((data) => {
+      for (const result of results) {
+        const delivery = data.webhookDeliveries.find((item) => item.id === result.id);
+        if (!delivery || delivery.state !== "leased" || delivery.leaseToken !== result.leaseToken) continue;
+        delivery.statusCode = result.statusCode;
+        delivery.success = result.error === null;
+        delivery.error = result.error;
+        const retry = webhookRetry(delivery.attempts || 1);
+        delivery.state = delivery.success ? "succeeded" : retry.state;
+        delivery.nextAttemptAt = retry.nextAttemptAt;
+        delivery.leaseToken = null;
+        delivery.leaseUntil = null;
+      }
+    });
   }
 
   async addIntegrationRun(entry: Omit<IntegrationRun, "id" | "createdAt">) {

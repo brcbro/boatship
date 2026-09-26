@@ -124,7 +124,7 @@ export async function PATCH(req: Request, { params }: Params) {
             companyName: client.companyName,
             taskTitle: task.title,
           });
-          void dispatchWebhooks("task.completed", {
+          await dispatchWebhooks("task.completed", {
             taskId: task.id,
             taskTitle: task.title,
             clientId: client.id,

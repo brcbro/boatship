@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { handleApi, jsonError } from "@/lib/api";
 import { appBaseUrl } from "@/lib/client-status";
-import { resetPasswordEmailHtml, sendEmail } from "@/lib/email";
+import { emailDeliveryConfigured, resetPasswordEmailHtml, sendEmail } from "@/lib/email";
 import { getStore } from "@/lib/store";
 import { consumeAccountAndIpLimit } from "@/lib/rate-limit";
 
@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   return handleApi(async () => {
-    if (!process.env.RESEND_API_KEY) throw jsonError("Email delivery is not configured", 503);
+    if (!emailDeliveryConfigured()) throw jsonError("Email delivery is not configured", 503);
     const body = (await req.json().catch(() => ({}))) as { email?: string };
     const email = (body.email || "").trim().toLowerCase();
     if (!email) throw jsonError("Email is required", 400);

@@ -6,7 +6,7 @@ Web app for managing client onboarding: team/admin manage clients, tasks, docume
 
 - Next.js (App Router) + Tailwind CSS
 - Neon PostgreSQL + Prisma ORM for application data, users, sessions, and integration ownership
-- Resend for transactional email (logs to console without `RESEND_API_KEY`)
+- Zoho CPaaS / ZeptoMail or Resend for transactional email (local demo logs to console without a provider; hosted mode requires a provider key and verified sender)
 - Composio for 250+ app integrations (Slack, Gmail, Drive, HubSpot, …)
 - Cloudflare Worker via OpenNext (`@opennextjs/cloudflare`)
 
@@ -32,7 +32,7 @@ For a new migrated database, use the guarded [first-admin provisioning runbook](
 5. Optional: **Integrations** → each member securely saves their own Composio/OpenRouter credentials → connect **Google Drive** and open **Hodi**
 6. Optional: connect Slack → set `COMPOSIO_SLACK_CHANNEL` for auto-notify
 
-Invitations and password resets require `RESEND_API_KEY` and a valid `RESEND_FROM` sender. The API returns an error when email delivery is unavailable instead of creating an unusable invitation.
+Hosted email delivery uses `ZEPTOMAIL_API_KEY` and a verified `ZEPTOMAIL_FROM` sender, or `RESEND_API_KEY` and `RESEND_FROM`. ZeptoMail takes priority when both are configured. The API returns an error when delivery is unavailable instead of reporting a demo send.
 
 ## Environment
 

@@ -2,6 +2,11 @@ import { Resend } from "resend";
 
 const FROM = process.env.RESEND_FROM || "Boatship Onboarding <onboarding@resend.dev>";
 
+export function emailDeliveryConfigured() {
+  if (process.env.ZEPTOMAIL_API_KEY) return Boolean(process.env.ZEPTOMAIL_FROM);
+  return Boolean(process.env.RESEND_API_KEY && process.env.RESEND_FROM);
+}
+
 export type EmailPayload = {
   to: string;
   subject: string;
@@ -9,10 +14,32 @@ export type EmailPayload = {
 };
 
 export async function sendEmail(payload: EmailPayload) {
+  if (process.env.ZEPTOMAIL_API_KEY) {
+    const from = process.env.ZEPTOMAIL_FROM;
+    if (!from) throw new Error("Email sender is not configured");
+    const response = await fetch("https://cpaas.zoho.in/v1.1/email", {
+      method: "POST",
+      headers: {
+        Authorization: `Zoho-enczapikey ${process.env.ZEPTOMAIL_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: { address: from, name: "Boatship" },
+        to: [{ email_address: { address: payload.to } }],
+        subject: payload.subject,
+        htmlbody: payload.html,
+      }),
+    });
+    if (!response.ok) throw new Error(`Email delivery failed (${response.status})`);
+    const result = (await response.json()) as { request_id?: string };
+    return { id: result.request_id || "sent", demo: false as const };
+  }
   if (!process.env.RESEND_API_KEY) {
+    if (process.env.NODE_ENV === "production") throw new Error("Email delivery is not configured");
     console.info("[email:demo]", payload.to, payload.subject);
     return { id: `demo_${Date.now()}`, demo: true as const };
   }
+  if (process.env.NODE_ENV === "production" && !process.env.RESEND_FROM) throw new Error("Email sender is not configured");
   const resend = new Resend(process.env.RESEND_API_KEY);
   const result = await resend.emails.send({
     from: FROM,

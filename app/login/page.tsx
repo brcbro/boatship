@@ -164,8 +164,8 @@ function LoginContent() {
                   required
                 />
               </div>
-              {error ? <p className="text-sm text-red-700">{error}</p> : null}
-              {success ? <p className="text-sm text-emerald-700">{success}</p> : null}
+              {error ? <p role="alert" className="text-sm text-red-700">{error}</p> : null}
+              {success ? <p role="status" className="text-sm text-emerald-700">{success}</p> : null}
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Signing in…" : "Sign in"}
               </Button>
@@ -196,8 +196,8 @@ function LoginContent() {
                   required
                 />
               </div>
-              {error ? <p className="text-sm text-red-700">{error}</p> : null}
-              {success ? <p className="text-sm text-emerald-700">{success}</p> : null}
+              {error ? <p role="alert" className="text-sm text-red-700">{error}</p> : null}
+              {success ? <p role="status" className="text-sm text-emerald-700">{success}</p> : null}
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Sending…" : "Send reset link"}
               </Button>
@@ -241,8 +241,8 @@ function LoginContent() {
                   minLength={8}
                 />
               </div>
-              {error ? <p className="text-sm text-red-700">{error}</p> : null}
-              {success ? <p className="text-sm text-emerald-700">{success}</p> : null}
+              {error ? <p role="alert" className="text-sm text-red-700">{error}</p> : null}
+              {success ? <p role="status" className="text-sm text-emerald-700">{success}</p> : null}
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Saving…" : "Set password"}
               </Button>

@@ -3,7 +3,7 @@ import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
 import { appBaseUrl } from "@/lib/client-status";
 import { notifyIntegrations } from "@/lib/composio";
-import { inviteEmailHtml, sendEmail } from "@/lib/email";
+import { emailDeliveryConfigured, inviteEmailHtml, sendEmail } from "@/lib/email";
 import { getStore } from "@/lib/store";
 import { canAccessClient } from "@/lib/client-access";
 import { consumeAccountAndIpLimit, consumeRateLimit } from "@/lib/rate-limit";
@@ -16,7 +16,7 @@ type Params = { params: Promise<{ id: string }> };
 export async function POST(req: Request, { params }: Params) {
   return handleApi(async () => {
     const session = await requireRoles(req, ["admin", "team"]);
-    if (!process.env.RESEND_API_KEY) throw jsonError("Email delivery is not configured", 503);
+    if (!emailDeliveryConfigured()) throw jsonError("Email delivery is not configured", 503);
     const { id } = await params;
     const store = await getStore();
     const client = await store.getClient(id);
@@ -88,7 +88,7 @@ export async function POST(req: Request, { params }: Params) {
       email,
     });
 
-    void dispatchWebhooks("client.invited", {
+    await dispatchWebhooks("client.invited", {
       clientId: client.id,
       clientName: name,
       companyName: client.companyName,

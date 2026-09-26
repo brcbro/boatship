@@ -26,4 +26,4 @@ The delivery key is stored as `delivery:<id>` in Git evidence. Replayed deliveri
 
 ## Provider API synchronization
 
-`POST /api/git/repositories/:id` currently returns a typed sync plan with `not_configured` status. It intentionally performs no provider API call until a GitHub App/OAuth installation or GitLab application token reference is configured. No credentials are invented, logged, or returned by the API. This is the extension point for repository metadata, checks, reviews, and deployment synchronization.
+`POST /api/git/repositories/:id` synchronizes the default branch from the GitHub or GitLab repository metadata API when the repository's `accessTokenRef` names a configured `BOATSHIP_GIT_TOKEN_*` environment secret. The reference is a secret name, never a raw token. Without it, the route returns `not_configured`. Failed provider requests leave the stored branch unchanged. Checks, reviews, and deployments continue to arrive through signed webhooks.

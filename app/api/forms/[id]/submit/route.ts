@@ -85,7 +85,7 @@ export async function POST(req: Request, { params }: Params) {
     });
 
     const client = await store.getClient(form.clientId);
-    void dispatchWebhooks("form.submitted", {
+    await dispatchWebhooks("form.submitted", {
       formId: updated.id,
       formTemplateId: updated.formTemplateId,
       clientId: form.clientId,

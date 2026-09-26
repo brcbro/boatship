@@ -132,7 +132,7 @@ export async function POST(req: Request) {
       companyName: client.companyName,
     });
 
-    void dispatchWebhooks("client.created", {
+    await dispatchWebhooks("client.created", {
       clientId: client.id,
       clientName: client.name,
       companyName: client.companyName,

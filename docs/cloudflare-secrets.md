@@ -10,6 +10,8 @@ npx wrangler secret put DIRECT_URL
 npx wrangler secret put BOATSHIP_SECRETS_MASTER_KEY
 ```
 
+For hosted transactional mail, set `ZEPTOMAIL_API_KEY` and `ZEPTOMAIL_FROM` (a full verified sender address). The app uses Zoho's India CPaaS HTTPS API. Existing Resend deployments can use `RESEND_API_KEY` and `RESEND_FROM` instead. Set these on the production Worker before deploying mail-dependent routes.
+
 `BOATSHIP_SECRETS_MASTER_KEY` must be a 32-byte key encoded as either 64 hexadecimal characters or base64. Generate it locally and paste it into the secret prompt; never commit it to `.env.example`, source control, or a public dashboard.
 
 `COMPOSIO_API_KEY` and `OPENROUTER_API_KEY` may remain server-wide fallback secrets, but hosted users should normally enter their own credentials through the secure Integrations panel. Those values are encrypted in Neon and are never returned after submission.

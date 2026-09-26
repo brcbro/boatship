@@ -2,6 +2,7 @@ import { handleApi, jsonError } from "@/lib/api";
 import { requireSession } from "@/lib/auth";
 import { canAccessClient } from "@/lib/client-access";
 import { getStore } from "@/lib/store";
+import { documentMetadata } from "@/lib/document-response";
 
 export const runtime = "nodejs";
 
@@ -14,7 +15,7 @@ export async function GET(req: Request) {
 
     const store = await getStore();
     const documents = await store.listDocuments(clientId);
-    return { documents };
+    return { documents: documents.map(documentMetadata) };
   });
 }
 
@@ -78,7 +79,7 @@ export async function POST(req: Request) {
         meta: { documentId: document.id, fileName: document.fileName },
       });
 
-      return { document };
+      return { document: documentMetadata(document) };
     }
 
     const document = await store.createDocument({
@@ -101,6 +102,6 @@ export async function POST(req: Request) {
       meta: { documentId: document.id, fileName: document.fileName },
     });
 
-    return { document };
+    return { document: documentMetadata(document) };
   });
 }

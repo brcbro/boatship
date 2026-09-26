@@ -198,12 +198,12 @@ export default function PortalFormsPage() {
       />
 
       {error && !modalOpen ? (
-        <p className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+        <p role="alert" className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
           {error}
         </p>
       ) : null}
       {success && !modalOpen ? (
-        <p className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+        <p role="status" className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
           {success}
         </p>
       ) : null}
@@ -277,12 +277,12 @@ export default function PortalFormsPage() {
         }
       >
         {error && modalOpen ? (
-          <p className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+          <p role="alert" className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
             {error}
           </p>
         ) : null}
         {success && modalOpen ? (
-          <p className="mb-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          <p role="status" className="mb-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
             {success}
           </p>
         ) : null}

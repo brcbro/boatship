@@ -437,10 +437,11 @@ export default function WebhooksPage() {
                     {formatDateTime(d.createdAt)}
                     {d.statusCode != null ? ` · HTTP ${d.statusCode}` : ""}
                     {d.error ? ` · ${d.error}` : ""}
+                    {d.state === "pending" && d.attempts && d.nextAttemptAt ? ` · Retry ${formatDateTime(d.nextAttemptAt)}` : ""}
                   </p>
                 </div>
-                <Badge tone={d.success ? "success" : "danger"}>
-                  {d.success ? "OK" : "Failed"}
+                <Badge tone={d.state === "pending" || d.state === "leased" ? "warning" : d.success ? "success" : "danger"}>
+                  {d.state === "pending" ? d.attempts ? "Retrying" : "Queued" : d.state === "leased" ? "Sending" : d.success ? "OK" : "Failed"}
                 </Badge>
               </li>
             ))}

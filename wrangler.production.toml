@@ -11,6 +11,9 @@ binding = "ASSETS"
 enabled = true
 head_sampling_rate = 0.1
 
+[triggers]
+crons = ["30 3 * * 1-5", "*/5 * * * *"]
+
 [[durable_objects.bindings]]
 name = "MESSAGE_ROOM"
 class_name = "MessageRoom"

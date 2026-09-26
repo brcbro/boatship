@@ -4,6 +4,7 @@ import { appBaseUrl } from "@/lib/client-status";
 import { documentReviewedEmailHtml, sendEmail } from "@/lib/email";
 import { canAccessClient } from "@/lib/client-access";
 import { getStore } from "@/lib/store";
+import { documentMetadata } from "@/lib/document-response";
 import { dispatchWebhooks } from "@/lib/webhooks";
 import type { DocumentStatus, DocumentVersion } from "@/types";
 
@@ -168,7 +169,7 @@ export async function PATCH(req: Request, { params }: Params) {
           console.error("Failed to send document review email", err);
         }
 
-        void dispatchWebhooks(
+        await dispatchWebhooks(
           body.status === "approved" ? "document.approved" : "document.rejected",
           {
             documentId: document.id,
@@ -195,6 +196,6 @@ export async function PATCH(req: Request, { params }: Params) {
       });
     }
 
-    return { document };
+    return { document: documentMetadata(document) };
   });
 }

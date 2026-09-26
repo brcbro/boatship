@@ -10,7 +10,7 @@ This plan covers the section and its integration with the current app. Product m
 
 The internal portfolio, product membership, roadmap, work items, release history, repository links, release-to-work links, recent activity, dashboard summary, workload counts, and assignment/release notifications are implemented in the app. The Prisma migration in `prisma/migrations/20260924000000_add_products/` must be applied to the target database before these routes are used there. Activity writes are best-effort and log failures after the primary change commits.
 
-The user chose to keep payment and analytics provider integration for later. Product customer accounts, subscriptions, revenue metrics, provider webhooks, product-specific Git validation evidence, and scheduled overdue scans remain future work. The current Git evidence records attach to client task IDs; reusing them for product work requires a separate product-aware association and authorization path.
+The user chose to keep payment and analytics provider integration for later. Product customer accounts, subscriptions, revenue metrics, provider webhooks, and product-specific Git validation evidence remain future work. The current Git evidence records attach to client task IDs; reusing them for product work requires a separate product-aware association and authorization path. A weekday Worker cron now creates in-app overdue notifications for unfinished product work and milestones whose dates have passed. It notifies the assigned member and product owner once per item per day; delivery requires the `BOATSHIP_CRON_SECRET` Worker secret.
 
 ## Where it fits
 

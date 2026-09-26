@@ -6,6 +6,7 @@ import { verifyMessageRealtimeTicket } from "./lib/realtime/message-ticket";
 
 type RealtimeEnv = {
   MESSAGE_REALTIME_SECRET?: string;
+  BOATSHIP_CRON_SECRET?: string;
   MESSAGE_ROOM: DurableObjectNamespace<MessageRoom>;
 };
 
@@ -20,6 +21,14 @@ export { MessageRoom };
 export { DOQueueHandler, DOShardedTagCache, BucketCachePurge } from "./.open-next/worker.js";
 
 export default {
+  async scheduled(controller: ScheduledController, env: RealtimeEnv, ctx: ExecutionContext) {
+    if (!env.BOATSHIP_CRON_SECRET) throw new Error("BOATSHIP_CRON_SECRET is required for scheduled jobs");
+    const path = controller.cron === "30 3 * * 1-5" ? "product-reminders" : "webhook-drain";
+    const response = await nextWorker.fetch(new Request(`https://boatship.cohortix.in/api/internal/${path}`, {
+      method: "POST", headers: { "x-boatship-cron-secret": env.BOATSHIP_CRON_SECRET },
+    }), env, ctx);
+    if (!response.ok) throw new Error(`${path} failed: ${response.status}`);
+  },
   async fetch(request: Request, env: RealtimeEnv, ctx: ExecutionContext) {
     const url = new URL(request.url);
     if (url.pathname !== "/api/messages/live") return nextWorker.fetch(request, env, ctx);

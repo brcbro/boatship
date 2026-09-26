@@ -337,6 +337,11 @@ export interface WebhookDelivery {
   success: boolean;
   error: string | null;
   createdAt: string;
+  state?: "pending" | "leased" | "succeeded" | "failed";
+  attempts?: number;
+  nextAttemptAt?: string;
+  leaseUntil?: string | null;
+  leaseToken?: string | null;
 }
 
 export interface IntegrationRun {

@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from "crypto";
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
 import { appBaseUrl } from "@/lib/client-status";
-import { inviteEmailHtml, sendEmail } from "@/lib/email";
+import { emailDeliveryConfigured, inviteEmailHtml, sendEmail } from "@/lib/email";
 import { DEFAULT_TEAM_PERMISSIONS } from "@/lib/rbac";
 import { getStore } from "@/lib/store";
 import { consumeAccountAndIpLimit, consumeRateLimit } from "@/lib/rate-limit";
@@ -13,7 +13,7 @@ export const runtime = "nodejs";
 export async function POST(req: Request) {
   return handleApi(async () => {
     const session = await requireRoles(req, ["admin"]);
-    if (!process.env.RESEND_API_KEY) throw jsonError("Email delivery is not configured", 503);
+    if (!emailDeliveryConfigured()) throw jsonError("Email delivery is not configured", 503);
     const body = (await req.json().catch(() => ({}))) as {
       email?: string;
       name?: string;

@@ -55,7 +55,7 @@ export async function syncClientStatusFromTasks(
       });
     }
 
-    void dispatchWebhooks("client.completed", {
+    await dispatchWebhooks("client.completed", {
       clientId: client.id,
       clientName: client.name,
       companyName: client.companyName,

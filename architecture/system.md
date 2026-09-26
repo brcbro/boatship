@@ -1,6 +1,6 @@
 # System design and request flow
 
-Last reviewed: 2026-09-25.
+Last reviewed: 2026-09-26.
 
 ## Runtime and entry points
 
@@ -21,14 +21,14 @@ Last reviewed: 2026-09-25.
 
 **Optional cache:** `lib/redis-cache.ts` uses Upstash-compatible Redis REST for selected read endpoints. It is best effort and keyed by a generation advanced after datastore writes. Redis failure falls back to Neon. Do not assume it invalidates independent relational product writes; those queries have their own behavior.
 
-**Documents:** `app/api/documents/upload-url` returns a client-scoped database storage path; `app/api/documents/upload` validates file type and a 10 MB limit, then stores base64 content and document metadata through `DataStore`. Version history is kept on reupload. The `db://` path is a logical key, not an object-storage bucket. Review and retrieval live in the document routes.
+**Documents:** `app/api/documents/upload-url` returns a client-scoped database storage path; `app/api/documents/upload` validates file type and a 10 MB limit, then stores base64 content and document metadata through `DataStore`. Version history is kept on reupload. The `db://` path is a logical key, not an object-storage bucket. List, bulk, and mutation responses strip current and previous binary content; authorized detail retrieval still returns the full record. There is no malware scanner or retention process.
 
 ## Identity and authorization
 
 1. `POST /api/auth/login` verifies a stored scrypt password hash and creates a random session token. A hash of the token, user ID, and expiry are stored in `AuthSession`. The browser receives an HTTP-only cookie; bearer tokens are also accepted by API session resolution.
 2. `lib/auth.ts` verifies the token against the database, checks expiry, reloads the current user, and rejects users required to reset their password or still using known fixed demo credentials in production. `proxy.ts` supplies page redirects based on the token's embedded routing hint and rejects cross-origin cookie-authenticated API mutations. API routes remain responsible for authorization.
 3. API handlers use `requireSession` / `requireRoles`, `lib/rbac.ts` staff permissions, and server-only `lib/client-access.ts` for client ownership/assignment checks. Team members are restricted to clients currently assigned to them; this is enforced on core client resources and aggregate paths such as analytics, exports, reminders, calendar, Hodi, and MCP context. The helper reads the current committed assignment for team authorization rather than trusting a Worker-local snapshot cache. Client users remain scoped to their own `clientId`; product routes use explicit product membership and write roles from `lib/products.ts`.
-4. Invitations and password resets use one-time setup/reset links and `lib/email.ts` / Resend. Delivery requires valid Resend configuration. User and account management endpoints are under `/api/users`, `/api/clients/*/invite`, and `/api/account`.
+4. Invitations and password resets use one-time setup/reset links and `lib/email.ts`. Hosted delivery uses the Zoho India CPaaS email API with `ZEPTOMAIL_API_KEY` and a verified `ZEPTOMAIL_FROM`, or Resend with `RESEND_API_KEY` and `RESEND_FROM`. Zoho takes priority when configured; missing configuration throws instead of reporting a demo send. User and account management endpoints are under `/api/users`, `/api/clients/*/invite`, and `/api/account`.
 5. User-entered provider secrets are encrypted by `lib/user-secrets.ts` before persistence. `BOATSHIP_SECRETS_MASTER_KEY` must be retained for decryption. MCP tokens are shown once and stored hashed; MCP scopes and project access are verified separately.
 6. Login, password reset, invitation, MCP, and agent chat requests consume shared database rate limits in `lib/rate-limit.ts`. Explicit local-only demo mode uses process-local buckets so it can run without a database. Outbound webhooks require a configured exact HTTPS origin in `WEBHOOK_ALLOWED_ORIGINS`; redirects are rejected and list/detail responses redact signing secrets.
 
@@ -52,7 +52,7 @@ sequenceDiagram
   Staff->>API: Review progress, documents and approvals
 ```
 
-Task work may carry subtasks, dependencies, comments, evidence, definition-of-done, Git links, validation, and manager approval. Client project operations add milestones, schedules, and approvals through `lib/project-operations.ts`. Notifications and activity connect changes back to staff and clients.
+Task work may carry subtasks, dependencies, comments, evidence, definition-of-done, Git links, validation, and manager approval. Client project operations add milestones, schedules, and approvals through `lib/project-operations.ts`. Notifications and activity connect changes back to staff and clients. Product overdue work and milestones create member-scoped in-app notifications on weekday Worker cron runs, with deterministic IDs preventing duplicate notifications for the same item and day.
 
 ## Hodi creation flow
 
@@ -62,6 +62,10 @@ Task work may carry subtasks, dependencies, comments, evidence, definition-of-do
 
 `/api/messages` is the persisted source of truth. After a message is saved, the route publishes it to a client-specific `MessageRoom` Durable Object. `custom-worker.ts` intercepts `/api/messages/live`, verifies a short-lived server-issued ticket from `/api/messages/live-ticket`, and upgrades the connection. The UI uses `useMessageRealtime` with `useMessagePolling` as fallback. The Worker needs `MESSAGE_ROOM` and `MESSAGE_REALTIME_SECRET`; local Next development can operate through polling.
 
+## Webhook delivery and health
+
+Event routes await insertion of pending webhook deliveries into the versioned client snapshot. Local development drains immediately; the deployed Worker cron calls a secret-protected internal drain every five minutes. Claims use short leases, failed attempts back off, and a delivery stops after ten attempts. `X-Boatship-Delivery` is stable across retries for receiver deduplication. A domain write and its enqueue remain separate snapshot mutations, so a crash between them can omit an event; a successful external delivery can also repeat if recording the result fails. The snapshot remains a scaling limit for this queue. `GET /api/health` checks database connectivity and returns only `ok` or `unavailable`, with no caching or database details.
+
 ## Deployment and commands
 
 - `npm run dev` starts local Next. `npm run build` builds Next with Turbopack; `npm run lint` runs ESLint.
@@ -69,4 +73,5 @@ Task work may carry subtasks, dependencies, comments, evidence, definition-of-do
 - `npm run db:generate`, `db:push`, `db:migrate`, and `db:deploy` manage Prisma. Deployment must apply `20260924010000_version_store_snapshot` and `20260924020000_add_rate_limit_buckets` before serving this code.
 - `npm run build:cloudflare` builds Next and OpenNext, prunes assets, and copies server WASM. `npm run cf:dry-run` validates the Worker package. `npm run deploy` runs database deployment, Cloudflare build, then Wrangler with `wrangler.production.toml`.
 - `custom-worker.ts` wraps the OpenNext Worker for message WebSockets. `wrangler.toml` and `wrangler.production.toml` define the asset binding, Durable Object, and custom domain `boatship.cohortix.in`. Hyperdrive is documented but not enabled in checked-in configuration.
+- `wrangler.production.toml` schedules weekday product overdue notifications and five-minute webhook drains through `custom-worker.ts`. `BOATSHIP_CRON_SECRET` must be present in the Worker environment before deploying this change. The checked-in configuration does not establish a separate staging environment or alert rules.
 - `.env.example` lists basic local variables. [Hosted secrets](../docs/cloudflare-secrets.md) and [README](../README.md) explain additional optional configuration. Never commit `.env.local` or secret values.

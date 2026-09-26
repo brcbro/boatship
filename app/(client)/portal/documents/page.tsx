@@ -229,12 +229,12 @@ function DocumentsPageInner() {
       />
 
       {error ? (
-        <p className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+        <p role="alert" className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
           {error}
         </p>
       ) : null}
       {success ? (
-        <p className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+        <p role="status" className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
           {success}
         </p>
       ) : null}
@@ -252,6 +252,7 @@ function DocumentsPageInner() {
             <Input
               id="document-file"
               type="file"
+              aria-describedby="document-file-help"
               accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp"
               onChange={(e) => {
                 const next = e.target.files?.[0] ?? null;
@@ -264,7 +265,7 @@ function DocumentsPageInner() {
               }}
               required
             />
-            <p className="mt-1 text-xs text-[var(--ink-muted)]">
+            <p id="document-file-help" className="mt-1 text-xs text-[var(--ink-muted)]">
               Accepted: pdf, png, jpg, jpeg, webp · Max 10MB
             </p>
           </div>

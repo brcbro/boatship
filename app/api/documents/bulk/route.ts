@@ -3,6 +3,7 @@ import { requireRoles } from "@/lib/auth";
 import { dispatchWebhooks } from "@/lib/webhooks";
 import { getStore } from "@/lib/store";
 import { canAccessClient } from "@/lib/client-access";
+import { documentMetadata } from "@/lib/document-response";
 import type { DocumentStatus } from "@/types";
 
 export const runtime = "nodejs";
@@ -63,7 +64,7 @@ export async function POST(req: Request) {
 
       if (body.status === "approved" || body.status === "rejected") {
         const client = await store.getClient(existing.clientId);
-        void dispatchWebhooks(
+        await dispatchWebhooks(
           body.status === "approved" ? "document.approved" : "document.rejected",
           {
             documentId: document.id,
@@ -79,7 +80,7 @@ export async function POST(req: Request) {
     }
 
     return {
-      documents: updated,
+      documents: updated.map(documentMetadata),
       updated: updated.length,
       missing,
     };
