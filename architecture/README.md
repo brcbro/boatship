@@ -28,7 +28,7 @@ flowchart LR
   Store --> Neon[(Neon PostgreSQL)]
   Relational --> Neon
   Next --> Composio[Composio / external apps]
-  Next --> Resend[Resend email]
+  Next --> Email[Zoho CPaaS or Resend email]
   Next --> Redis[Optional Redis REST cache]
   Next --> DO[MessageRoom Durable Object]
   DO --> Browser
