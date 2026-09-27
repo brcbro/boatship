@@ -120,7 +120,7 @@ export default function PortalMessagesPage() {
     <div className="mx-auto max-w-5xl">
       <PageHeader
         title="Messages"
-        description="A direct line to your Boatship onboarding team. Ask questions, share context, and keep the work moving."
+        description="A direct line to your Boatship team. Ask questions, share context, and keep the work moving."
       />
       {error ? (
         <p
@@ -151,10 +151,10 @@ export default function PortalMessagesPage() {
               </div>
               <div className="min-w-0">
                 <h2 className="font-[family-name:var(--font-display)] text-xl leading-tight text-[var(--ink)]">
-                  Your onboarding team
+                  Your Boatship team
                 </h2>
                 <p className="mt-0.5 text-sm text-[var(--ink-muted)]">
-                  We’ll reply here as your onboarding progresses.
+                  We’ll reply here as your work progresses.
                 </p>
               </div>
             </div>
@@ -172,7 +172,7 @@ export default function PortalMessagesPage() {
           <section
             className="max-h-[min(36rem,58dvh)] min-h-[22rem] overflow-y-auto overscroll-contain px-4 py-5 sm:px-6"
             aria-live="polite"
-            aria-label="Conversation with your onboarding team"
+            aria-label="Conversation with your Boatship team"
           >
             {messages.length === 0 ? (
               <div className="flex min-h-64 flex-col items-center justify-center px-5 text-center">

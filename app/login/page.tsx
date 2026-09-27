@@ -123,7 +123,7 @@ function LoginContent() {
       ? "Enter your email and we’ll send a reset link if an account exists."
       : mode === "reset"
         ? "Choose a password to finish inviting or resetting your account."
-        : "Your client onboarding and delivery workspace.";
+        : "Your workspace for client accounts, engagements, and delivery.";
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-10">

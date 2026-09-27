@@ -408,8 +408,8 @@ export function TaskBoard({
           title="No tasks yet"
           description={
             mode === "admin"
-              ? "Add a task or create the client from an onboarding template."
-              : "Your checklist will appear here once tasks are assigned."
+              ? "Add a task to this client workspace."
+              : "Your tasks will appear here once they are assigned."
           }
         />
       ) : filtered.length === 0 ? (

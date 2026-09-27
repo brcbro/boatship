@@ -4,13 +4,20 @@ import { requireRoles } from "@/lib/auth";
 import { appBaseUrl } from "@/lib/client-status";
 import {
   inviteEmailHtml,
+  emailDeliveryConfigured,
   onboardingCompleteEmailHtml,
   overdueTaskEmailHtml,
   sendEmail,
+  TEAM_WELCOME_SUBJECT,
+  teamWelcomeEmailHtml,
   taskAssignedEmailHtml,
+  taskAssignedSubject,
 } from "@/lib/email";
+import { localClientDemo, taskEngagementId } from "@/lib/engagements";
+import { getPrisma } from "@/lib/prisma";
 import { getStore } from "@/lib/store";
 import { filterAssignedClients, requireClientAccess } from "@/lib/client-access";
+import { consumeRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -86,7 +93,7 @@ export async function POST(req: Request) {
     }
 
     if (body.type === "invite") {
-      if (!process.env.RESEND_API_KEY) throw jsonError("Email delivery is not configured", 503);
+      if (!emailDeliveryConfigured()) throw jsonError("Email delivery is not configured", 503);
       if (!body.clientId) throw jsonError("clientId is required", 400);
       const client = await store.getClient(body.clientId);
       if (!client) throw jsonError("Client not found", 404);
@@ -101,12 +108,11 @@ export async function POST(req: Request) {
       const inviteTokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
       await sendEmail({
         to,
-        subject: `You're invited to Boatship onboarding — ${client.companyName}`,
+        subject: `You're invited to the Boatship workspace — ${client.companyName}`,
         html: inviteEmailHtml({
           name,
           companyName: client.companyName,
           loginUrl: `${base}/login?reset=${encodeURIComponent(inviteToken)}`,
-          ctaLabel: "Set your password & open portal",
         }),
       });
       await store.upsertUser({
@@ -139,14 +145,21 @@ export async function POST(req: Request) {
       const client = await store.getClient(body.clientId);
       const task = await store.getTask(body.taskId);
       if (!client || !task || task.clientId !== client.id) throw jsonError("Client or task not found", 404);
+      const engagement = localClientDemo()
+        ? { type: "onboarding", name: "Onboarding" }
+        : await getPrisma().engagement.findUnique({
+            where: { id: taskEngagementId(task) },
+            select: { type: true, name: true },
+          });
       const to = body.to || client.primaryContactEmail;
       await sendEmail({
         to,
-        subject: `New onboarding task: ${task.title}`,
+        subject: taskAssignedSubject(task.title, engagement),
         html: taskAssignedEmailHtml({
           name: body.name || client.name,
           taskTitle: task.title,
           link: `${base}/portal`,
+          engagement,
         }),
       });
       await store.addActivity({
@@ -182,6 +195,26 @@ export async function POST(req: Request) {
       return { ok: true };
     }
 
+    if (body.type === "team_welcome") {
+      if (session.role !== "admin") throw jsonError("Forbidden", 403);
+      if (!emailDeliveryConfigured()) throw jsonError("Email delivery is not configured", 503);
+      const to = (body.to || "").trim().toLowerCase();
+      const name = (body.name || "").trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to) || to.length > 254 || !name || name.length > 160) {
+        throw jsonError("Valid recipient email and name are required", 400);
+      }
+      if (!(await consumeRateLimit({ scope: "team-welcome:actor", identity: session.uid, max: 20, windowSeconds: 3600 }))) {
+        throw jsonError("Too many welcome emails. Try again later.", 429);
+      }
+      const result = await sendEmail({
+        to,
+        senderName: "Boatship Team",
+        subject: TEAM_WELCOME_SUBJECT,
+        html: teamWelcomeEmailHtml({ name, loginUrl: `${base}/login` }),
+      });
+      return { ok: true, id: result.id };
+    }
+
     if (body.type === "custom") {
       if (session.role !== "admin") throw jsonError("Forbidden", 403);
       if (!body.to || !body.subject || !body.html) {
@@ -201,7 +234,7 @@ export async function POST(req: Request) {
     }
 
     throw jsonError(
-      "Unknown notify type. Use: overdue_scan, invite, task_assigned, onboarding_complete, custom",
+      "Unknown notify type. Use: overdue_scan, invite, task_assigned, onboarding_complete, team_welcome, custom",
       400
     );
   });

@@ -80,6 +80,7 @@ export async function POST(req: Request) {
       try {
         await sendEmail({
           to: user.email,
+          senderName: "Boatship Updates",
           subject: `Boatship digest — ${overdueLines.length} overdue, ${pendingLines.length} pending docs`,
           html: digestEmailHtml({
             name: user.name,

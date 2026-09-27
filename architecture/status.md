@@ -46,6 +46,8 @@ The production build and Wrangler dry run passed, and Cloudflare deployed Worker
 
 ## Known boundaries and open work
 
+- The Client OS language and mail refresh is implemented in the current working tree pending release. Shared client/staff/public copy now describes accounts, engagements, and delivery work; onboarding remains explicit for the original onboarding engagement and its health/completion automation. Client and team invitations have separate templates, task email uses engagement context, and hosted mail rejects an onboarding-specific sender address. Admins have a rate-limited Team screen action for a token-free welcome email to a test address or selected staff member. Local tests, typecheck, lint, and Cloudflare package verification are recorded with the release once complete. The operator selected `team@cohortix.in` as the general production sender; a controlled delivery test and authenticated production workflow check remain necessary.
+
 - The Client OS account/engagement split is deployed. Existing client IDs and old task IDs are preserved; old client status/pipeline fields still describe original onboarding. Only tasks are engagement-scoped in this release. Contact roles are directory labels, not portal authorization. File-only local demo supports legacy reads and tasks but cannot create relational engagements or contacts. Local `npm test` (22 passing), typecheck, lint, Prisma schema validation, Next production build, Cloudflare build, and production-config Wrangler dry run passed. Authenticated production staff/client workflows remain unverified.
 
 - On 2026-09-27, sampled production requests to `/api/onboarding-health`, `/api/users`, `/api/forms`, and `/api/documents` returned 503 with Cloudflare `exceededCpu`. The Workers Free plan's 10 ms CPU limit is the confirmed platform cause. The Cloudflare-only `AppRuntime` Durable Object dispatch was deployed as Worker version `7d9df7e3-dbdf-44c1-8122-b50661cd1c2b`. Local tests, typecheck, focused lint, Cloudflare build, Wrangler dry run, and local Worker smoke checks passed. Live anonymous checks returned 200 for `/`, `/login`, `/api/health`, and `/api/auth/session`, and 401 for protected `/api/clients`, `/api/users`, and `/api/onboarding-health`. Subsequent sampled signed-in production reads of `/api/clients`, `/api/users`, and `/api/documents` returned 200; client invitations and other authenticated mutations remain unverified. Its single instance can become a throughput bottleneck.
@@ -63,6 +65,8 @@ The production build and Wrangler dry run passed, and Cloudflare deployed Worker
 - The repository includes `firestore.rules` and `storage.rules`, but the active persistence path documented by `lib/store.ts`, upload routes, and Prisma uses Neon. Verify any intended Firebase use before extending those rules.
 
 ## Change log for this architecture folder
+
+- 2026-09-27: Reframed shared product and mail copy around Client OS work, reserved onboarding wording for the onboarding engagement and legacy reports, separated client/team invitations, made task mail engagement-aware, added a token-free team welcome action, and required a general hosted sender address. Implementation and release evidence are tracked above.
 
 - 2026-09-27: Added Client OS engagement and contact models, a legacy onboarding backfill, engagement-scoped tasks and progress, staff account workspace and portal engagement views. Reporting now distinguishes active engagements from legacy onboarding status. The production migration and Cloudflare deployment are recorded above.
 

@@ -54,7 +54,6 @@ export async function POST(req: Request, { params }: Params) {
         name,
         companyName: client.companyName,
         loginUrl,
-        ctaLabel: "Set your password & open portal",
       }),
     });
 

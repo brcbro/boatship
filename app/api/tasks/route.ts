@@ -4,7 +4,7 @@ import { canAccessClient } from "@/lib/client-access";
 import { getStore } from "@/lib/store";
 import type { AssignedRole, TaskStatus, TaskType } from "@/types";
 import { appBaseUrl, syncClientStatusFromTasks } from "@/lib/client-status";
-import { sendEmail, taskAssignedEmailHtml } from "@/lib/email";
+import { sendEmail, taskAssignedEmailHtml, taskAssignedSubject } from "@/lib/email";
 import { ensureLegacyEngagement, taskEngagementId, localClientDemo, legacyEngagementId } from "@/lib/engagements";
 import { getPrisma } from "@/lib/prisma";
 
@@ -72,7 +72,7 @@ export async function POST(req: Request) {
     if (!client) throw jsonError("Client not found", 404);
     if (!await canAccessClient(session, body.clientId)) throw jsonError("Forbidden", 403);
     await ensureLegacyEngagement(client);
-    let engagementType = "onboarding";
+    let engagementContext = { type: "onboarding", name: "Onboarding" };
     if (body.engagementId !== undefined) {
       if (typeof body.engagementId !== "string") throw jsonError("Invalid engagementId", 400);
       if (localClientDemo()) {
@@ -81,7 +81,7 @@ export async function POST(req: Request) {
         const engagement = await getPrisma().engagement.findUnique({ where: { id: body.engagementId } });
         if (!engagement || engagement.clientId !== body.clientId) throw jsonError("Engagement not found", 404);
         if (engagement.status === "completed" || engagement.status === "cancelled") throw jsonError("Engagement is closed", 400);
-        engagementType = engagement.type;
+        engagementContext = { type: engagement.type, name: engagement.name };
       }
     }
 
@@ -129,11 +129,12 @@ export async function POST(req: Request) {
       try {
         await sendEmail({
           to: client.primaryContactEmail,
-          subject: `New ${engagementType === "onboarding" ? "onboarding" : "project"} task: ${task.title}`,
+          subject: taskAssignedSubject(task.title, engagementContext),
           html: taskAssignedEmailHtml({
             name: client.name,
             taskTitle: task.title,
             link: `${appBaseUrl(req)}/portal`,
+            engagement: engagementContext,
           }),
         });
       } catch (err) {

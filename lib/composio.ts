@@ -4,7 +4,7 @@ import { appBaseUrl } from "@/lib/client-status";
 import { getPrisma } from "@/lib/prisma";
 import { resolveUserSecret } from "@/lib/user-secrets";
 
-/** Curated onboarding-relevant toolkits (Composio catalog has 250+). */
+/** Curated client delivery toolkits (Composio catalog has 250+). */
 export const BOATSHIP_TOOLKITS = [
   {
     slug: "googledrive",
@@ -16,31 +16,31 @@ export const BOATSHIP_TOOLKITS = [
   {
     slug: "googlecalendar",
     name: "Google Calendar",
-    description: "Schedule client meetings, kickoff calls, and follow-up reminders from the onboarding workspace.",
+    description: "Schedule client meetings, kickoff calls, and follow-up reminders from the client workspace.",
     testTool: "GOOGLECALENDAR_CREATE_EVENT",
   },
   {
     slug: "googlesheets",
     name: "Google Sheets",
-    description: "Export client onboarding data and keep shared reporting sheets current for the team.",
+    description: "Export client work data and keep shared reporting sheets current for the team.",
     testTool: "GOOGLESHEETS_APPEND_ROW",
   },
   {
     slug: "googledocs",
     name: "Google Docs",
-    description: "Create client briefs, meeting notes, and handover documents from onboarding data.",
+    description: "Create client briefs, meeting notes, and handover documents from client work details.",
     testTool: "GOOGLEDOCS_CREATE_DOCUMENT",
   },
   {
     slug: "slack",
     name: "Slack",
-    description: "Notify your team when clients progress through onboarding.",
+    description: "Notify your team when client work progresses or needs attention.",
     testTool: "SLACK_SENDS_A_MESSAGE",
   },
   {
     slug: "gmail",
     name: "Gmail",
-    description: "Send onboarding emails from a connected Gmail account.",
+    description: "Send client emails from a connected Gmail account.",
     testTool: "GMAIL_SEND_EMAIL",
   },
   {
@@ -52,19 +52,19 @@ export const BOATSHIP_TOOLKITS = [
   {
     slug: "notion",
     name: "Notion",
-    description: "Push onboarding notes and checklists into Notion.",
+    description: "Push client notes and delivery checklists into Notion.",
     testTool: null,
   },
   {
     slug: "telegram",
     name: "Telegram",
-    description: "Send urgent onboarding notifications to the connected Telegram chat or team channel.",
+    description: "Send urgent client work notifications to the connected Telegram chat or team channel.",
     testTool: "TELEGRAM_BOT_SEND_MESSAGE",
   },
 ] as const;
 
 /**
- * Product-facing onboarding map. This deliberately describes only the
+ * Product-facing integration map. This deliberately describes only the
  * connections configured in this workspace; the remaining categories make
  * the desired workflow visible without pretending an OAuth connection exists.
  */
@@ -90,13 +90,13 @@ export const ONBOARDING_INTEGRATION_WORKFLOWS = [
   {
     title: "Kickoff meetings and client documents",
     tools: ["Google Calendar", "Google Docs"],
-    outcome: "Schedule kickoff calls and generate meeting briefs or client documents from onboarding data.",
+    outcome: "Schedule client meetings and generate briefs or documents from client work details.",
     status: "available",
   },
   {
     title: "Reporting and form exports",
     tools: ["Google Sheets"],
-    outcome: "Export client form responses and keep onboarding reports current for the team.",
+    outcome: "Export client form responses and keep delivery reports current for the team.",
     status: "available",
   },
   {
@@ -500,7 +500,7 @@ async function upsertHubspotContact(
 
 /**
  * Best-effort Slack (+ HubSpot on invite) when COMPOSIO_API_KEY + toolkits are connected.
- * Never throws — integrations must not break core onboarding flows.
+ * Never throws — integrations must not break core client workflows.
  */
 export async function notifyIntegrations(boatshipUid: string, event: IntegrationEvent) {
   if (!(await isComposioConfiguredForUser(boatshipUid))) return { skipped: true as const, reason: "not_configured" };

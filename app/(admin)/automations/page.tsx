@@ -79,7 +79,7 @@ export default function AutomationsPage() {
         <div className="grid gap-6 bg-[radial-gradient(circle_at_top_right,_rgba(14,116,144,.14),_transparent_36%),linear-gradient(135deg,#062c34,#0b4f58)] px-6 py-8 text-white md:grid-cols-[1fr_auto] md:px-9 md:py-10">
           <div>
             <div className="mb-3 flex items-center gap-2 text-sm font-medium text-cyan-100"><Sparkles className="h-4 w-4" /> Hodi automation</div>
-            <h1 className="font-[family-name:var(--font-display)] text-3xl tracking-tight md:text-4xl">Run an onboarding check.</h1>
+            <h1 className="font-[family-name:var(--font-display)] text-3xl tracking-tight md:text-4xl">Run a client work check.</h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-cyan-50/85">Choose a rule, run it manually, and review the result. Rule selection is temporary; scheduled background runs are not active.</p>
           </div>
           <div className="self-end rounded-xl border border-white/15 bg-white/10 px-5 py-4 backdrop-blur">

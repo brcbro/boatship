@@ -69,7 +69,7 @@ function PortalTasksPageInner() {
   if (authLoading || loading) {
     return (
       <div>
-        <PageHeader title="Tasks" description="Loading your checklist…" />
+        <PageHeader title="Tasks" description="Loading your tasks…" />
         <Card>
           <p className="text-sm text-[var(--ink-muted)]">Loading…</p>
         </Card>
@@ -90,7 +90,7 @@ function PortalTasksPageInner() {
     <div>
       <PageHeader
         title="Tasks"
-        description="Work through your onboarding checklist one step at a time. Open a task to see its details, subtasks, and messages from your team."
+        description="Work through your assigned tasks one step at a time. Open a task to see its details, subtasks, and messages from your team."
       />
 
       {error ? (
@@ -105,5 +105,5 @@ function PortalTasksPageInner() {
 }
 
 export default function PortalTasksPage() {
-  return <Suspense fallback={<div><PageHeader title="Tasks" description="Loading your checklist…" /><Card className="text-sm text-[var(--ink-muted)]">Loading tasks…</Card></div>}><PortalTasksPageInner /></Suspense>;
+  return <Suspense fallback={<div><PageHeader title="Tasks" description="Loading your tasks…" /><Card className="text-sm text-[var(--ink-muted)]">Loading tasks…</Card></div>}><PortalTasksPageInner /></Suspense>;
 }

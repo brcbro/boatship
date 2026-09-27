@@ -97,7 +97,7 @@ export async function retrieveBoatshipKnowledge(query: string, session: AuthSess
   ).flat();
   const hodiInsights = await buildHodiClientInsights(session);
 
-  const onboardingChunks: KnowledgeChunk[] = clients.map((client) => {
+  const clientWorkChunks: KnowledgeChunk[] = clients.map((client) => {
     const clientTasks = tasks.filter((task) => task.clientId === client.id);
     const clientDocuments = documents.filter((document) => document.clientId === client.id);
     const clientForms = forms.filter((form) => form.clientId === client.id);
@@ -123,18 +123,18 @@ export async function retrieveBoatshipKnowledge(query: string, session: AuthSess
         : blockers.length > 0
           ? "Needs attention"
           : openTasks.length === 0
-            ? "Ready for launch (no known open work)"
+            ? "No known open work"
             : "On track";
     const nextStep = overdueTasks[0]
       ? `Resolve overdue task: ${overdueTasks[0].title}.`
       : pendingForms.length > 0
-        ? "Review or follow up on the oldest outstanding intake item."
-        : openTasks[0]?.title || "Confirm launch readiness and handover requirements.";
+        ? "Review or follow up on the oldest outstanding form."
+        : openTasks[0]?.title || "Confirm the next milestone and any outstanding decisions.";
 
     return {
-      source: `onboarding:${displayClient(client)}`,
+      source: `client-work:${displayClient(client)}`,
       updatedAt: client.updatedAt,
-      text: `Onboarding health for ${displayClient(client)}: ${health}. Known blockers: ${blockers.join("; ") || "none recorded"}. Open tasks: ${openTasks.length}/${clientTasks.length}; overdue tasks: ${overdueTasks.length}; documents needing attention: ${pendingDocuments.length}/${clientDocuments.length}; forms needing attention: ${pendingForms.length}/${clientForms.length}; client messages: ${clientMessages.length}. Recommended next step: ${nextStep}`,
+      text: `Client work summary for ${displayClient(client)}: ${health}. Known blockers: ${blockers.join("; ") || "none recorded"}. Open tasks: ${openTasks.length}/${clientTasks.length}; overdue tasks: ${overdueTasks.length}; documents needing attention: ${pendingDocuments.length}/${clientDocuments.length}; forms needing attention: ${pendingForms.length}/${clientForms.length}; client messages: ${clientMessages.length}. Recommended next step: ${nextStep}`,
     };
   });
 
@@ -144,7 +144,7 @@ export async function retrieveBoatshipKnowledge(query: string, session: AuthSess
       updatedAt: insight.profile.currentPhase.evidence[0]?.recordedAt,
       text: `Hodi project memory for ${insight.profile.clientName}. Service: ${insight.profile.service.value || "not recorded"}; phase: ${insight.profile.currentPhase.value}; health: ${insight.health.state} (${insight.health.score}/100). Recommendations: ${insight.recommendations.map((item) => item.summary).join(" ")}.`,
     })),
-    ...onboardingChunks,
+    ...clientWorkChunks,
     ...visibleUsers.map((user) => ({
       source: `staff:${user.name}`,
       updatedAt: user.createdAt,
@@ -153,7 +153,7 @@ export async function retrieveBoatshipKnowledge(query: string, session: AuthSess
     ...clients.map((client) => ({
       source: `client:${displayClient(client)}`,
       updatedAt: client.updatedAt,
-      text: `Client ${displayClient(client)}. Status: ${client.status}; pipeline stage: ${client.pipelineStage}; tags: ${client.tags.join(", ") || "none"}; paused: ${client.pauseReason || "no"}.`,
+      text: `Client ${displayClient(client)}. Legacy onboarding status: ${client.status}; legacy onboarding pipeline stage: ${client.pipelineStage}; tags: ${client.tags.join(", ") || "none"}; paused: ${client.pauseReason || "no"}.`,
     })),
     ...visibleTasks.map((task) => ({
       source: `task:${task.title}`,

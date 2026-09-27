@@ -235,7 +235,7 @@ export default function DashboardPage() {
           <div className="p-5">
             <EmptyState
               title="No clients yet"
-              description="Create your first client to start onboarding."
+              description="Create your first client account to start managing engagements and work."
               action={
                 <Link href="/clients/new">
                   <Button type="button">New client</Button>
@@ -311,7 +311,7 @@ export default function DashboardPage() {
               Company products
             </h2>
             <p className="text-sm text-[var(--ink-muted)]">
-              Internal tools and SaaS work, separate from client onboarding.
+              Internal tools and SaaS work, separate from client engagements.
             </p>
           </div>
           <Link href="/products" className="text-sm font-medium text-[var(--accent)] hover:underline">

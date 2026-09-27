@@ -1,6 +1,6 @@
 # Client OS architecture record
 
-Last reviewed: 2026-09-27. This records repository behavior; deployment of the new migration is separate.
+Last reviewed: 2026-09-27. This records repository behavior and boundaries; deployment state is in [status.md](status.md).
 
 ## Account and engagement
 
@@ -24,5 +24,7 @@ Historical onboarding completion time is approximated from the last client updat
 The snapshot remains the source of truth for tasks, forms, documents, messages, and project operations. Only tasks carry an engagement ID in this release; existing milestones, approvals, documents, and forms are client-scoped or task-linked. The current account owner is still one assigned team member, and a portal user still belongs to one client account. Contact directory roles are not authorization roles. Hodi, MCP, webhooks, and exports continue to operate on client-scoped records; they do not create or expose engagement-specific resources yet.
 
 The existing onboarding health and completion automation use only legacy onboarding tasks. Dashboard and analytics report active engagement counts from relational rows. A future move of other high-volume work out of `StoreSnapshot` should be driven by measured read/write load and a separate migration, not by this account split alone.
+
+Shared portal, staff, marketing, and mail copy describes the client account, workspace, engagements, and delivery work. The word “onboarding” remains for the onboarding engagement, its legacy status/health/reporting, and its dedicated completion and nudge automation. Internal route names, stable IDs, event names, and template types retain their existing values for compatibility. Transactional mail uses a provider-verified general sender address with a message-specific Boatship display name; it does not impersonate the assigned staff member. Client and team invitations use separate bodies. Task assignment wording follows its engagement, while account-wide documents, security mail, and digests use general Client OS language.
 
 File-only local demo mode synthesizes the legacy onboarding engagement and primary contact so existing pages and tasks still load. Creating additional engagements or contacts in that mode returns 501; those writes require the relational database.

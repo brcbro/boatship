@@ -75,6 +75,9 @@ export default function TeamPage() {
   const [inviteResult, setInviteResult] = useState<{
     email: string;
   } | null>(null);
+  const [welcomeTestEmail, setWelcomeTestEmail] = useState("");
+  const [sendingWelcome, setSendingWelcome] = useState<string | null>(null);
+  const [welcomed, setWelcomed] = useState<string[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -161,6 +164,26 @@ export default function TeamPage() {
     }
   }
 
+  async function sendWelcome(to: string, recipientName: string, key: string) {
+    if (!isAdmin || sendingWelcome) return;
+    setSendingWelcome(key);
+    setError("");
+    setMessage("");
+    try {
+      await apiFetch("/api/notify", {
+        method: "POST",
+        token,
+        body: JSON.stringify({ type: "team_welcome", to, name: recipientName }),
+      });
+      setWelcomed((current) => [...current, key]);
+      setMessage(`Welcome email sent to ${to}.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Welcome email failed");
+    } finally {
+      setSendingWelcome(null);
+    }
+  }
+
   if (loading) {
     return <p className="text-sm text-[var(--ink-muted)]">Loading team…</p>;
   }
@@ -223,6 +246,17 @@ export default function TeamPage() {
                           onClick={() => startEdit(u)}
                         >
                           Permissions
+                        </Button>
+                      ) : null}
+                      {isAdmin ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          disabled={Boolean(sendingWelcome) || welcomed.includes(u.uid)}
+                          onClick={() => void sendWelcome(u.email, u.name, u.uid)}
+                        >
+                          {welcomed.includes(u.uid) ? "Welcome sent" : sendingWelcome === u.uid ? "Sending…" : "Send welcome"}
                         </Button>
                       ) : null}
                     </div>
@@ -324,6 +358,21 @@ export default function TeamPage() {
             </div>
           ) : null}
         </Card>
+        {isAdmin ? (
+          <Card>
+            <h2 className="font-[family-name:var(--font-display)] text-lg">Test team welcome</h2>
+            <p className="mt-2 text-sm text-[var(--ink-muted)]">Send the same Client OS welcome message to a test inbox before sending it to staff.</p>
+            <div className="mt-4 flex flex-wrap items-end gap-3">
+              <div className="min-w-56 flex-1">
+                <Label htmlFor="welcome-test-email">Test email</Label>
+                <Input id="welcome-test-email" type="email" value={welcomeTestEmail} onChange={(event) => setWelcomeTestEmail(event.target.value)} />
+              </div>
+              <Button type="button" disabled={!welcomeTestEmail.trim() || Boolean(sendingWelcome) || welcomed.includes("test")} onClick={() => void sendWelcome(welcomeTestEmail.trim(), "Team member", "test")}>
+                {welcomed.includes("test") ? "Test sent" : sendingWelcome === "test" ? "Sending…" : "Send test"}
+              </Button>
+            </div>
+          </Card>
+        ) : null}
       </div>
     </div>
   );

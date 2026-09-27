@@ -246,7 +246,7 @@ function IntegrationsContent() {
           tool: "SLACK_SENDS_A_MESSAGE",
           arguments: {
             channel: testChannel.trim(),
-            text: "Boatship connected — onboarding events can post here.",
+            text: "Boatship connected — client work updates can post here.",
           },
         }),
       });
@@ -297,8 +297,8 @@ function IntegrationsContent() {
   return (
     <div className="mx-auto max-w-3xl space-y-8">
       <PageHeader
-        title="Onboarding integrations"
-        description="Connect the systems that remove client chasing. Accounts are personal to the signed-in team member, while Hodi can use connected tools to support onboarding work."
+        title="Client workspace integrations"
+        description="Connect the systems that support client delivery. Connections belong to the signed-in team member, and Hodi can use their connected tools for client work."
       />
 
       {error ? (
@@ -376,7 +376,7 @@ function IntegrationsContent() {
           <Card className="space-y-4 p-5">
             <div className="space-y-1">
               <h2 className="font-[family-name:var(--font-display)] text-lg text-[var(--brand)]">
-                Onboarding workflow coverage
+                Client workflow coverage
               </h2>
               <p className="text-sm text-[var(--ink-muted)]">
                 Connect the available tools below. Categories marked &quot;Not enabled&quot; describe the next integrations to add; they are not connected to Boatship yet.

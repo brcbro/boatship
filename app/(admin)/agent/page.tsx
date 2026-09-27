@@ -44,7 +44,7 @@ type AgentStatus = {
 
 const SUGGESTIONS = [
   "Which clients are blocked and what should happen next?",
-  "Give me the onboarding health for every active client",
+  "Which client work needs attention today?",
   "Draft a follow-up for missing website assets",
   "Create an organized project folder for my newest client",
 ];
@@ -575,7 +575,7 @@ export default function AgentPage() {
                   <Bot className="h-6 w-6" />
                 </span>
                 <h1 className="font-[family-name:var(--font-display)] text-3xl tracking-[-0.02em] text-[var(--ink)]">What can I help with?</h1>
-                <p className="text-sm leading-6 text-[var(--ink-muted)]">Ask about clients, onboarding, and project work. Hodi can prepare drafts and propose actions using your connected apps.</p>
+                <p className="text-sm leading-6 text-[var(--ink-muted)]">Ask about client accounts, tasks, and delivery work. Hodi can prepare drafts and propose actions using your connected apps.</p>
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
                 {SUGGESTIONS.map((s) => (
@@ -696,7 +696,7 @@ export default function AgentPage() {
               rows={1}
               placeholder={
                 status?.ready
-                  ? "Ask about onboarding health, blockers, folders, or a follow-up draft…"
+                  ? "Ask about client work, blockers, folders, or a follow-up draft…"
                   : "Finish setup above to chat"
               }
               value={input}

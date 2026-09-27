@@ -1,6 +1,6 @@
-# Boatship — Client Onboarding System
+# Boatship — Client OS
 
-Web app for managing client onboarding: team/admin manage clients, tasks, documents, and forms; clients complete a self-service checklist.
+Shared workspace for client accounts and their engagements. Staff manage work, documents, forms, approvals, and communication; clients see their own next steps and history.
 
 ## Stack
 
@@ -25,14 +25,14 @@ For a new migrated database, use the guarded [first-admin provisioning runbook](
 
 ## Core flows
 
-1. Sign in as admin → **Clients** → **New client** (tasks auto-seed from Standard Onboarding)
+1. Sign in as admin → **Clients** → **New client** (the current creation flow seeds a Standard Onboarding engagement)
 2. Open client → **Invite client** → the client receives a one-time password setup link by email
 3. The client sets their password, signs in, completes tasks, submits forms, and uploads documents
 4. Sign in as admin → review documents/forms, update task status, check **Activity** / **Analytics**
 5. Optional: **Integrations** → each member securely saves their own Composio/OpenRouter credentials → connect **Google Drive** and open **Hodi**
 6. Optional: connect Slack → set `COMPOSIO_SLACK_CHANNEL` for auto-notify
 
-Hosted email delivery uses `ZEPTOMAIL_API_KEY` and a verified `ZEPTOMAIL_FROM` sender, or `RESEND_API_KEY` and `RESEND_FROM`. ZeptoMail takes priority when both are configured. The API returns an error when delivery is unavailable instead of reporting a demo send.
+Hosted email delivery uses `ZEPTOMAIL_API_KEY` and a verified general-purpose `ZEPTOMAIL_FROM` address, or `RESEND_API_KEY` and `RESEND_FROM`. ZeptoMail takes priority when both are configured. Client messages display as Boatship, team invitations as Boatship Team, and digests as Boatship Updates. The API returns an error when delivery is unavailable instead of reporting a demo send. Do not configure an onboarding-specific sender address for the shared Client OS mail stream.
 
 ## Environment
 

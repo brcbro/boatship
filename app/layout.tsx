@@ -18,12 +18,12 @@ const sans = DM_Sans({
 export const metadata: Metadata = {
   metadataBase: new URL("https://boatship.cohortix.in"),
   title: {
-    default: "Boatship | Client Onboarding Workspace",
+    default: "Boatship | Client OS Workspace",
     template: "%s | Boatship",
   },
-  description: "Boatship brings client onboarding, project delivery, forms, documents, tasks, and team communication into one connected workspace.",
+  description: "Boatship brings client accounts, engagements, tasks, forms, documents, approvals, and team communication into one connected workspace.",
   applicationName: "Boatship",
-  keywords: ["client onboarding", "project management", "client portal", "forms", "Boatship"],
+  keywords: ["client OS", "client management", "project management", "client portal", "forms", "Boatship"],
   icons: {
     icon: [{ url: "/brand/boatship-favicon.png", type: "image/png", sizes: "64x64" }],
     shortcut: "/brand/boatship-favicon.png",
@@ -33,13 +33,13 @@ export const metadata: Metadata = {
     type: "website",
     url: "https://boatship.cohortix.in",
     siteName: "Boatship",
-    title: "Boatship | Client Onboarding Workspace",
-    description: "A connected workspace for client onboarding and project delivery.",
+    title: "Boatship | Client OS Workspace",
+    description: "A connected workspace for client accounts, engagements, and delivery.",
   },
   twitter: {
     card: "summary",
-    title: "Boatship | Client Onboarding Workspace",
-    description: "A connected workspace for client onboarding and project delivery.",
+    title: "Boatship | Client OS Workspace",
+    description: "A connected workspace for client accounts, engagements, and delivery.",
   },
 };
 

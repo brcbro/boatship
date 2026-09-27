@@ -169,7 +169,7 @@ function AdminMessagesInner() {
     <div className="mx-auto max-w-[1440px]">
       <PageHeader
         title="Messages"
-        description="Keep client conversations connected to the work that moves onboarding forward."
+        description="Keep client conversations connected to account and delivery work."
       />
 
       {error ? (
@@ -233,7 +233,7 @@ function AdminMessagesInner() {
                 <div className="mx-auto flex max-w-sm flex-col items-center py-12 text-center">
                   <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--accent-soft)] text-[var(--brand)]"><MessageSquareText className="h-5 w-5" aria-hidden="true" /></div>
                   <p className="font-medium text-[var(--ink)]">Start a useful conversation</p>
-                  <p className="mt-1 text-sm leading-6 text-[var(--ink-muted)]">Ask for the one detail or decision that will help this onboarding move ahead.</p>
+                  <p className="mt-1 text-sm leading-6 text-[var(--ink-muted)]">Ask for the one detail or decision that will move this work forward.</p>
                 </div>
               ) : (
                 messages.map((m, index) => {
@@ -273,9 +273,9 @@ function AdminMessagesInner() {
 
           <aside className="space-y-4 xl:sticky xl:top-6" aria-label="Client conversation context">
             <Card className="p-5">
-              <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--ink-muted)]">Onboarding context</p><h2 className="mt-1 font-semibold text-[var(--ink)]">{selected?.companyName}</h2></div><Badge tone={statusTone(selected?.status || "")}>{statusLabel(selected?.status || "not_started")}</Badge></div>
-              <div className="mt-5"><div className="mb-2 flex items-center justify-between text-sm"><span className="text-[var(--ink-muted)]">Completion</span><span className="font-semibold tabular-nums text-[var(--ink)]">{selected?.progress || 0}%</span></div><ProgressBar value={selected?.progress || 0} /><p className="mt-2 text-xs text-[var(--ink-muted)]">{selected?.completedTasks || 0} of {selected?.totalTasks || 0} tasks complete</p></div>
-              <dl className="mt-5 space-y-3 border-t border-[var(--border)] pt-4 text-sm"><div className="flex items-start justify-between gap-3"><dt className="text-[var(--ink-muted)]">Stage</dt><dd className="text-right font-medium text-[var(--ink)]">{statusLabel(selected?.pipelineStage || "intake")}</dd></div><div className="flex items-start justify-between gap-3"><dt className="text-[var(--ink-muted)]">Owner</dt><dd className="text-right font-medium text-[var(--ink)]">{selected?.assignedTeamMemberName || "Unassigned"}</dd></div></dl>
+              <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--ink-muted)]">Client account</p><h2 className="mt-1 font-semibold text-[var(--ink)]">{selected?.companyName}</h2></div><div className="text-right"><p className="mb-1 text-xs text-[var(--ink-muted)]">Onboarding status</p><Badge tone={statusTone(selected?.status || "")}>{statusLabel(selected?.status || "not_started")}</Badge></div></div>
+              <div className="mt-5"><div className="mb-2 flex items-center justify-between text-sm"><span className="text-[var(--ink-muted)]">Account task completion</span><span className="font-semibold tabular-nums text-[var(--ink)]">{selected?.progress || 0}%</span></div><ProgressBar value={selected?.progress || 0} /><p className="mt-2 text-xs text-[var(--ink-muted)]">{selected?.completedTasks || 0} of {selected?.totalTasks || 0} tasks complete</p></div>
+              <dl className="mt-5 space-y-3 border-t border-[var(--border)] pt-4 text-sm"><div className="flex items-start justify-between gap-3"><dt className="text-[var(--ink-muted)]">Onboarding stage</dt><dd className="text-right font-medium text-[var(--ink)]">{statusLabel(selected?.pipelineStage || "intake")}</dd></div><div className="flex items-start justify-between gap-3"><dt className="text-[var(--ink-muted)]">Owner</dt><dd className="text-right font-medium text-[var(--ink)]">{selected?.assignedTeamMemberName || "Unassigned"}</dd></div></dl>
             </Card>
             <Card className="p-5"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--ink-muted)]">Conversation pulse</p><div className="mt-4 space-y-4"><div className="flex items-center gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--surface-2)] text-[var(--brand)]"><UserRound className="h-4 w-4" aria-hidden="true" /></div><div><p className="text-sm font-medium text-[var(--ink)]">{conversationMeta?.clientMessages || 0} client message{conversationMeta?.clientMessages === 1 ? "" : "s"}</p><p className="text-xs text-[var(--ink-muted)]">in this conversation</p></div></div><div className="flex items-center gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--surface-2)] text-[var(--brand)]"><CheckCheck className="h-4 w-4" aria-hidden="true" /></div><div><p className="text-sm font-medium text-[var(--ink)]">{conversationMeta ? "Thread active" : "No thread yet"}</p><p className="text-xs text-[var(--ink-muted)]">{conversationMeta ? `Last activity ${formatDate(conversationMeta.latest.createdAt)}` : "Send the opening note"}</p></div></div></div></Card>
             {selected?.tags?.length ? <Card className="p-5"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--ink-muted)]">Client labels</p><div className="mt-3 flex flex-wrap gap-1.5">{selected.tags.map((tag) => <span key={tag} className="rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-xs font-medium text-[var(--ink-muted)]">{tag}</span>)}</div></Card> : null}

@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from "crypto";
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
 import { appBaseUrl } from "@/lib/client-status";
-import { emailDeliveryConfigured, inviteEmailHtml, sendEmail } from "@/lib/email";
+import { emailDeliveryConfigured, teamInviteEmailHtml, sendEmail } from "@/lib/email";
 import { DEFAULT_TEAM_PERMISSIONS } from "@/lib/rbac";
 import { getStore } from "@/lib/store";
 import { consumeAccountAndIpLimit, consumeRateLimit } from "@/lib/rate-limit";
@@ -59,11 +59,11 @@ export async function POST(req: Request) {
     await sendEmail({
       to: email,
       subject: "You're invited to Boatship",
-      html: inviteEmailHtml({
+      senderName: "Boatship Team",
+      html: teamInviteEmailHtml({
         name,
-        companyName: "Boatship",
+        role,
         loginUrl,
-        ctaLabel: "Set your password & sign in",
       }),
     });
 

@@ -63,7 +63,7 @@ export const hodiWorkflows: readonly HodiWorkflow[] = [
   {
     id: "sheets-client-report",
     name: "Prepare a client report or form export",
-    description: "Plans a reviewable Google Sheets report using client, onboarding, or submitted-form information.",
+    description: "Plans a reviewable Google Sheets report using client, task, or submitted-form information.",
     requiredConnection: "googlesheets",
     mode: "action",
     requiresConfirmation: true,

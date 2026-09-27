@@ -211,7 +211,7 @@ export default function PortalFormsPage() {
       {forms.length === 0 ? (
         <EmptyState
           title="No forms assigned"
-          description="Forms linked to your onboarding tasks will appear here."
+          description="Forms linked to your assigned tasks will appear here."
         />
       ) : (
         <Card className="p-2">

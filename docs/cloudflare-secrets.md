@@ -10,7 +10,7 @@ npx wrangler secret put DIRECT_URL
 npx wrangler secret put BOATSHIP_SECRETS_MASTER_KEY
 ```
 
-For hosted transactional mail, set `ZEPTOMAIL_API_KEY` and `ZEPTOMAIL_FROM` (a full verified sender address). The app uses Zoho's India CPaaS HTTPS API. Existing Resend deployments can use `RESEND_API_KEY` and `RESEND_FROM` instead. Set these on the production Worker before deploying mail-dependent routes.
+For hosted transactional mail, set `ZEPTOMAIL_API_KEY` and `ZEPTOMAIL_FROM` (a full verified, general-purpose sender address). The app uses Zoho's India CPaaS HTTPS API. Existing Resend deployments can use `RESEND_API_KEY` and `RESEND_FROM` instead. The shared mail function selects the display name by message type: Boatship, Boatship Team, or Boatship Updates. Do not use an onboarding-specific address for this shared Client OS stream. Verify the replacement address in the provider, change the Worker secret, and send a controlled test message before releasing mail-dependent routes. Sender secret values must not be committed.
 
 `BOATSHIP_SECRETS_MASTER_KEY` must be a 32-byte key encoded as either 64 hexadecimal characters or base64. Generate it locally and paste it into the secret prompt; never commit it to `.env.example`, source control, or a public dashboard.
 
