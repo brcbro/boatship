@@ -74,15 +74,15 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
             </nav>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-3">
             <NotificationBell tone="light" />
-            <Link href="/portal/account" prefetch={false} aria-label="Account settings" title="Account settings" className={cn("hidden h-10 w-10 items-center justify-center rounded-lg border border-[var(--border)] text-[var(--ink)] transition hover:bg-[var(--surface-2)] xl:inline-flex", isActive(pathname, "/portal/account") && "bg-[var(--surface-2)]")}><UserRound className="h-4 w-4" aria-hidden="true" /></Link>
-            <div className="hidden max-w-72 text-right 2xl:block">
-              <p className="truncate text-sm font-medium text-[var(--ink)]">
-                {loading ? "…" : session?.name || "Client"}
-              </p>
-              <p className="truncate text-xs text-[var(--ink-muted)]">{session?.email}</p>
-            </div>
+            <Link href="/portal/account" prefetch={false} aria-label="Account settings" title="Account settings" className={cn("hidden min-h-11 min-w-11 items-center gap-3 rounded-lg border border-[var(--border)] px-3 text-[var(--ink)] transition hover:bg-[var(--surface-2)] xl:inline-flex", isActive(pathname, "/portal/account") && "bg-[var(--surface-2)]")}>
+              <UserRound className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <span className="hidden min-w-0 max-w-48 flex-col text-left 2xl:flex">
+                <span className="truncate text-sm font-medium">{loading ? "…" : session?.name || "Client"}</span>
+                <span className="truncate text-xs text-[var(--ink-muted)]">{session?.email}</span>
+              </span>
+            </Link>
             <Button
               variant="secondary"
               size="sm"
