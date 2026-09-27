@@ -49,7 +49,7 @@ export async function POST(req: Request, { params }: Params) {
     const loginUrl = `${appBaseUrl(req)}/login?reset=${encodeURIComponent(inviteToken)}`;
     await sendEmail({
       to: email,
-      subject: `You're invited to Boatship onboarding — ${client.companyName}`,
+      subject: `You're invited to the Boatship workspace — ${client.companyName}`,
       html: inviteEmailHtml({
         name,
         companyName: client.companyName,

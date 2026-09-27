@@ -18,6 +18,7 @@ import type { ProductSummary } from "@/types/product";
 
 type Analytics = {
   totalClients: number;
+  activeEngagements: number;
   clientsByStatus: Record<ClientStatus, number>;
   overdueTasks: number;
   avgOnboardingDays: number;
@@ -183,7 +184,7 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
           <p className="text-sm text-[var(--ink-muted)]">Total clients</p>
           <p className="mt-2 font-[family-name:var(--font-display)] text-3xl text-[var(--ink)]">
@@ -191,7 +192,13 @@ export default function DashboardPage() {
           </p>
         </Card>
         <Card>
-          <p className="text-sm text-[var(--ink-muted)]">By status</p>
+          <p className="text-sm text-[var(--ink-muted)]">Active engagements</p>
+          <p className="mt-2 font-[family-name:var(--font-display)] text-3xl text-[var(--ink)]">
+            {analytics?.activeEngagements ?? 0}
+          </p>
+        </Card>
+        <Card>
+          <p className="text-sm text-[var(--ink-muted)]">Legacy onboarding status</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {(
               [
@@ -208,7 +215,7 @@ export default function DashboardPage() {
           </div>
         </Card>
         <Card>
-          <p className="text-sm text-[var(--ink-muted)]">Avg onboarding days</p>
+          <p className="text-sm text-[var(--ink-muted)]">Approx. onboarding days</p>
           <p className="mt-2 font-[family-name:var(--font-display)] text-3xl text-[var(--ink)]">
             {analytics?.avgOnboardingDays ?? 0}
           </p>

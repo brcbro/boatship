@@ -3,6 +3,7 @@ import type { DataStore } from "@/lib/store";
 import { notifyIntegrations } from "@/lib/composio";
 import { onboardingCompleteEmailHtml, sendEmail } from "@/lib/email";
 import { dispatchWebhooks } from "@/lib/webhooks";
+import { legacyEngagementId, taskEngagementId } from "@/lib/engagements";
 
 /** Derive onboarding status from the client's task list. */
 export function deriveClientStatus(tasks: Task[]): ClientStatus {
@@ -25,7 +26,9 @@ export async function syncClientStatusFromTasks(
   if (!client) return null;
   if (client.status === "on_hold") return client;
 
-  const tasks = await store.listTasks(clientId);
+  const tasks = (await store.listTasks(clientId)).filter(
+    (task) => taskEngagementId(task) === legacyEngagementId(clientId)
+  );
   const nextStatus = deriveClientStatus(tasks);
   if (nextStatus === client.status) return client;
 

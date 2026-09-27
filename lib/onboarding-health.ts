@@ -50,6 +50,8 @@ const LEGACY_MARITIME_TASKS = new Set([
 ]);
 
 export function isCurrentOnboardingTask(task: Task) {
+  // Legacy onboarding health is client-wide only for records predating engagements.
+  if (task.engagementId && task.engagementId !== `onboarding_${task.clientId}`) return false;
   const metadata = task.metadata;
   if (metadata?.legacy === true || metadata?.origin === "legacy" || metadata?.workflow === "maritime-onboarding") {
     return false;

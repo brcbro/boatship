@@ -4,6 +4,7 @@ import { evaluateOnboardingHealth } from "@/lib/onboarding-health";
 import { getStore } from "@/lib/store";
 import { filterAssignedClients } from "@/lib/client-access";
 import { calcProgress } from "@/lib/utils";
+import { getPrisma } from "@/lib/prisma";
 import type { ClientStatus, ClientWithProgress } from "@/types";
 
 export const runtime = "nodejs";
@@ -23,6 +24,9 @@ export async function GET(req: Request) {
     // Concurrent cold reads could otherwise each fetch the same JSON document.
     const allClients = await filterAssignedClients(session, await store.listClients());
     const visibleIds = new Set(allClients.map((client) => client.id));
+    const engagementRows = allClients.length && !(process.env.ALLOW_LOCAL_STORE === "1" && !process.env.DATABASE_URL)
+      ? await getPrisma().engagement.findMany({ where: { clientId: { in: [...visibleIds] } } })
+      : [];
     const [users, allTasks, allForms, allDocuments] = await Promise.all([
       store.listUsers(),
       store.listAllTasks(),
@@ -87,8 +91,11 @@ export async function GET(req: Request) {
     };
     for (const client of allClients) clientsByStatus[client.status] += 1;
 
+    const completedOnboarding = engagementRows.filter((item) => item.type === "onboarding" && item.status === "completed" && item.completedAt);
     const completedClients = allClients.filter((client) => client.status === "completed");
-    const avgOnboardingDays = completedClients.length
+    const avgOnboardingDays = completedOnboarding.length
+      ? Math.round(completedOnboarding.reduce((sum, item) => sum + (item.completedAt!.getTime() - (item.startDate || item.createdAt).getTime()), 0) / completedOnboarding.length / 8640000 * 10) / 10
+      : completedClients.length
       ? Math.round(
           (completedClients.reduce(
             (sum, client) =>
@@ -111,6 +118,7 @@ export async function GET(req: Request) {
     return {
       analytics: {
         totalClients: allClients.length,
+        activeEngagements: engagementRows.filter((item) => item.status === "active").length,
         clientsByStatus,
         overdueTasks,
         avgOnboardingDays,

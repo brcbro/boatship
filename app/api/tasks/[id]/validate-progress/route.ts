@@ -4,6 +4,7 @@ import { validateGitProgress } from "@/lib/git-validation";
 import { canAccessClient } from "@/lib/client-access";
 import { isStaff } from "@/lib/rbac";
 import { getStore } from "@/lib/store";
+import { taskEngagementClosed } from "@/lib/engagements";
 import { getPolicy, evaluateQuality, persistValidation } from "@/lib/git-quality";
 import type { GitCheckName, GitValidationRequest } from "@/lib/git-validation-types";
 
@@ -36,6 +37,7 @@ export async function POST(req: Request, { params }: Params) {
     const task = await store.getTask(id);
     if (!task) throw jsonError("Task not found", 404);
     if (!await canAccessClient(session, task.clientId)) throw jsonError("Forbidden", 403);
+    if (await taskEngagementClosed(task)) throw jsonError("Engagement is closed", 409);
     if (!isStaff(session.role) && task.assignedTo !== session.uid) throw jsonError("Only the assigned user can validate this task", 403);
 
     const request = parseRequest(await req.json().catch(() => ({})));

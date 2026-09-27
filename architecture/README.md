@@ -13,6 +13,8 @@ This folder is the entry point for understanding and changing Boatship. It descr
 
 Existing focused references: [Git integration](../docs/git-integration.md), [MCP clients](../docs/mcp-clients.md), [product integration plan](../docs/products-saas-integration-plan.md), [hosted secrets](../docs/cloudflare-secrets.md), [product principles](../PRODUCT.md), and [design record](../DESIGN.md).
 
+The [Client OS record](client-os.md) describes the account/engagement split, migration, access boundaries, and remaining rollout work.
+
 Operational references: [runbooks](../docs/operations/README.md) for first admin, releases, restore, and incidents; [dependency advisory triage](../docs/dependency-audit.md).
 
 ## At a glance

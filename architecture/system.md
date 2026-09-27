@@ -18,6 +18,8 @@ Last reviewed: 2026-09-26.
 
 **Relational tables:** `AuthSession`, `UserProfile`, and `NotificationRecord` support hot identity and notification reads. `RateLimitBucket` stores shared request quotas; `StoreSnapshot.version` supports conditional writes. Separate relational models hold provider credentials and connection ownership, MCP identities/access/audit, Git repositories and evidence, task approvals, Hodi queue/proposals/automation state and runs, and products/members/milestones/work/releases/activity. See `prisma/schema.prisma` for exact columns and relations. The September 2026 migrations progressively introduced these models, including product tables in `20260924000000_add_products` and the two migrations immediately after it.
 
+**Client OS split:** `Engagement` and `ClientContact` are relational records added by `20260927000000_add_client_engagements`. `Client` remains in `StoreSnapshot`; its old status and pipeline fields remain the original onboarding state. New tasks can carry an engagement ID in the snapshot, while old tasks resolve to a deterministic legacy onboarding engagement. Contact directory roles do not grant application access. See [client-os.md](client-os.md) for migration and route boundaries.
+
 **Neon HTTP write boundary:** The deployed configuration has no Hyperdrive binding, so Prisma's Neon HTTP adapter cannot start transactions. Session/secret deletion, notification bulk updates, Hodi proposal state changes, and repository deactivation use single parameterized SQL statements. `lib/product-persistence.ts` uses data-changing PostgreSQL CTEs for product/member, release/work-link, owner-transfer, and member-removal writes that must commit together; MCP identity plus project access uses the same pattern. New relational writes must avoid Prisma `$transaction`, `updateMany`, `deleteMany`, and nested relation writes on this adapter unless a transaction-capable binding is configured and verified.
 
 **Optional cache:** `lib/redis-cache.ts` uses Upstash-compatible Redis REST for selected read endpoints. It is best effort and keyed by a generation advanced after datastore writes. Redis failure falls back to Neon. Do not assume it invalidates independent relational product writes; those queries have their own behavior.
@@ -54,6 +56,8 @@ sequenceDiagram
 ```
 
 Task work may carry subtasks, dependencies, comments, evidence, definition-of-done, Git links, validation, and manager approval. Client project operations add milestones, schedules, and approvals through `lib/project-operations.ts`. Notifications and activity connect changes back to staff and clients. Product overdue work and milestones create member-scoped in-app notifications on weekday Worker cron runs, with deterministic IDs preventing duplicate notifications for the same item and day.
+
+The account can now contain multiple engagements. Staff create and change engagements through `/api/clients/[id]/engagements` and `/api/engagements/[id]`; tasks can be scoped to one through `/api/tasks`. Staff and portal pages show engagement-specific task progress. Other client operations remain account-scoped or task-linked in this release.
 
 ## Hodi creation flow
 

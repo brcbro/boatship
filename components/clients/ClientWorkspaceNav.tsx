@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 export function ClientWorkspaceNav({ active, onChange }: { active: string; onChange: (id: string) => void }) {
   const items = [
-    ["overview", "Workspace"], ["forms", "Briefs & approvals"], ["documents", "Files & assets"],
+    ["overview", "Account"], ["engagements", "Engagements"], ["people", "People"], ["forms", "Briefs & approvals"], ["documents", "Files & assets"],
     ["tasks", "Deliverables"], ["vessels", "Access & details"], ["activity", "Timeline"],
   ];
   return <nav className="mb-6 flex gap-1 overflow-x-auto border-b border-[var(--border)] pb-px [scrollbar-gutter:stable]" aria-label="Client workspace sections">

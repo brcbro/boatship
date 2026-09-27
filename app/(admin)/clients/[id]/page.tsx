@@ -35,7 +35,22 @@ import type {
 } from "@/types";
 
 type TeamUser = { uid: string; name: string; email: string; role: string };
-type Tab = "overview" | "tasks" | "documents" | "forms" | "vessels" | "activity";
+type Tab = "overview" | "engagements" | "people" | "tasks" | "documents" | "forms" | "vessels" | "activity";
+type Contact = { id: string; clientId: string; name: string; email: string; role: "account_admin" | "contributor" | "viewer" };
+type Engagement = {
+  id: string;
+  clientId: string;
+  name: string;
+  type: "onboarding" | "project" | "ongoing_service";
+  status: "planned" | "active" | "paused" | "completed" | "cancelled";
+  ownerId: string | null;
+  startDate: string | null;
+  targetDate: string | null;
+  completedAt: string | null;
+  taskCount: number;
+  completedTaskCount: number;
+  progress: number;
+};
 
 type VesselForm = {
   name: string;
@@ -55,14 +70,7 @@ const emptyVesselForm = (): VesselForm => ({
   notes: "",
 });
 
-const PIPELINE_STAGES: PipelineStage[] = [
-  "intake",
-  "kyc",
-  "compliance",
-  "kickoff",
-  "go_live",
-  "done",
-];
+const PIPELINE_STAGES: PipelineStage[] = ["intake", "kyc", "compliance", "kickoff", "go_live", "done"];
 
 type ActivityEntry = {
   id: string;
@@ -92,6 +100,17 @@ export default function ClientDetailPage() {
   const [client, setClient] = useState<ClientWithProgress | null>(null);
   const [users, setUsers] = useState<TeamUser[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [engagements, setEngagements] = useState<Engagement[]>([]);
+  const [selectedEngagementId, setSelectedEngagementId] = useState("");
+  const [engagementOpen, setEngagementOpen] = useState(false);
+  const [engagementName, setEngagementName] = useState("");
+  const [engagementType, setEngagementType] = useState<Engagement["type"]>("project");
+  const [engagementTargetDate, setEngagementTargetDate] = useState("");
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [contactOpen, setContactOpen] = useState(false);
+  const [contactName, setContactName] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactRole, setContactRole] = useState<Contact["role"]>("contributor");
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
   const [documentCheckedAt, setDocumentCheckedAt] = useState(() => Date.now());
   const [selectedDocs, setSelectedDocs] = useState<Set<string>>(new Set());
@@ -147,13 +166,14 @@ export default function ClientDetailPage() {
     : undefined;
   const reviewingFormUrl =
     reviewingTemplate?.googleFormUrl || reviewingTemplate?.googleFormEmbedUrl || "";
+  const selectedEngagement = engagements.find((engagement) => engagement.id === selectedEngagementId);
 
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
     setError("");
     try {
-      const [c, t, d, f, ft, u, a, v] = await Promise.all([
+      const [c, t, d, f, ft, u, a, v, e, people] = await Promise.all([
         apiFetch<{ client: ClientWithProgress }>(`/api/clients/${id}`, { token }),
         apiFetch<{ tasks: Task[] }>(`/api/tasks?clientId=${encodeURIComponent(id)}`, { token }),
         apiFetch<{ documents: DocumentRecord[] }>(
@@ -173,12 +193,21 @@ export default function ClientDetailPage() {
           `/api/vessels?clientId=${encodeURIComponent(id)}`,
           { token }
         ),
+        apiFetch<{ engagements: Engagement[] }>(`/api/clients/${id}/engagements`, { token }),
+        apiFetch<{ contacts: Contact[] }>(`/api/clients/${id}/contacts`, { token }),
       ]);
       setClient(c.client);
       setTagsInput((c.client.tags || []).join(", "));
       setVesselImo(c.client.customFields?.["Vessel IMO"] || "");
       setFlag(c.client.customFields?.Flag || "");
       setTasks([...t.tasks].sort((x, y) => x.order - y.order));
+      setEngagements(e.engagements);
+      setContacts(people.contacts);
+      setSelectedEngagementId((previous) =>
+        e.engagements.some((engagement) => engagement.id === previous)
+          ? previous
+          : e.engagements.find((engagement) => engagement.status === "active")?.id || e.engagements[0]?.id || ""
+      );
       setDocuments(d.documents);
       setDocumentCheckedAt(Date.now());
       setSelectedDocs(new Set());
@@ -207,6 +236,107 @@ export default function ClientDetailPage() {
     return () => clearTimeout(timer);
   }, [load]);
 
+  async function refreshEngagements() {
+    const data = await apiFetch<{ engagements: Engagement[] }>(`/api/clients/${id}/engagements`, { token });
+    setEngagements(data.engagements);
+  }
+
+  async function createEngagement() {
+    if (!engagementName.trim()) return;
+    setBusy(true);
+    setError("");
+    try {
+      const data = await apiFetch<{ engagement: Engagement }>(`/api/clients/${id}/engagements`, {
+        method: "POST",
+        token,
+        body: JSON.stringify({
+          name: engagementName.trim(),
+          type: engagementType,
+          targetDate: engagementTargetDate || null,
+        }),
+      });
+      await refreshEngagements();
+      setSelectedEngagementId(data.engagement.id);
+      setEngagementOpen(false);
+      setEngagementName("");
+      setEngagementTargetDate("");
+      setMessage("Engagement created.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not create engagement");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function updateEngagement(engagementId: string, patch: Record<string, unknown>) {
+    setBusy(true);
+    setError("");
+    try {
+      const data = await apiFetch<{ engagement: Engagement }>(`/api/engagements/${engagementId}`, {
+        method: "PATCH",
+        token,
+        body: JSON.stringify(patch),
+      });
+      setEngagements((current) => current.map((item) => item.id === engagementId ? data.engagement : item));
+      setMessage("Engagement updated.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update engagement");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function createContact() {
+    if (!contactName.trim() || !contactEmail.trim()) return;
+    setBusy(true);
+    setError("");
+    try {
+      const data = await apiFetch<{ contact: Contact }>(`/api/clients/${id}/contacts`, {
+        method: "POST",
+        token,
+        body: JSON.stringify({ name: contactName.trim(), email: contactEmail.trim(), role: contactRole }),
+      });
+      setContacts((current) => [...current, data.contact]);
+      setContactOpen(false);
+      setContactName("");
+      setContactEmail("");
+      setMessage("Contact added to the directory.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not add contact");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function updateContact(contactId: string, role: Contact["role"]) {
+    setBusy(true);
+    setError("");
+    try {
+      const data = await apiFetch<{ contact: Contact }>(`/api/clients/${id}/contacts/${contactId}`, {
+        method: "PATCH", token, body: JSON.stringify({ role }),
+      });
+      setContacts((current) => current.map((contact) => contact.id === contactId ? data.contact : contact));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update contact");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteContact(contactId: string) {
+    if (!confirm("Remove this contact from the directory?")) return;
+    setBusy(true);
+    setError("");
+    try {
+      await apiFetch(`/api/clients/${id}/contacts/${contactId}`, { method: "DELETE", token });
+      setContacts((current) => current.filter((contact) => contact.id !== contactId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not remove contact");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function patchClient(patch: Record<string, unknown>) {
     setBusy(true);
     setMessage("");
@@ -223,6 +353,7 @@ export default function ClientDetailPage() {
         setVesselImo(data.client.customFields["Vessel IMO"] || "");
         setFlag(data.client.customFields.Flag || "");
       }
+      if ("status" in patch || "pipelineStage" in patch) await refreshEngagements();
       setMessage("Client updated.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Update failed");
@@ -328,6 +459,7 @@ export default function ClientDetailPage() {
       // refresh client progress
       const c = await apiFetch<{ client: ClientWithProgress }>(`/api/clients/${id}`, { token });
       setClient(c.client);
+      await refreshEngagements();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Task update failed");
     } finally {
@@ -345,6 +477,7 @@ export default function ClientDetailPage() {
       setMessage("Task deleted.");
       const c = await apiFetch<{ client: ClientWithProgress }>(`/api/clients/${id}`, { token });
       setClient(c.client);
+      await refreshEngagements();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Delete failed");
     } finally {
@@ -366,6 +499,7 @@ export default function ClientDetailPage() {
         token,
         body: JSON.stringify({
           clientId: id,
+          engagementId: selectedEngagementId,
           title: input.title,
           description: input.description,
           type: input.type,
@@ -376,6 +510,7 @@ export default function ClientDetailPage() {
       setMessage("Task added.");
       const c = await apiFetch<{ client: ClientWithProgress }>(`/api/clients/${id}`, { token });
       setClient(c.client);
+      await refreshEngagements();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not add task");
     } finally {
@@ -384,7 +519,7 @@ export default function ClientDetailPage() {
   }
 
   async function moveTask(task: Task, direction: -1 | 1) {
-    const sorted = [...tasks].sort((a, b) => a.order - b.order);
+    const sorted = tasks.filter((item) => item.engagementId === selectedEngagementId).sort((a, b) => a.order - b.order);
     const idx = sorted.findIndex((t) => t.id === task.id);
     const swapWith = sorted[idx + direction];
     if (!swapWith) return;
@@ -672,31 +807,8 @@ export default function ClientDetailPage() {
       {tab === "overview" ? (
         <div className="grid gap-6 lg:grid-cols-2">
           <Card>
-            <h2 className="mb-4 font-[family-name:var(--font-display)] text-lg">Status & assignee</h2>
+            <h2 className="mb-4 font-[family-name:var(--font-display)] text-lg">Account owner</h2>
             <div className="space-y-4">
-              <div>
-                <Label>Status</Label>
-                <Dropdown
-                  value={client.status}
-                  disabled={busy}
-                  onChange={(v) => void patchClient({ status: v as ClientStatus })}
-                  options={(
-                    ["not_started", "in_progress", "completed", "on_hold"] as ClientStatus[]
-                  ).map((s) => ({ value: s, label: statusLabel(s) }))}
-                />
-              </div>
-              <div>
-                <Label>Pipeline stage</Label>
-                <Dropdown
-                  value={client.pipelineStage || "intake"}
-                  disabled={busy}
-                  onChange={(v) => void patchClient({ pipelineStage: v as PipelineStage })}
-                  options={PIPELINE_STAGES.map((s) => ({
-                    value: s,
-                    label: statusLabel(s),
-                  }))}
-                />
-              </div>
               <div>
                 <Label>Assigned team member</Label>
                 <Dropdown
@@ -724,7 +836,7 @@ export default function ClientDetailPage() {
           </Card>
 
           <Card>
-            <h2 className="mb-4 font-[family-name:var(--font-display)] text-lg">Progress</h2>
+            <h2 className="mb-4 font-[family-name:var(--font-display)] text-lg">Work across engagements</h2>
             <div className="mb-2 flex items-center justify-between text-sm">
               <span className="text-[var(--ink-muted)]">
                 {client.completedTasks} of {client.totalTasks} tasks complete
@@ -765,6 +877,25 @@ export default function ClientDetailPage() {
                 <dd>{formatDate(client.updatedAt)}</dd>
               </div>
             </dl>
+          </Card>
+
+          <Card className="lg:col-span-2">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h2 className="font-[family-name:var(--font-display)] text-lg">Engagements</h2>
+                <p className="text-sm text-[var(--ink-muted)]">{engagements.filter((item) => item.status === "active").length} active · {engagements.length} total</p>
+              </div>
+              <Button type="button" variant="secondary" onClick={() => setTab("engagements")}>View engagements</Button>
+            </div>
+          </Card>
+
+          <Card className="lg:col-span-2">
+            <h2 className="font-[family-name:var(--font-display)] text-lg">Legacy onboarding controls</h2>
+            <p className="mb-4 text-sm text-[var(--ink-muted)]">These fields describe the original onboarding record. Use engagement status for newer work.</p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div><Label>Status</Label><Dropdown value={client.status} disabled={busy} onChange={(status) => void patchClient({ status: status as ClientStatus })} options={(["not_started", "in_progress", "completed", "on_hold"] as ClientStatus[]).map((status) => ({ value: status, label: statusLabel(status) }))} /></div>
+              <div><Label>Pipeline stage</Label><Dropdown value={client.pipelineStage || "intake"} disabled={busy} onChange={(pipelineStage) => void patchClient({ pipelineStage: pipelineStage as PipelineStage })} options={PIPELINE_STAGES.map((stage) => ({ value: stage, label: statusLabel(stage) }))} /></div>
+            </div>
           </Card>
 
           <Card className="lg:col-span-2">
@@ -836,17 +967,68 @@ export default function ClientDetailPage() {
         </div>
       ) : null}
 
+      {tab === "engagements" ? (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-[var(--ink-muted)]">Separate projects and ongoing service for this account.</p>
+            <Button type="button" disabled={busy} onClick={() => setEngagementOpen(true)}>New engagement</Button>
+          </div>
+          {engagements.length === 0 ? <EmptyState title="No engagements yet" description="Create an engagement to organize this client’s work." /> : (
+            <div className="grid gap-4 lg:grid-cols-2">
+              {engagements.map((engagement) => (
+                <Card key={engagement.id}>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h2 className="text-lg font-semibold text-[var(--ink)]">{engagement.name}</h2>
+                      <p className="text-sm text-[var(--ink-muted)]">{statusLabel(engagement.type)}</p>
+                    </div>
+                    <Badge tone={engagement.status === "completed" ? "success" : engagement.status === "paused" || engagement.status === "cancelled" ? "warning" : engagement.status === "active" ? "info" : "neutral"}>{statusLabel(engagement.status)}</Badge>
+                  </div>
+                  <div className="mt-4 flex justify-between text-sm"><span>{engagement.completedTaskCount} of {engagement.taskCount} tasks</span><span>{engagement.progress}%</span></div>
+                  <ProgressBar value={engagement.progress} />
+                  <p className="mt-3 text-xs text-[var(--ink-muted)]">Owner: {users.find((user) => user.uid === engagement.ownerId)?.name || "Unassigned"}{engagement.targetDate ? ` · Target ${formatDate(engagement.targetDate)}` : ""}</p>
+                  <div className="mt-4 flex flex-wrap items-end gap-3">
+                    <div className="min-w-40 flex-1">{engagement.id === `onboarding_${id}` ? <p className="text-sm text-[var(--ink-muted)]">Onboarding status is managed in the legacy controls on the Account tab.</p> : <><Label>Status</Label><Dropdown value={engagement.status} disabled={busy} onChange={(status) => void updateEngagement(engagement.id, { status })} options={(["planned", "active", "paused", "completed", "cancelled"] as Engagement["status"][]).map((status) => ({ value: status, label: statusLabel(status) }))} /></>}</div>
+                    <Button type="button" variant="secondary" onClick={() => { setSelectedEngagementId(engagement.id); setTab("tasks"); }}>Open tasks</Button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : null}
+
+      {tab === "people" ? (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div><p className="text-sm text-[var(--ink-muted)]">Account contact directory. Adding a contact does not create portal access.</p><p className="text-xs text-[var(--ink-muted)]">Use Invite client above to send a portal invitation to the primary contact.</p></div>
+            <Button type="button" disabled={busy} onClick={() => setContactOpen(true)}>Add contact</Button>
+          </div>
+          {contacts.length === 0 ? <EmptyState title="No contacts yet" description="Add a contact to keep account details together." /> : (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {contacts.map((contact) => <Card key={contact.id}>
+                <div className="flex items-start justify-between gap-3"><div><h2 className="font-semibold">{contact.name}</h2><p className="break-all text-sm text-[var(--ink-muted)]">{contact.email}</p></div><Button type="button" variant="ghost" disabled={busy} onClick={() => void deleteContact(contact.id)}>Remove</Button></div>
+                <div className="mt-4"><Label>Directory role</Label><Dropdown value={contact.role} disabled={busy} onChange={(role) => void updateContact(contact.id, role as Contact["role"])} options={[{ value: "account_admin", label: "Account admin" }, { value: "contributor", label: "Contributor" }, { value: "viewer", label: "Viewer" }]} /></div>
+              </Card>)}
+            </div>
+          )}
+        </div>
+      ) : null}
+
       {tab === "tasks" ? (
-        <TaskBoard
+        <div className="space-y-4">
+          <div className="max-w-md"><Label>Engagement</Label><Dropdown value={selectedEngagementId} onChange={setSelectedEngagementId} options={engagements.map((engagement) => ({ value: engagement.id, label: `${engagement.name} · ${statusLabel(engagement.status)}` }))} /></div>
+          <TaskBoard
           mode="admin"
-          tasks={tasks}
+          tasks={tasks.filter((task) => task.engagementId === selectedEngagementId)}
           busy={busy}
           users={users}
           onUpdate={saveTask}
           onDelete={deleteTask}
-          onCreate={createTaskFromBoard}
+          onCreate={selectedEngagement && selectedEngagement.status !== "completed" && selectedEngagement.status !== "cancelled" ? createTaskFromBoard : undefined}
           onReorder={moveTask}
         />
+        </div>
       ) : null}
 
       {tab === "documents" ? (
@@ -1414,6 +1596,34 @@ export default function ClientDetailPage() {
           </Card>
         </div>
       ) : null}
+
+      <Modal
+        open={contactOpen}
+        onClose={() => setContactOpen(false)}
+        title="Add contact"
+        description="Directory entries do not grant portal access."
+        footer={<><Button type="button" variant="ghost" onClick={() => setContactOpen(false)}>Cancel</Button><Button type="button" disabled={busy || !contactName.trim() || !contactEmail.trim()} onClick={() => void createContact()}>{busy ? "Adding…" : "Add contact"}</Button></>}
+      >
+        <div className="space-y-4">
+          <div><Label htmlFor="contact-name">Name</Label><Input id="contact-name" value={contactName} onChange={(event) => setContactName(event.target.value)} maxLength={160} /></div>
+          <div><Label htmlFor="contact-email">Email</Label><Input id="contact-email" type="email" value={contactEmail} onChange={(event) => setContactEmail(event.target.value)} /></div>
+          <div><Label>Directory role</Label><Dropdown value={contactRole} onChange={(role) => setContactRole(role as Contact["role"])} options={[{ value: "account_admin", label: "Account admin" }, { value: "contributor", label: "Contributor" }, { value: "viewer", label: "Viewer" }]} /></div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={engagementOpen}
+        onClose={() => setEngagementOpen(false)}
+        title="New engagement"
+        description="Add another piece of work under this client account."
+        footer={<><Button type="button" variant="ghost" onClick={() => setEngagementOpen(false)}>Cancel</Button><Button type="button" disabled={busy || !engagementName.trim()} onClick={() => void createEngagement()}>{busy ? "Creating…" : "Create engagement"}</Button></>}
+      >
+        <div className="space-y-4">
+          <div><Label htmlFor="engagement-name">Name</Label><Input id="engagement-name" value={engagementName} onChange={(event) => setEngagementName(event.target.value)} maxLength={160} placeholder="e.g. Website relaunch" /></div>
+          <div><Label>Type</Label><Dropdown value={engagementType} onChange={(value) => setEngagementType(value as Engagement["type"])} options={[{ value: "onboarding", label: "Onboarding" }, { value: "project", label: "Project" }, { value: "ongoing_service", label: "Ongoing service" }]} /></div>
+          <div><Label htmlFor="engagement-target">Target date (optional)</Label><Input id="engagement-target" type="date" value={engagementTargetDate} onChange={(event) => setEngagementTargetDate(event.target.value)} /></div>
+        </div>
+      </Modal>
 
       <Modal
         open={cloneOpen}

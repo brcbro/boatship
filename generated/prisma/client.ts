@@ -43,6 +43,16 @@ export { Prisma }
  */
 export type StoreSnapshot = Prisma.StoreSnapshotModel
 /**
+ * Model Engagement
+ *
+ */
+export type Engagement = Prisma.EngagementModel
+/**
+ * Model ClientContact
+ *
+ */
+export type ClientContact = Prisma.ClientContactModel
+/**
  * Model AuthSession
  *
  */

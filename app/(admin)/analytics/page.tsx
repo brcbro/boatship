@@ -15,6 +15,7 @@ import { formatDateTime, statusLabel } from "@/lib/utils";
 import type { ClientStatus, ClientWithProgress, Task } from "@/types";
 
 type Analytics = {
+  activeEngagements: number;
   avgOnboardingDays: number;
   clientsByStatus: Record<ClientStatus, number>;
   overdueTasks: number;
@@ -204,7 +205,7 @@ export default function AnalyticsPage() {
     <div>
       <PageHeader
         title="Analytics"
-        description="Pipeline health, overdue work, and recent activity."
+        description="Client engagements, onboarding health, overdue work, and recent activity."
         actions={
           <div className="flex flex-wrap gap-2">
             <Button
@@ -239,13 +240,19 @@ export default function AnalyticsPage() {
           </p>
         </Card>
         <Card>
+          <p className="text-sm text-[var(--ink-muted)]">Active engagements</p>
+          <p className="mt-2 font-[family-name:var(--font-display)] text-3xl">
+            {analytics?.activeEngagements ?? 0}
+          </p>
+        </Card>
+        <Card>
           <p className="text-sm text-[var(--ink-muted)]">Overdue tasks</p>
           <p className="mt-2 font-[family-name:var(--font-display)] text-3xl">
             {analytics?.overdueTasks ?? 0}
           </p>
         </Card>
         <Card>
-          <p className="text-sm text-[var(--ink-muted)]">Avg onboarding days</p>
+          <p className="text-sm text-[var(--ink-muted)]">Approx. onboarding days</p>
           <p className="mt-2 font-[family-name:var(--font-display)] text-3xl">
             {analytics?.avgOnboardingDays ?? 0}
           </p>

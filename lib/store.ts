@@ -32,6 +32,8 @@ import type {
 import { calcProgress } from "@/lib/utils";
 import { SEED_FORM_TEMPLATES, SEED_ONBOARDING_TEMPLATES } from "@/lib/seed-templates";
 import { getPrisma } from "@/lib/prisma";
+import { ensureLegacyEngagement } from "@/lib/engagements";
+import { ensurePrimaryContact } from "@/lib/client-contacts";
 import { hashPassword } from "@/lib/password";
 import { bumpRedisCacheVersion } from "@/lib/redis-cache";
 import { webhookRetry } from "@/lib/webhook-retry";
@@ -883,6 +885,7 @@ class LocalStore implements DataStore {
     return this.mutate((data) => {
       const task: Task = {
         ...input,
+        engagementId: input.engagementId || `onboarding_${input.clientId}`,
         id: randomUUID(),
         priority: input.priority || "medium",
         section:
@@ -1492,6 +1495,28 @@ class LocalStore implements DataStore {
 }
 
 class PrismaStore extends LocalStore {
+  override async createClient(input: Parameters<LocalStore["createClient"]>[0]) {
+    const client = await super.createClient(input);
+    await Promise.allSettled([ensureLegacyEngagement(client), ensurePrimaryContact(client)]).then((results) => {
+      for (const result of results) if (result.status === "rejected") console.error("Client relational sync failed", result.reason);
+    });
+    return client;
+  }
+
+  override async updateClient(id: string, patch: Partial<Client>) {
+    const client = await super.updateClient(id, patch);
+    await ensureLegacyEngagement(client).catch((error) => console.error("Client engagement sync failed", error));
+    return client;
+  }
+
+  override async bulkUpdateClients(ids: string[], patch: Partial<Pick<Client, "status" | "assignedTeamMemberId" | "tags" | "pipelineStage">>) {
+    const clients = await super.bulkUpdateClients(ids, patch);
+    await Promise.allSettled(clients.map(ensureLegacyEngagement)).then((results) => {
+      for (const result of results) if (result.status === "rejected") console.error("Client engagement sync failed", result.reason);
+    });
+    return clients;
+  }
+
   private async upsertRelationalUser(user: AppUser) {
     const data = userProfileData(user);
     await getPrisma().userProfile.upsert({
@@ -1703,7 +1728,7 @@ class PrismaStore extends LocalStore {
     await super.deleteClientCascade(id);
     try {
       const prisma = getPrisma();
-      await prisma.$executeRaw`WITH notifications AS (DELETE FROM "NotificationRecord" WHERE "clientId" = ${id}) DELETE FROM "UserProfile" WHERE "clientId" = ${id} AND "role" = 'client'`;
+      await prisma.$executeRaw`WITH notifications AS (DELETE FROM "NotificationRecord" WHERE "clientId" = ${id}), engagements AS (DELETE FROM "Engagement" WHERE "clientId" = ${id}), contacts AS (DELETE FROM "ClientContact" WHERE "clientId" = ${id}) DELETE FROM "UserProfile" WHERE "clientId" = ${id} AND "role" = 'client'`;
     } catch (error) {
       if (!relationalStoreUnavailable(error)) throw error;
     }

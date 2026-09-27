@@ -8,6 +8,7 @@ import { getStore } from "@/lib/store";
 import { dispatchWebhooks } from "@/lib/webhooks";
 import { getPolicy } from "@/lib/git-quality";
 import { getPrisma } from "@/lib/prisma";
+import { taskEngagementClosed } from "@/lib/engagements";
 import type {
   AssignedRole,
   TaskPriority,
@@ -81,6 +82,7 @@ export async function PATCH(req: Request, { params }: Params) {
     if (!await canAccessClient(session, existing.clientId)) {
       throw jsonError("Forbidden", 403);
     }
+    if (await taskEngagementClosed(existing)) throw jsonError("Engagement is closed", 409);
 
     const body = (await req.json().catch(() => ({}))) as {
       title?: string;
@@ -280,6 +282,7 @@ export async function DELETE(req: Request, { params }: Params) {
     const existing = await store.getTask(id);
     if (!existing) throw jsonError("Task not found", 404);
     if (!await canAccessClient(session, existing.clientId)) throw jsonError("Forbidden", 403);
+    if (await taskEngagementClosed(existing)) throw jsonError("Engagement is closed", 409);
 
     await store.deleteTask(id);
     await store.addActivity({

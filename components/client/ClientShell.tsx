@@ -8,6 +8,7 @@ import {
   CheckSquare,
   FileText,
   LayoutDashboard,
+  Layers3,
   Menu,
   MessageCircle,
   MoreHorizontal,
@@ -23,6 +24,7 @@ import { cn } from "@/lib/utils";
 
 const NAV = [
   { href: "/portal", label: "Dashboard", icon: LayoutDashboard, exact: true },
+  { href: "/portal/engagements", label: "Engagements", icon: Layers3 },
   { href: "/portal/tasks", label: "Tasks", icon: CheckSquare },
   { href: "/portal/documents", label: "Documents", icon: FileText },
   { href: "/portal/forms", label: "Forms", icon: ClipboardCheck },

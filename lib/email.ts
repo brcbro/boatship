@@ -91,7 +91,7 @@ export function taskAssignedEmailHtml(params: { name: string; taskTitle: string;
     <div style="font-family:Georgia,serif;color:#0f172a">
       <h2>New task assigned</h2>
       <p>Hi ${params.name},</p>
-      <p>You have a new onboarding task: <strong>${params.taskTitle}</strong>.</p>
+      <p>You have a new task: <strong>${params.taskTitle}</strong>.</p>
       <p><a href="${params.link}">Open task</a></p>
     </div>
   `;

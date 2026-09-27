@@ -23,6 +23,38 @@ model StoreSnapshot {
   updatedAt DateTime @updatedAt
 }
 
+// Accounts remain in StoreSnapshot; engagements give each period of work its own identity.
+model Engagement {
+  id          String    @id
+  clientId    String
+  name        String
+  type        String
+  status      String
+  ownerId     String?
+  startDate   DateTime?
+  targetDate  DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([clientId, status])
+  @@index([ownerId])
+}
+
+// A contact is address-book data. Portal authorization still uses UserProfile.clientId.
+model ClientContact {
+  id        String   @id
+  clientId  String
+  name      String
+  email     String
+  role      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([clientId, email])
+  @@index([clientId])
+}
+
 model AuthSession {
   tokenHash String   @id
   userId    String

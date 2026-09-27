@@ -47,6 +47,37 @@ export type ClientStatus =
   | "completed"
   | "on_hold";
 
+export type EngagementType = "onboarding" | "project" | "ongoing_service";
+export type EngagementStatus = "planned" | "active" | "paused" | "completed" | "cancelled";
+
+export interface Engagement {
+  id: string;
+  clientId: string;
+  name: string;
+  type: EngagementType;
+  status: EngagementStatus;
+  ownerId: string | null;
+  startDate: string | null;
+  targetDate: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  taskCount: number;
+  completedTaskCount: number;
+  progress: number;
+}
+
+export type ClientContactRole = "account_admin" | "contributor" | "viewer";
+export interface ClientContact {
+  id: string;
+  clientId: string;
+  name: string;
+  email: string;
+  role: ClientContactRole;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type PipelineStage =
   | "intake"
   | "kyc"
@@ -158,6 +189,7 @@ export interface TaskSubtask {
 export interface Task {
   id: string;
   clientId: string;
+  engagementId?: string;
   title: string;
   description: string;
   type: TaskType;

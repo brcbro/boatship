@@ -4,6 +4,7 @@ import { requireRoles } from "@/lib/auth";
 import { getPrisma } from "@/lib/prisma";
 import { getStore } from "@/lib/store";
 import { canAccessClient } from "@/lib/client-access";
+import { taskEngagementClosed } from "@/lib/engagements";
 
 export const runtime = "nodejs";
 type Params = { params: Promise<{ id: string }> };
@@ -24,6 +25,7 @@ export async function PATCH(req: Request, { params }: Params) {
     const task = await (await getStore()).getTask((await params).id);
     if (!task) throw jsonError("Task not found", 404);
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+    if (await taskEngagementClosed(task)) throw jsonError("Engagement is closed", 409);
     const strings = (v: unknown) => Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").map((x) => x.trim()).filter(Boolean) : [];
     const policy = await getPrisma().definitionOfDonePolicy.create({ data: { id: randomUUID(), projectId: task.clientId, taskType: typeof body.taskType === "string" ? body.taskType : task.type, repositoryId: typeof body.repositoryId === "string" ? body.repositoryId : null, requiredFiles: strings(body.requiredFiles), requiredChecks: strings(body.requiredChecks), requiredBuild: Boolean(body.requiredBuild), requiredScreenshot: Boolean(body.requiredScreenshot), requiredApproval: Boolean(body.requiredApproval), allowedPaths: strings(body.allowedPaths), maxStaleHours: typeof body.maxStaleHours === "number" ? body.maxStaleHours : 72, createdBy: session.uid } });
     return { policy };

@@ -4,6 +4,7 @@ import { filterAssignedClients } from "@/lib/client-access";
 import { getStore } from "@/lib/store";
 import { getRedisCacheVersion, withRedisCache } from "@/lib/redis-cache";
 import type { ClientStatus } from "@/types";
+import { getPrisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 
@@ -86,6 +87,9 @@ export async function GET(req: Request) {
     return withRedisCache(`analytics:${session.role}:${session.uid}`, cacheVersion, 60, async () => {
     const clients = await filterAssignedClients(session, await store.listClients());
     const users = await store.listUsers();
+    const engagementRows = clients.length && !(process.env.ALLOW_LOCAL_STORE === "1" && !process.env.DATABASE_URL)
+      ? await getPrisma().engagement.findMany({ where: { clientId: { in: clients.map((client) => client.id) } } })
+      : [];
 
     const clientsByStatus: Record<ClientStatus, number> = {
       not_started: 0,
@@ -98,9 +102,13 @@ export async function GET(req: Request) {
     }
 
     // Average onboarding time (days) for completed clients
+    const completedOnboarding = engagementRows.filter((item) => item.type === "onboarding" && item.status === "completed" && item.completedAt);
     const completedClients = clients.filter((c) => c.status === "completed");
     let avgOnboardingDays = 0;
-    if (completedClients.length) {
+    if (completedOnboarding.length) {
+      const totalMs = completedOnboarding.reduce((sum, item) => sum + (item.completedAt!.getTime() - (item.startDate || item.createdAt).getTime()), 0);
+      avgOnboardingDays = Math.round(totalMs / completedOnboarding.length / 8640000 * 10) / 10;
+    } else if (completedClients.length) {
       const totalMs = completedClients.reduce((sum, c) => {
         return sum + (new Date(c.updatedAt).getTime() - new Date(c.createdAt).getTime());
       }, 0);
@@ -147,7 +155,9 @@ export async function GET(req: Request) {
       const isInvited = invitedClientIds.has(client.id);
       if (isInvited) funnelInvited += 1;
       if (hasStarted) funnelStarted += 1;
-      if (client.status === "completed") funnelCompleted += 1;
+      if (engagementRows.length
+        ? engagementRows.some((item) => item.clientId === client.id && item.type === "onboarding" && item.status === "completed")
+        : client.status === "completed") funnelCompleted += 1;
 
       for (const task of tasks) {
         if (
@@ -191,6 +201,7 @@ export async function GET(req: Request) {
 
     return {
       avgOnboardingDays,
+      activeEngagements: engagementRows.filter((item) => item.status === "active").length,
       clientsByStatus,
       overdueTasks: overdueTaskList.length,
       overdueTaskList,

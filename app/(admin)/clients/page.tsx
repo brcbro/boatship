@@ -265,7 +265,7 @@ export default function ClientsPage() {
     <div>
       <PageHeader
         title="Clients"
-        description="Search, filter, and manage onboarding clients."
+        description="Manage client accounts and open each workspace for engagements, contacts, and delivery."
         actions={
           <div className="flex flex-wrap gap-2">
             <Button
@@ -487,12 +487,12 @@ export default function ClientsPage() {
                   </th>
                   <th className="px-5 py-3 font-medium">Name</th>
                   <th className="hidden px-5 py-3 font-medium sm:table-cell">Company</th>
-                  <th className="px-5 py-3 font-medium">Status</th>
-                  <th className="hidden px-5 py-3 font-medium xl:table-cell">Health</th>
+                  <th className="px-5 py-3 font-medium">Onboarding status</th>
+                  <th className="hidden px-5 py-3 font-medium xl:table-cell">Onboarding health</th>
                   <th className="hidden px-5 py-3 font-medium lg:table-cell">Tags</th>
                   <th className="hidden px-5 py-3 font-medium md:table-cell">Assignee</th>
                   <th className="hidden px-5 py-3 font-medium lg:table-cell">Vessels</th>
-                  <th className="hidden px-5 py-3 font-medium sm:table-cell">Progress</th>
+                  <th className="hidden px-5 py-3 font-medium sm:table-cell">All task progress</th>
                   <th className="hidden px-5 py-3 font-medium lg:table-cell">Updated</th>
                   <th className="px-5 py-3 font-medium" />
                 </tr>

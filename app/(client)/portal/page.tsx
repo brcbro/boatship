@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ArrowRight, ClipboardCheck, FileText, MessageCircle } from "lucide-react";
 import { useAuth } from "@/components/shared/AuthProvider";
 import { Badge, Card, PageHeader } from "@/components/shared/ui";
@@ -10,6 +10,7 @@ import { formatDate, statusLabel } from "@/lib/utils";
 import type { ClientWithProgress, FormSubmission, Task } from "@/types";
 
 type ApprovalSummary = { id: string; subject: string; status: string };
+type EngagementSummary = { id: string; name: string; type: string; status: string; targetDate: string | null; taskCount: number; completedTaskCount: number; progress: number };
 
 function taskTone(status: string): "neutral" | "info" | "danger" {
   if (status === "blocked") return "danger";
@@ -24,6 +25,7 @@ export default function PortalDashboardPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [forms, setForms] = useState<FormSubmission[]>([]);
   const [approvals, setApprovals] = useState<ApprovalSummary[]>([]);
+  const [engagements, setEngagements] = useState<EngagementSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -33,16 +35,18 @@ export default function PortalDashboardPage() {
     setError("");
     try {
       const encodedClientId = encodeURIComponent(clientId);
-      const [clientRes, tasksRes, formsRes, approvalsRes] = await Promise.all([
+      const [clientRes, tasksRes, formsRes, approvalsRes, engagementsRes] = await Promise.all([
         apiFetch<{ client: ClientWithProgress }>(`/api/clients/${encodedClientId}`, { token }),
         apiFetch<{ tasks: Task[] }>(`/api/tasks?clientId=${encodedClientId}`, { token }),
         apiFetch<{ forms: FormSubmission[] }>(`/api/forms?clientId=${encodedClientId}`, { token }),
         apiFetch<{ approvals: ApprovalSummary[] }>(`/api/project-operations?clientId=${encodedClientId}`, { token }),
+        apiFetch<{ engagements: EngagementSummary[] }>(`/api/clients/${encodedClientId}/engagements`, { token }),
       ]);
       setClient(clientRes.client);
       setTasks(tasksRes.tasks.filter((task) => task.type === "client_facing").sort((a, b) => a.order - b.order));
       setForms(formsRes.forms);
       setApprovals(approvalsRes.approvals);
+      setEngagements(engagementsRes.engagements);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "We couldn’t load your workspace.");
     } finally { setLoading(false); }
@@ -50,11 +54,13 @@ export default function PortalDashboardPage() {
 
   useEffect(() => { if (authLoading) return; const timer = window.setTimeout(() => void load(), 0); return () => window.clearTimeout(timer); }, [authLoading, load]);
 
-  const openTasks = useMemo(() => tasks.filter((task) => task.status !== "completed"), [tasks]);
+  const currentEngagements = engagements.filter((item) => item.status !== "completed" && item.status !== "cancelled");
+  const actionableIds = new Set(currentEngagements.filter((item) => item.status !== "paused").map((item) => item.id));
+  const openTasks = tasks.filter((task) => task.status !== "completed" && (!task.engagementId || actionableIds.has(task.engagementId))).sort((a, b) => (a.dueDate || "9999").localeCompare(b.dueDate || "9999") || a.order - b.order);
   const pendingApprovals = approvals.filter((approval) => approval.status === "pending");
   const incompleteForms = forms.filter((form) => form.status === "not_started").length;
   const nextTask = openTasks.find((task) => task.status !== "blocked") || openTasks[0];
-  const completedTasks = tasks.length - openTasks.length;
+  const completedTasks = tasks.filter((task) => task.status === "completed").length;
 
   if (authLoading || loading) return <div><PageHeader title="Your workspace" description="Loading your next steps…" /><Card className="animate-pulse"><div className="h-6 w-48 rounded bg-[var(--surface-2)]" /><div className="mt-4 h-14 rounded bg-[var(--surface-2)]" /></Card></div>;
 
@@ -64,7 +70,7 @@ export default function PortalDashboardPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader title={`Welcome, ${client.name}`} description={`${client.companyName} · Your onboarding workspace`} />
+      <PageHeader title={`Welcome, ${client.name}`} description={`${client.companyName} · Your workspace`} />
       <section aria-labelledby="next-heading" className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(17rem,0.6fr)]">
         <Card className="p-5 sm:p-7">
           <h2 id="next-heading" className="font-[family-name:var(--font-display)] text-2xl text-[var(--ink)]">What needs you next</h2>
@@ -78,6 +84,7 @@ export default function PortalDashboardPage() {
           ) : nextTask ? (
             <div className="mt-5 border-t border-[var(--border)] pt-5">
               <div className="flex flex-wrap items-center gap-2"><p className="text-lg font-semibold text-[var(--ink)]">{nextTask.title}</p><Badge tone={taskTone(nextTask.status)}>{statusLabel(nextTask.status)}</Badge></div>
+              {nextTask.engagementId ? <p className="mt-1 text-sm text-[var(--ink-muted)]">{engagements.find((item) => item.id === nextTask.engagementId)?.name}</p> : null}
               {nextTask.description ? <p className="mt-2 max-w-prose text-sm leading-6 text-[var(--ink-muted)]">{nextTask.description}</p> : null}
               {nextTask.dueDate ? <p className="mt-2 text-sm text-[var(--ink-muted)]">Due {formatDate(nextTask.dueDate)}</p> : null}
               <Link href={`/portal/tasks?taskId=${encodeURIComponent(nextTask.id)}`} className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--brand-strong)]">Open task <ArrowRight className="h-4 w-4" aria-hidden="true" /></Link>
@@ -87,10 +94,11 @@ export default function PortalDashboardPage() {
           )}
         </Card>
         <div className="space-y-4">
-          <Card className="p-5 sm:p-6"><h2 className="text-sm font-semibold text-[var(--ink)]">Checklist</h2><p className="mt-2 font-[family-name:var(--font-display)] text-3xl tabular-nums text-[var(--ink)]">{completedTasks} <span className="text-lg text-[var(--ink-muted)]">of {tasks.length}</span></p><p className="mt-1 text-sm text-[var(--ink-muted)]">Client tasks complete{incompleteForms ? ` · ${incompleteForms} form${incompleteForms === 1 ? "" : "s"} to finish` : ""}</p><Link href="/portal/tasks" className="mt-3 inline-flex min-h-10 items-center gap-1 text-sm font-semibold text-[var(--brand)] hover:underline">View checklist <ArrowRight className="h-4 w-4" aria-hidden="true" /></Link></Card>
+          <Card className="p-5 sm:p-6"><h2 className="text-sm font-semibold text-[var(--ink)]">Your work</h2><p className="mt-2 font-[family-name:var(--font-display)] text-3xl tabular-nums text-[var(--ink)]">{completedTasks} <span className="text-lg text-[var(--ink-muted)]">of {tasks.length}</span></p><p className="mt-1 text-sm text-[var(--ink-muted)]">Client tasks complete{incompleteForms ? ` · ${incompleteForms} form${incompleteForms === 1 ? "" : "s"} to finish` : ""}</p><Link href="/portal/tasks" className="mt-3 inline-flex min-h-10 items-center gap-1 text-sm font-semibold text-[var(--brand)] hover:underline">View tasks <ArrowRight className="h-4 w-4" aria-hidden="true" /></Link></Card>
           <Card className="p-5 sm:p-6"><h2 className="text-sm font-semibold text-[var(--ink)]">Need help?</h2><p className="mt-2 text-sm leading-6 text-[var(--ink-muted)]">Ask your delivery team about tasks, files, or decisions.</p><Link href="/portal/messages" className="mt-3 inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-[var(--brand)] hover:underline"><MessageCircle className="h-4 w-4" aria-hidden="true" /> Message your team</Link></Card>
         </div>
       </section>
+      <section aria-labelledby="engagements-heading"><div className="mb-3 flex items-end justify-between gap-3"><h2 id="engagements-heading" className="font-[family-name:var(--font-display)] text-xl text-[var(--ink)]">Current engagements</h2><Link href="/portal/engagements" className="text-sm font-semibold text-[var(--brand)] hover:underline">View all and history</Link></div><div className="grid gap-3 sm:grid-cols-2">{currentEngagements.length ? currentEngagements.map((item) => <Link key={item.id} href={`/portal/engagements/${encodeURIComponent(item.id)}`} className="group flex min-h-24 items-center justify-between gap-3 rounded-xl bg-[var(--surface-raised)] p-5 transition hover:bg-[var(--surface-2)]"><span><span className="block text-sm font-semibold text-[var(--ink)]">{item.name}</span><span className="mt-1 block text-xs text-[var(--ink-muted)]">{statusLabel(item.status)} · {item.progress}% of your tasks complete{item.targetDate ? ` · Target ${formatDate(item.targetDate)}` : ""}</span></span><ArrowRight className="h-4 w-4 shrink-0 text-[var(--brand)] transition group-hover:translate-x-0.5" aria-hidden="true" /></Link>) : <Card className="text-sm text-[var(--ink-muted)]">No current engagements right now.</Card>}</div></section>
       {openTasks.length > 1 ? <section aria-labelledby="upcoming-heading"><div className="mb-3 flex items-end justify-between gap-3"><h2 id="upcoming-heading" className="font-[family-name:var(--font-display)] text-xl text-[var(--ink)]">Other open tasks</h2><Link href="/portal/tasks" className="text-sm font-semibold text-[var(--brand)] hover:underline">View all</Link></div><div className="divide-y divide-[var(--border)] rounded-xl bg-[var(--surface-raised)] px-4">{openTasks.filter((task) => task.id !== nextTask?.id).slice(0, 3).map((task) => <Link key={task.id} href={`/portal/tasks?taskId=${encodeURIComponent(task.id)}`} className="flex min-h-14 items-center justify-between gap-3 py-3 hover:text-[var(--brand)]"><span className="min-w-0"><span className="block truncate text-sm font-medium">{task.title}</span><span className="block text-xs text-[var(--ink-muted)]">{task.dueDate ? `Due ${formatDate(task.dueDate)}` : statusLabel(task.status)}</span></span><ArrowRight className="h-4 w-4 shrink-0" aria-hidden="true" /></Link>)}</div></section> : null}
       <nav aria-label="Workspace sections" className="grid gap-3 sm:grid-cols-3">
         <PortalShortcut href="/portal/forms" title="Forms" detail={incompleteForms ? `${incompleteForms} to complete` : "View your forms"} icon={ClipboardCheck} />

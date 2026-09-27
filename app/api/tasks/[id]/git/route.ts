@@ -4,6 +4,7 @@ import { requireRoles } from "@/lib/auth";
 import { getPrisma } from "@/lib/prisma";
 import { getStore } from "@/lib/store";
 import { canAccessClient } from "@/lib/client-access";
+import { taskEngagementClosed } from "@/lib/engagements";
 
 export const runtime = "nodejs";
 type Params = { params: Promise<{ id: string }> };
@@ -28,6 +29,7 @@ export async function POST(req: Request, { params }: Params) {
     if (!task) throw jsonError("Task not found", 404);
     if (!await canAccessClient(session, task.clientId)) throw jsonError("Forbidden", 403);
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+    if (await taskEngagementClosed(task)) throw jsonError("Engagement is closed", 409);
     const repositoryId = typeof body.repositoryId === "string" ? body.repositoryId : "";
     if (!repositoryId) throw jsonError("repositoryId is required", 400);
     const link = await getPrisma().gitTaskLink.upsert({ where: { taskId_repositoryId: { taskId: id, repositoryId } }, create: { id: randomUUID(), taskId: id, repositoryId, branch: typeof body.branch === "string" ? body.branch : null, pullRequestUrl: typeof body.pullRequestUrl === "string" ? body.pullRequestUrl : null, pullRequestId: typeof body.pullRequestId === "string" ? body.pullRequestId : null, baseSha: typeof body.baseSha === "string" ? body.baseSha : null, headSha: typeof body.headSha === "string" ? body.headSha : null }, update: { branch: typeof body.branch === "string" ? body.branch : null, pullRequestUrl: typeof body.pullRequestUrl === "string" ? body.pullRequestUrl : null, pullRequestId: typeof body.pullRequestId === "string" ? body.pullRequestId : null, baseSha: typeof body.baseSha === "string" ? body.baseSha : null, headSha: typeof body.headSha === "string" ? body.headSha : null } });
