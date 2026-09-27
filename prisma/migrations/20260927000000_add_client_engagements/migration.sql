@@ -29,7 +29,7 @@ CREATE UNIQUE INDEX "ClientContact_clientId_email_key" ON "public"."ClientContac
 CREATE INDEX "ClientContact_clientId_idx" ON "public"."ClientContact"("clientId");
 
 INSERT INTO "public"."Engagement" ("id", "clientId", "name", "type", "status", "ownerId", "completedAt", "createdAt", "updatedAt")
-SELECT 'onboarding_' || client->>'id', client->>'id', 'Onboarding', 'onboarding',
+SELECT 'onboarding_' || (client->>'id'), client->>'id', 'Onboarding', 'onboarding',
     CASE client->>'status'
       WHEN 'completed' THEN 'completed'
       WHEN 'on_hold' THEN 'paused'
@@ -46,7 +46,7 @@ WHERE snapshot."id" = 'main' AND client ? 'id'
 ON CONFLICT ("id") DO NOTHING;
 
 INSERT INTO "public"."ClientContact" ("id", "clientId", "name", "email", "role", "updatedAt")
-SELECT 'primary_' || client->>'id', client->>'id', COALESCE(NULLIF(client->>'name', ''), 'Primary contact'),
+SELECT 'primary_' || (client->>'id'), client->>'id', COALESCE(NULLIF(client->>'name', ''), 'Primary contact'),
        lower(client->>'primaryContactEmail'), 'account_admin', CURRENT_TIMESTAMP
 FROM "public"."StoreSnapshot" snapshot,
      jsonb_array_elements(COALESCE(snapshot."data"->'clients', '[]'::jsonb)) client
