@@ -15,9 +15,17 @@ head_sampling_rate = 0.1
 name = "MESSAGE_ROOM"
 class_name = "MessageRoom"
 
+[[durable_objects.bindings]]
+name = "APP_RUNTIME"
+class_name = "AppRuntime"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["MessageRoom"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["AppRuntime"]
 
 # Hyperdrive is supported by lib/prisma.ts, but a binding must only be enabled
 # after creating the real resource. Never commit a placeholder ID.

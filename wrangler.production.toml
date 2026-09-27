@@ -18,9 +18,17 @@ crons = ["30 3 * * 1-5", "*/5 * * * *"]
 name = "MESSAGE_ROOM"
 class_name = "MessageRoom"
 
+[[durable_objects.bindings]]
+name = "APP_RUNTIME"
+class_name = "AppRuntime"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["MessageRoom"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["AppRuntime"]
 
 [[routes]]
 pattern = "boatship.cohortix.in"

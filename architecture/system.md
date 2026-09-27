@@ -7,6 +7,7 @@ Last reviewed: 2026-09-26.
 - Next.js `16.3.4`, React 19, TypeScript, Tailwind CSS. Pages use the App Router. Staff and portal route groups have separate shell components; their group names do not appear in URLs.
 - `proxy.ts` handles coarse browser routing: the public home stays accessible; unauthenticated protected page visits go to `/login`; client and staff pages redirect to the correct home. API routes do their own database-backed session and permission checks. The proxy's decoded token payload is not the final authorization decision.
 - `app/api/**/route.ts` contains HTTP handlers. `lib/api.ts` standardizes success/error responses. Most handlers declare the Node.js runtime; the Cloudflare adapter packages them for Workers.
+- The public Cloudflare Worker forwards ordinary HTTP and scheduled Next.js requests to one SQLite-backed `AppRuntime` Durable Object. This keeps the public invocation below the Free plan's 10 ms CPU ceiling while the Durable Object runs the existing OpenNext handler. The existing `MessageRoom` still handles live sockets. `AppRuntime` is a single instance so the process-local snapshot cache remains coherent; it can limit throughput and must be tested under production traffic. Its `v2` Durable Object migration is required at deployment.
 - `app/layout.tsx`, `app/globals.css`, the two route-group layouts, and `components/*Shell.tsx` define the global UI frame. `components/shared/AuthProvider.tsx` manages browser auth state.
 
 ## Persistence
