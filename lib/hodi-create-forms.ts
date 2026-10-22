@@ -5,6 +5,9 @@ import { syncClientStatusFromTasks } from "@/lib/client-status";
 import { normalizeFormFields } from "@/lib/form-fields";
 import { hasPermission } from "@/lib/rbac";
 import { getStore } from "@/lib/store";
+import { legacyEngagementId, localClientDemo } from "@/lib/engagements";
+import { validateResourceEngagement } from "@/lib/engagement-resources";
+import { getPrisma } from "@/lib/prisma";
 
 export type HodiCreateFormsAction =
   | "create_form_template"
@@ -120,12 +123,18 @@ async function validate(action: HodiCreateFormsAction, payload: Payload, session
   const [client, template] = await Promise.all([store.getClient(clientId), store.getFormTemplate(formTemplateId)]);
   if (!client) throw new Error("Client not found");
   if (!template) throw new Error("Form template not found");
+  const engagementId = await validateResourceEngagement(clientId, payload.engagementId ?? legacyEngagementId(clientId));
+  const engagementName = engagementId && !localClientDemo()
+    ? (await getPrisma().engagement.findUnique({ where: { id: engagementId }, select: { name: true } }))?.name || "Selected engagement"
+    : engagementId ? "Onboarding" : "Account-wide";
   const dueDate = asText(payload.dueDate) || null;
   if (dueDate && Number.isNaN(Date.parse(dueDate))) throw new Error("dueDate must be a valid date");
   return {
     kind: action,
     client,
     template,
+    engagementId,
+    engagementName,
     title: asText(payload.title) || `Complete ${template.name}`,
     description: asText(payload.description),
     dueDate,
@@ -159,13 +168,14 @@ export async function previewCreateFormsAction(action: string, payload: Payload,
   return {
     title: `Assign ${checked.template.name} to ${checked.client.companyName}`,
     changes: [
-      `Create client-facing task “${checked.title}”`,
+      `Create client-facing task “${checked.title}” in ${checked.engagementName}`,
       "Create a linked form in the client portal",
       "No email or calendar invitation will be sent",
     ],
     diff: [
       { field: "client", label: "Client", before: "No form assignment", after: checked.client.companyName },
       { field: "formTemplate", label: "Form", before: "No form assignment", after: checked.template.name },
+      { field: "engagementId", label: "Engagement", before: "No form assignment", after: checked.engagementName },
       { field: "dueDate", label: "Due date", before: "Not set", after: checked.dueDate || "Not set" },
     ],
   };
@@ -213,6 +223,7 @@ export async function executeCreateFormsAction(
   const existingTasks = await store.listTasks(checked.client.id);
   const task = await store.createTask({
     clientId: checked.client.id,
+    engagementId: checked.engagementId || undefined,
     title: checked.title,
     description: checked.description,
     type: "client_facing",
@@ -226,7 +237,7 @@ export async function executeCreateFormsAction(
   });
   let form;
   try {
-    form = await store.createForm({ clientId: checked.client.id, formTemplateId: checked.template.id, taskId: task.id });
+    form = await store.createForm({ clientId: checked.client.id, engagementId: checked.engagementId, formTemplateId: checked.template.id, taskId: task.id });
   } catch (error) {
     await store.deleteTask(task.id);
     throw error;
@@ -237,7 +248,7 @@ export async function executeCreateFormsAction(
     actorId: session.uid,
     actorName: session.name,
     action: "hodi.form_assigned",
-    meta: { proposalId: proposalId || null, taskId: task.id, formId: form.id, formTemplateId: checked.template.id },
+    meta: { proposalId: proposalId || null, taskId: task.id, formId: form.id, formTemplateId: checked.template.id, engagementId: checked.engagementId },
   });
   return { task, form, url: `/clients/${checked.client.id}` };
 }

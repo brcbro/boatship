@@ -24,8 +24,9 @@ jobs:
       - run: npm ci
       - run: npm run db:generate
       - run: npm test
+      - run: npm run test:e2e
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run build
-      - name: Audit production dependencies for critical advisories
-        run: npm audit --omit=dev --audit-level=critical
+      - name: Audit production dependencies for high and critical advisories
+        run: npm audit --omit=dev --audit-level=high

@@ -6,6 +6,7 @@ import { consumeRateLimit } from "@/lib/rate-limit";
 import type { McpContext } from "@/lib/mcp-context";
 import { sanitizeForMcp, visibleTask } from "@/lib/mcp-context";
 import type { AuthSession, ActivityLog } from "@/types";
+import { hasPermission } from "@/lib/rbac";
 
 const MAX_REQUESTS = Number(process.env.MCP_RATE_LIMIT_PER_MINUTE || 120);
 
@@ -65,7 +66,7 @@ type ApprovalInput = { context: McpContext; action: string; taskId: string; payl
 export type ApprovalDecision = "approved" | "rejected";
 
 export function isApprovalReviewer(session: AuthSession) {
-  return session.role === "admin" || (session.role === "team" && session.permissions?.includes("team.manage"));
+  return hasPermission(session, "team.manage");
 }
 
 function approvalDecision(activities: ActivityLog[], approvalId: string) {
@@ -137,6 +138,9 @@ export async function reviewMcpWriteApproval(input: { approvalId: string; decisi
 }
 
 export async function runApprovedTaskAction(input: ApprovalInput) {
+  if (input.context.session.role === "team" && !hasPermission(input.context.session, "clients.manage")) {
+    return { status: "blocked", message: "Current staff permission does not allow this action" };
+  }
   const task = await visibleTask(input.context, input.taskId);
   if (!task) return { status: "blocked", message: "Task not found or not authorized" };
   const store = input.context.store;

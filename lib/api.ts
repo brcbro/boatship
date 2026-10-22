@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
+import { withRequestStoreScope } from "@/lib/store-context";
 
 export function jsonOk<T>(data: T, init?: ResponseInit) {
   return NextResponse.json(data, init);
@@ -21,7 +22,7 @@ export function internalErrorResponse(error: unknown) {
 
 export async function handleApi<T>(fn: () => Promise<T>) {
   try {
-    const data = await fn();
+    const data = await withRequestStoreScope(fn);
     return jsonOk(data);
   } catch (err) {
     if (err instanceof Response) return err;

@@ -2,8 +2,9 @@ import { getStore } from "@/lib/store";
 import { sha256Hex } from "@/lib/password";
 import type { WebhookEvent } from "@/types";
 import { validateWebhookUrl } from "@/lib/webhook-security";
+import { drainAfterResponse } from "@/lib/queue-drain";
 
-/** Persist delivery intent before the request returns; the scheduled drain sends it. */
+/** Persist delivery intent before the request returns; a background drain sends it and the hourly cron retries. */
 export async function dispatchWebhooks(event: WebhookEvent, payload: Record<string, unknown>) {
   const store = await getStore();
   const hooks = (await store.listWebhooks()).filter((hook) => hook.active && hook.events.includes(event));
@@ -12,7 +13,9 @@ export async function dispatchWebhooks(event: WebhookEvent, payload: Record<stri
     state: "pending", attempts: 0, nextAttemptAt: new Date().toISOString(),
     leaseUntil: null, leaseToken: null,
   })));
-  if (hooks.length && process.env.NODE_ENV !== "production") await drainWebhooks();
+  if (!hooks.length) return;
+  if (process.env.NODE_ENV !== "production") await drainWebhooks();
+  else drainAfterResponse("webhook", () => drainWebhooks());
 }
 
 export async function drainWebhooks(limit = 20) {

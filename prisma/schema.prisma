@@ -23,6 +23,44 @@ model StoreSnapshot {
   updatedAt DateTime @updatedAt
 }
 
+// File bytes are isolated from the frequently rewritten client snapshot.
+// documentId/clientId are checked through the authorized snapshot metadata.
+model DocumentContent {
+  id          String   @id
+  documentId  String
+  clientId    String
+  bytes       Bytes
+  contentType String
+  size        Int
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([documentId])
+  @@index([clientId])
+}
+
+// Durable, leased delivery jobs. Provider effects remain at least once.
+model IntegrationJob {
+  id            String    @id
+  dedupKey      String    @unique
+  clientId      String
+  actorId       String
+  kind          String
+  payload       Json
+  status        String    @default("pending")
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime  @default(now()) @db.Timestamptz(3)
+  leaseUntil    DateTime? @db.Timestamptz(3)
+  leaseToken    String?
+  error         String?
+  result        Json?
+  createdAt     DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@index([status, nextAttemptAt])
+  @@index([clientId, createdAt])
+  @@index([actorId, createdAt])
+}
+
 // Accounts remain in StoreSnapshot; engagements give each period of work its own identity.
 model Engagement {
   id          String    @id

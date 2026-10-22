@@ -8,6 +8,7 @@ import { getStore } from "@/lib/store";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import type { MessageRoom } from "@/lib/realtime/message-room";
 import type { PortalMessage } from "@/types";
+import { validateResourceEngagement, resourceInEngagement } from "@/lib/engagement-resources";
 
 export const runtime = "nodejs";
 
@@ -26,7 +27,8 @@ async function publishMessage(clientId: string, message: PortalMessage) {
 export async function GET(req: Request) {
   return handleApi(async () => {
     const session = await requireSession(req);
-    const clientId = new URL(req.url).searchParams.get("clientId");
+    const query = new URL(req.url).searchParams;
+    const clientId = query.get("clientId");
     if (!clientId) throw jsonError("clientId is required", 400);
     if (!await canAccessClient(session, clientId)) throw jsonError("Forbidden", 403);
 
@@ -34,10 +36,14 @@ export async function GET(req: Request) {
     const client = await store.getClient(clientId);
     if (!client) throw jsonError("Client not found", 404);
 
+    const selected = query.get("engagementId");
+    if (selected && selected !== "account") await validateResourceEngagement(clientId, selected, undefined, true);
+    const includeAccountWide = query.get("includeAccountWide") === "1" || query.get("includeAccountWide") === "true";
+
     const cacheVersion = await getRedisCacheVersion();
-    const cacheKey = await redisCacheKey("messages", clientId);
+    const cacheKey = await redisCacheKey("messages", `${clientId}:${selected || "all"}:${includeAccountWide}`);
     return withRedisCache(cacheKey, cacheVersion, 30, async () => ({
-      messages: await store.listMessages(clientId),
+      messages: (await store.listMessages(clientId)).filter((message) => resourceInEngagement(message, [], selected, includeAccountWide)),
     }));
   });
 }
@@ -48,19 +54,25 @@ export async function POST(req: Request) {
     const body = (await req.json().catch(() => ({}))) as {
       clientId?: string;
       body?: string;
+      engagementId?: string | null;
     };
 
-    const clientId = body.clientId?.trim();
-    const text = body.body?.trim();
+    if (typeof body.clientId !== "string" || typeof body.body !== "string") throw jsonError("clientId and a message are required", 400);
+    const clientId = body.clientId.trim();
+    const text = body.body.trim();
     if (!clientId || !text) throw jsonError("clientId and body are required", 400);
+    if (text.length > 10000) throw jsonError("Messages must be 10,000 characters or fewer.", 400);
     if (!await canAccessClient(session, clientId)) throw jsonError("Forbidden", 403);
 
     const store = await getStore();
     const client = await store.getClient(clientId);
     if (!client) throw jsonError("Client not found", 404);
 
+    const engagementId = await validateResourceEngagement(clientId, body.engagementId);
+
     const message = await store.addMessage({
       clientId,
+      engagementId,
       authorId: session.uid,
       authorName: session.name,
       authorRole: session.role,
@@ -79,7 +91,7 @@ export async function POST(req: Request) {
         kind: "message",
         title: `Message from ${client.name}`,
         body: preview,
-        href: `/messages?clientId=${encodeURIComponent(clientId)}`,
+        href: `/messages?clientId=${encodeURIComponent(clientId)}${engagementId ? `&engagementId=${encodeURIComponent(engagementId)}` : "&engagementId=account"}`,
         excludeUserId: session.uid,
       });
     } else if (isStaff(session.role)) {
@@ -94,7 +106,7 @@ export async function POST(req: Request) {
             kind: "message",
             title: `Message from ${session.name}`,
             body: preview,
-            href: "/portal/messages",
+            href: `/portal/messages?engagementId=${engagementId ? encodeURIComponent(engagementId) : "account"}`,
             clientId,
           })
         )

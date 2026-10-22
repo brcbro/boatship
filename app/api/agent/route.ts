@@ -1,6 +1,7 @@
 import { handleApi } from "@/lib/api";
 import { isLlmConfiguredForUser } from "@/lib/agent";
 import { requireRoles } from "@/lib/auth";
+import { hasPermission } from "@/lib/rbac";
 import { isComposioConfiguredForUser, listBoatshipConnections } from "@/lib/composio";
 
 export const runtime = "nodejs";
@@ -8,7 +9,7 @@ export const runtime = "nodejs";
 export async function GET(req: Request) {
   return handleApi(async () => {
     const session = await requireRoles(req, ["admin", "team"]);
-    const composioConfigured = await isComposioConfiguredForUser(session.uid);
+    const composioConfigured = hasPermission(session, "integrations.manage") && await isComposioConfiguredForUser(session.uid);
     const llmConfigured = await isLlmConfiguredForUser(session.uid);
 
     let connectors: Awaited<ReturnType<typeof listBoatshipConnections>> = [];

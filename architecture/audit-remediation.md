@@ -1,0 +1,24 @@
+# October audit implementation
+
+Last reviewed: 2026-10-15. These changes are in the current working tree and are not a production release.
+
+| Audit issue | Implemented change | Evidence / detail |
+| --- | --- | --- |
+| Staff permission flags did not reliably protect actions; empty grants restored defaults | Current-profile method/area checks, independent review/manage/read capabilities, MCP and connected-tool checks; empty grants deny | [Permissions](permissions.md), permission and authenticated HTTP tests |
+| Vulnerable production dependencies | Next 16.4.1, matching lint configuration, Prisma/adapters 6.19.3, OpenNext/Wrangler updates and compatible transitive fixes; high-severity production CI gate | Production audit: zero findings. One development-only braces advisory remains; [triage](../docs/dependency-audit.md) |
+| Uploaded files could not be retrieved or meaningfully versioned | Authenticated binary retrieval, history selection, download, preview, safe replacement, private headers and ranges | [Document storage](document-storage.md), file validation/history tests and staff browser checks |
+| Forms accepted malformed values | Strict field types/options/dates/email, unknown-key rejection, server-derived risk, one atomic submission/activity/webhook commit | [Forms](forms-validation-drafts.md), validator/atomic tests and HTTP concurrent submissions |
+| Detached provider calls could disappear | Relational leased queue, provider-specific dedup, bounded retry, current actor checks, visible status and explicit retry | [Integration jobs](integration-jobs.md), durable queue and non-UTC SQL tests |
+| Input names, touch targets and mobile menu behavior were weak | Associated select labels, sign-in touch controls, view-only task actions, Escape/focus restoration and short-viewport menu scrolling | [Interface](interface-audit-remediation.md), lint and mobile browser checks |
+| Refresh/closing lost unfinished answers | User/client/engagement/form/template scoped 24-hour tab drafts, compatible-schema restoration, explicit discard, submit/sign-out cleanup and storage-error feedback | Draft tests, intake validation and mobile close/reopen checks |
+| Base64 enlarged every snapshot read/write; one runtime instance limited concurrency | Separate Neon BYTEA file rows, request-scoped snapshot reuse, four bounded application runtime instances, existing conditional-write coordination | [Storage/runtime](document-storage.md), migration byte preservation and rollback tests; hosted load measurement still required |
+| Navigation had too many competing destinations | Five staff groups, collapsed tools/settings, distinct account/project/workspace labels and capability-aware destinations | Staff browser checks; [Interface](interface-audit-remediation.md) |
+| Work context was limited to tasks | Context filters/labels and guarded writes for files/forms/messages/milestones/approvals, linked Hodi proposals, explicit account-wide inclusion, closed history | [Client OS](client-os.md), scope tests and authenticated HTTP checks |
+
+Independent review also closed the metadata-only upload bypass, preserved newer classification/expiry during concurrent replacement, prevalidated bulk review selections, and added closed-context review guards. Real-flow testing found and fixed task normalization dropping engagement IDs, local Next proxy canonical-origin rejection, and timezone-sensitive queue leases/backoff.
+
+Packaging verification also fixed native Windows traced-link creation with a scoped junction preload. Next tracing exclusions remove local snapshots, credentials, previous outputs, test scripts, the isolated QA database, and unused Prisma CLI/database engines. The generated PostgreSQL query compiler remains a runtime asset. These exclusions address the broad Prisma WASM loader trace; its upstream warning can still appear during compilation.
+
+Final local checks passed: 74 automated tests, 14 isolated end-to-end tests, typecheck, lint, schema validation, Next/OpenNext packaging, and the production-config Wrangler dry run. The rebuilt server output contains no local `.data`, `.env.local`, or Wrangler state, and the bundled runtime contains the PostgreSQL compiler without the test database or Prisma schema engines. Upload size fell from 61.3 to 24.3 MiB uncompressed (19.4 to 5.6 MiB gzip). Staff file viewing/version download and mobile draft/submission flows also passed native browser checks.
+
+The user selected Neon with separate content rows. Apply `20261014000000_separate_document_content_and_integration_jobs` with old writers quiesced after verifying a restore point, then deploy code. No hosted migration, deployment, real provider message/folder/contact, or customer-data mutation was performed in this task. Provider delivery and hosted scheduler/load/restore verification require a configured release environment. See [status](status.md) for final local validation and the separate deployed history.

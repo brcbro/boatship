@@ -4,6 +4,7 @@ import { default as nextWorker } from "./.open-next/worker.js";
 import { DurableObject } from "cloudflare:workers";
 import { MessageRoom } from "./lib/realtime/message-room";
 import { verifyMessageRealtimeTicket } from "./lib/realtime/message-ticket";
+import { runtimeShard } from "./lib/runtime-routing";
 
 type RealtimeEnv = {
   MESSAGE_REALTIME_SECRET?: string;
@@ -23,9 +24,10 @@ export class AppRuntime extends DurableObject<RealtimeEnv> {
   }
 }
 
-function appRuntime(env: RealtimeEnv) {
-  // ponytail: one runtime preserves the existing process-local snapshot cache; shard only after making that cache request-scoped.
-  return env.APP_RUNTIME.getByName("main");
+function appRuntime(env: RealtimeEnv, request: Request) {
+  // Snapshot reuse is now request-scoped; concurrent instances coordinate
+  // writes through the existing database version check.
+  return env.APP_RUNTIME.getByName(runtimeShard(request));
 }
 // Preserve OpenNext's cache Durable Object exports should they be enabled later.
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -35,15 +37,20 @@ export { DOQueueHandler, DOShardedTagCache, BucketCachePurge } from "./.open-nex
 export default {
   async scheduled(controller: ScheduledController, env: RealtimeEnv) {
     if (!env.BOATSHIP_CRON_SECRET) throw new Error("BOATSHIP_CRON_SECRET is required for scheduled jobs");
-    const path = controller.cron === "30 3 * * 1-5" ? "product-reminders" : "webhook-drain";
-    const response = await appRuntime(env).fetch(new Request(`https://boatship.cohortix.in/api/internal/${path}`, {
-      method: "POST", headers: { "x-boatship-cron-secret": env.BOATSHIP_CRON_SECRET },
+    const paths = controller.cron === "30 3 * * 1-5" ? ["product-reminders"] : ["webhook-drain", "integration-drain"];
+    const results = await Promise.allSettled(paths.map(async (path) => {
+      const request = new Request(`https://boatship.cohortix.in/api/internal/${path}`, {
+        method: "POST", headers: { "x-boatship-cron-secret": env.BOATSHIP_CRON_SECRET! },
+      });
+      const response = await appRuntime(env, request).fetch(request);
+      if (!response.ok) throw new Error(`${path} failed: ${response.status}`);
     }));
-    if (!response.ok) throw new Error(`${path} failed: ${response.status}`);
+    const failure = results.find((result) => result.status === "rejected");
+    if (failure?.status === "rejected") throw failure.reason;
   },
   async fetch(request: Request, env: RealtimeEnv) {
     const url = new URL(request.url);
-    if (url.pathname !== "/api/messages/live") return appRuntime(env).fetch(request);
+    if (url.pathname !== "/api/messages/live") return appRuntime(env, request).fetch(request);
     if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") return upgradeRequired();
 
     const ticket = url.searchParams.get("ticket");

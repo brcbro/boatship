@@ -6,6 +6,7 @@ import type { Client, Task } from "@/types";
 export type ProjectMilestone = {
   id: string;
   clientId: string;
+  engagementId?: string | null;
   title: string;
   description: string;
   dueDate: string | null;
@@ -18,6 +19,7 @@ export type ProjectMilestone = {
 export type ProjectApproval = {
   id: string;
   clientId: string;
+  engagementId?: string | null;
   subject: string;
   description: string;
   kind: "document" | "design" | "release";

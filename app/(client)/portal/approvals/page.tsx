@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Check, RotateCcw } from "lucide-react";
-import { Badge, Button, Card, EmptyState, PageHeader, Textarea, Label } from "@/components/shared/ui";
+import { Badge, Button, Card, EmptyState, PageHeader, Select, Textarea, Label } from "@/components/shared/ui";
 import { useAuth } from "@/components/shared/AuthProvider";
 import { apiFetch } from "@/lib/api-client";
 import { formatDate } from "@/lib/utils";
@@ -16,7 +17,9 @@ type Approval = {
   status: "pending" | "approved" | "changes_requested";
   createdAt: string;
   reviewNote?: string | null;
+  engagementId?: string | null;
 };
+type Engagement = { id: string; name: string; status: string };
 
 function approvalTone(status: Approval["status"]): "neutral" | "success" | "warning" {
   if (status === "approved") return "success";
@@ -29,9 +32,13 @@ function approvalLabel(status: Approval["status"]) {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
-export default function PortalApprovalsPage() {
+function ApprovalsContent() {
+  const searchParams = useSearchParams();
   const { session, token, loading: authLoading } = useAuth();
   const [approvals, setApprovals] = useState<Approval[]>([]);
+  const [engagements, setEngagements] = useState<Engagement[]>([]);
+  const [scope, setScope] = useState(searchParams.get("engagementId") || "all");
+  const [includeAccountWide, setIncludeAccountWide] = useState(true);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -48,11 +55,12 @@ export default function PortalApprovalsPage() {
     setLoading(true);
     setError("");
     try {
-      const data = await apiFetch<{ approvals: Approval[] }>(
+      const [data, engagementData] = await Promise.all([apiFetch<{ approvals: Approval[] }>(
         `/api/project-operations?clientId=${encodeURIComponent(clientId)}`,
         { token }
-      );
+      ), apiFetch<{ engagements: Engagement[] }>(`/api/clients/${encodeURIComponent(clientId)}/engagements`, { token })]);
       setApprovals(data.approvals);
+      setEngagements(engagementData.engagements);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "We couldn’t load your approvals. Please try again.");
     } finally {
@@ -90,7 +98,8 @@ export default function PortalApprovalsPage() {
     }
   }
 
-  const pendingCount = approvals.filter((approval) => approval.status === "pending").length;
+  const visibleApprovals = approvals.filter((approval) => scope === "all" || (scope === "account" ? !approval.engagementId : approval.engagementId === scope || includeAccountWide && !approval.engagementId));
+  const pendingCount = visibleApprovals.filter((approval) => approval.status === "pending").length;
 
   return (
     <div>
@@ -98,6 +107,8 @@ export default function PortalApprovalsPage() {
         title="Approvals"
         description="Review each request from your delivery team. Include your feedback when you request changes."
       />
+
+      {clientId ? <div className="mb-5 flex flex-wrap items-end gap-3"><div className="w-full sm:max-w-md"><Label htmlFor="approval-context">Show approvals for</Label><Select id="approval-context" value={scope} onChange={(event) => setScope(event.target.value)}><option value="all">All engagements and account decisions</option><option value="account">Account-wide decisions</option>{engagements.map((engagement) => <option key={engagement.id} value={engagement.id}>{engagement.name}</option>)}{scope !== "all" && scope !== "account" && !engagements.some((engagement) => engagement.id === scope) ? <option value={scope}>Historical engagement</option> : null}</Select></div>{scope !== "all" && scope !== "account" ? <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={includeAccountWide} onChange={(event) => setIncludeAccountWide(event.target.checked)} />Include account-wide decisions</label> : null}</div> : null}
 
       {error ? (
         <div role="alert" className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--danger)]/25 bg-[var(--danger)]/5 px-4 py-3 text-sm text-[var(--danger)]">
@@ -110,7 +121,7 @@ export default function PortalApprovalsPage() {
         <Card className="py-12 text-center text-sm text-[var(--ink-muted)]">Loading approval requests…</Card>
       ) : !clientId ? (
         <Card><h2 className="text-lg font-semibold text-[var(--ink)]">Your account needs a client workspace</h2><p className="mt-2 max-w-prose text-sm leading-6 text-[var(--ink-muted)]">Ask your Boatship workspace administrator to connect your account. Share your sign-in email: <span className="font-medium text-[var(--ink)]">{session?.email || "the email you used to sign in"}</span>.</p></Card>
-      ) : approvals.length === 0 ? (
+      ) : visibleApprovals.length === 0 ? (
         <EmptyState
           title="Nothing needs your approval"
           description="When your team needs a decision on a design, document, or release, it will appear here."
@@ -118,9 +129,11 @@ export default function PortalApprovalsPage() {
       ) : (
         <section className="space-y-4" aria-label="Approval requests">
           <p className="text-sm text-[var(--ink-muted)]">{pendingCount} decision{pendingCount === 1 ? "" : "s"} waiting for you</p>
-          {approvals.map((approval) => {
+          {visibleApprovals.map((approval) => {
             const pending = approval.status === "pending";
             const saving = busyId === approval.id;
+            const engagement = engagements.find((item) => item.id === approval.engagementId);
+            const closed = engagement?.status === "completed" || engagement?.status === "cancelled";
             return (
               <Card key={approval.id} className="p-5 sm:p-6">
                 <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
@@ -131,10 +144,12 @@ export default function PortalApprovalsPage() {
                     </div>
                     <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--ink-muted)]">{approval.description || `Your team requested a ${approval.kind} decision.`}</p>
                     <p className="mt-3 text-xs font-medium text-[var(--ink-muted)]">{approval.kind.charAt(0).toUpperCase() + approval.kind.slice(1)} · Requested {formatDate(approval.createdAt)}</p>
+                    <p className="mt-1 text-sm text-[var(--ink-muted)]">{approval.engagementId ? engagement?.name || "Historical engagement" : "Account-wide decision"}</p>
+                    {closed && pending ? <p className="mt-3 text-sm text-[var(--ink-muted)]">This engagement has ended. Contact your team about this pending decision.</p> : null}
                     {pending ? <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--ink-muted)]">Need to see the item before deciding? <Link href="/portal/messages" className="font-semibold text-[var(--brand)] underline underline-offset-2">Ask your team to share it</Link>.</p> : null}
                     {approval.reviewNote ? <p className="mt-3 rounded-lg bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--ink)]"><span className="font-semibold">Your change request:</span> {approval.reviewNote}</p> : null}
                   </div>
-                  {pending ? (
+                  {pending && !closed ? (
                     <div className="grid shrink-0 gap-2 sm:flex">
                       <Button type="button" variant="secondary" disabled={saving} aria-expanded={feedbackId === approval.id} aria-controls={`feedback-${approval.id}`} onClick={() => { setFeedbackId(feedbackId === approval.id ? null : approval.id); setReviewNote(""); setNoteError(""); }}>
                         <RotateCcw className="h-4 w-4" aria-hidden="true" /> Request changes
@@ -145,7 +160,7 @@ export default function PortalApprovalsPage() {
                     </div>
                   ) : null}
                 </div>
-                {pending && feedbackId === approval.id ? <form id={`feedback-${approval.id}`} className="mt-5 border-t border-[var(--border)] pt-4" onSubmit={(event) => { event.preventDefault(); void review(approval.id, "changes_requested"); }}><Label htmlFor={`review-note-${approval.id}`}>What should change?</Label><Textarea id={`review-note-${approval.id}`} value={reviewNote} onChange={(event) => { setReviewNote(event.target.value); setNoteError(""); }} required maxLength={2000} aria-invalid={Boolean(noteError)} aria-describedby={noteError ? `review-note-error-${approval.id}` : undefined} placeholder="Describe the changes your team should make" className="mt-2" />{noteError ? <p id={`review-note-error-${approval.id}`} role="alert" className="mt-2 text-sm text-[var(--danger)]">{noteError}</p> : null}<Button type="submit" disabled={saving} className="mt-3">{saving ? "Sending…" : "Send change request"}</Button></form> : null}
+                {pending && !closed && feedbackId === approval.id ? <form id={`feedback-${approval.id}`} className="mt-5 border-t border-[var(--border)] pt-4" onSubmit={(event) => { event.preventDefault(); void review(approval.id, "changes_requested"); }}><Label htmlFor={`review-note-${approval.id}`}>What should change?</Label><Textarea id={`review-note-${approval.id}`} value={reviewNote} onChange={(event) => { setReviewNote(event.target.value); setNoteError(""); }} required maxLength={2000} aria-invalid={Boolean(noteError)} aria-describedby={noteError ? `review-note-error-${approval.id}` : undefined} placeholder="Describe the changes your team should make" className="mt-2" />{noteError ? <p id={`review-note-error-${approval.id}`} role="alert" className="mt-2 text-sm text-[var(--danger)]">{noteError}</p> : null}<Button type="submit" disabled={saving} className="mt-3">{saving ? "Sending…" : "Send change request"}</Button></form> : null}
               </Card>
             );
           })}
@@ -153,4 +168,13 @@ export default function PortalApprovalsPage() {
       )}
     </div>
   );
+}
+
+export default function PortalApprovalsPage() {
+  return <Suspense fallback={<p role="status" className="text-sm text-[var(--ink-muted)]">Loading approvals…</p>}><ApprovalsRoute /></Suspense>;
+}
+
+function ApprovalsRoute() {
+  const query = useSearchParams();
+  return <ApprovalsContent key={query.get("engagementId") || "all"} />;
 }

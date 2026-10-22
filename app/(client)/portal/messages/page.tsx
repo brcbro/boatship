@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { CheckCheck, MessageCircle, Send, Sparkles } from "lucide-react";
 import { useAuth } from "@/components/shared/AuthProvider";
 import { useMessagePolling } from "@/components/shared/useMessagePolling";
@@ -9,10 +10,13 @@ import {
   Button,
   Card,
   EmptyState,
+  Dropdown,
+  Label,
   PageHeader,
   Textarea,
 } from "@/components/shared/ui";
 import { apiFetch } from "@/lib/api-client";
+import { messageMatchesContext } from "@/lib/message-context";
 import { cn, formatDate, formatDateTime } from "@/lib/utils";
 import type { PortalMessage } from "@/types";
 
@@ -41,14 +45,33 @@ function groupMessagesByDate(messages: PortalMessage[]): MessageGroup[] {
 }
 
 export default function PortalMessagesPage() {
+  return <Suspense fallback={<p className="text-sm text-[var(--ink-muted)]">Loading your conversation…</p>}><PortalMessagesInner /></Suspense>;
+}
+
+type EngagementOption = { id: string; name: string; status: string };
+
+function PortalMessagesInner() {
   const { session, token, loading: authLoading } = useAuth();
-  const [messages, setMessages] = useState<PortalMessage[]>([]);
+  const searchParams = useSearchParams();
+  const initialEngagementId = searchParams.get("engagementId") || "";
+  const initialIncludeAccountWide = searchParams.get("includeAccountWide") === "1" || searchParams.get("includeAccountWide") === "true";
+  const [engagementId, setEngagementId] = useState(initialEngagementId);
+  const [includeAccountWide, setIncludeAccountWide] = useState(initialIncludeAccountWide);
+  const [engagements, setEngagements] = useState<EngagementOption[]>([]);
+  const [thread, setThread] = useState<{ key: string; messages: PortalMessage[] }>({ key: "", messages: [] });
   const [body, setBody] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const clientId = session?.clientId;
+  const threadKey = `${clientId || ""}:${engagementId}:${includeAccountWide}`;
+  const messages = useMemo(() => thread.key === threadKey ? thread.messages : [], [thread, threadKey]);
+  const requestSequence = useRef(0);
+  const selectedEngagement = engagements.find((item) => item.id === engagementId);
+  const contextName = selectedEngagement?.name || (engagementId && engagementId !== "account" ? "Selected engagement" : "Account-wide");
+  const contextClosed = selectedEngagement?.status === "completed" || selectedEngagement?.status === "cancelled";
+  const contextUnavailable = Boolean(engagementId && engagementId !== "account" && !selectedEngagement);
   const groupedMessages = useMemo(
     () => groupMessagesByDate(messages),
     [messages],
@@ -56,6 +79,7 @@ export default function PortalMessagesPage() {
 
   const load = useCallback(
     async (background = false) => {
+      const request = ++requestSequence.current;
       if (!clientId) {
         setError("No client account is linked to this user.");
         if (!background) setLoading(false);
@@ -65,20 +89,35 @@ export default function PortalMessagesPage() {
       setError("");
       try {
         const data = await apiFetch<{ messages: PortalMessage[] }>(
-          `/api/messages?clientId=${encodeURIComponent(clientId)}`,
+          `/api/messages?clientId=${encodeURIComponent(clientId)}${engagementId ? `&engagementId=${encodeURIComponent(engagementId)}` : ""}${includeAccountWide ? "&includeAccountWide=1" : ""}`,
           { token },
         );
-        setMessages(uniqueMessages(data.messages));
+        if (request !== requestSequence.current) return;
+        setThread((previous) => ({ key: threadKey, messages: uniqueMessages([...data.messages, ...(previous.key === threadKey ? previous.messages : [])]) }));
       } catch (err) {
-        setError(
+        if (request === requestSequence.current) setError(
           err instanceof Error ? err.message : "Failed to load messages",
         );
       } finally {
-        if (!background) setLoading(false);
+        if (!background && request === requestSequence.current) setLoading(false);
       }
     },
-    [clientId, token],
+    [clientId, token, engagementId, includeAccountWide, threadKey],
   );
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => { setEngagementId(initialEngagementId); setIncludeAccountWide(initialIncludeAccountWide); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [initialEngagementId, initialIncludeAccountWide]);
+
+  useEffect(() => {
+    if (!clientId || authLoading) return;
+    let cancelled = false;
+    void apiFetch<{ engagements: EngagementOption[] }>(`/api/clients/${encodeURIComponent(clientId)}/engagements`, { token }).then((data) => {
+      if (!cancelled) setEngagements(data.engagements);
+    }).catch((cause) => { if (!cancelled) setError(cause instanceof Error ? cause.message : "Couldn’t load work contexts."); });
+    return () => { cancelled = true; };
+  }, [clientId, token, authLoading]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -88,26 +127,28 @@ export default function PortalMessagesPage() {
   const liveConnected = useMessageRealtime({
     clientId,
     token,
+    engagementId,
+    includeAccountWide,
     onMessage: useCallback((message: PortalMessage) => {
-      setMessages((current) => uniqueMessages([...current, message]));
-    }, []),
+      setThread((current) => ({ key: threadKey, messages: uniqueMessages([...(current.key === threadKey ? current.messages : []), message]) }));
+    }, [threadKey]),
   });
-  useMessagePolling(() => load(true), Boolean(clientId) && !authLoading && !liveConnected);
+  useMessagePolling(() => load(true), Boolean(clientId) && !authLoading && !liveConnected, threadKey);
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length]);
 
   async function send() {
-    if (!clientId || !body.trim() || sending) return;
+    if (!clientId || !body.trim() || sending || contextClosed || contextUnavailable) return;
     setSending(true);
     setError("");
     try {
       const data = await apiFetch<{ message: PortalMessage }>("/api/messages", {
         method: "POST",
         token,
-        body: JSON.stringify({ clientId, body: body.trim() }),
+        body: JSON.stringify({ clientId, body: body.trim(), engagementId: engagementId && engagementId !== "account" ? engagementId : null }),
       });
-      setMessages((prev) => uniqueMessages([...prev, data.message]));
+      if (messageMatchesContext(data.message, engagementId, includeAccountWide)) setThread((current) => ({ key: threadKey, messages: uniqueMessages([...(current.key === threadKey ? current.messages : []), data.message]) }));
       setBody("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send message");
@@ -122,6 +163,9 @@ export default function PortalMessagesPage() {
         title="Messages"
         description="A direct line to your Boatship team. Ask questions, share context, and keep the work moving."
       />
+      {clientId ? <div className="mb-5 max-w-md"><Label htmlFor="portal-message-context">Work context</Label><Dropdown id="portal-message-context" value={engagementId} disabled={sending} onChange={setEngagementId} options={[
+        { value: "", label: "All work" }, { value: "account", label: "Account-wide" }, ...engagements.map((item) => ({ value: item.id, label: item.name })),
+      ]} />{engagementId && engagementId !== "account" ? <label className="mt-2 flex min-h-11 items-center gap-2 text-sm text-[var(--ink-muted)]"><input type="checkbox" className="h-4 w-4 accent-[var(--brand)]" checked={includeAccountWide} disabled={sending} onChange={(event) => setIncludeAccountWide(event.target.checked)} />Also show account-wide messages</label> : null}</div> : null}
       {error ? (
         <p
           role="alert"
@@ -166,7 +210,7 @@ export default function PortalMessagesPage() {
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-60 motion-reduce:hidden" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-600" />
               </span>
-              Live updates on
+              {liveConnected ? "Live updates on" : "Checking for updates"}
             </span>
           </header>
           <section
@@ -250,6 +294,7 @@ export default function PortalMessagesPage() {
                                   mine && "justify-end",
                                 )}
                               >
+                                <span>{message.engagementId ? engagements.find((item) => item.id === message.engagementId)?.name || "Engagement" : "Account-wide"} · </span>
                                 {formatDateTime(message.createdAt)}
                                 {mine ? (
                                   <CheckCheck
@@ -282,12 +327,15 @@ export default function PortalMessagesPage() {
             >
               Write a message
             </label>
+            <p className="mt-1 text-xs text-[var(--ink-muted)]">{contextUnavailable ? "Choose an available work context before sending." : contextClosed ? `${contextName} is closed. Choose an active engagement or Account-wide to send a message.` : `Sending to ${contextName}.`}</p>
             <Textarea
               id="portal-message"
               rows={3}
               className="mt-2 min-h-24 resize-y"
               placeholder="Share a question, update, or anything your team should know…"
               value={body}
+              disabled={sending || contextClosed || contextUnavailable}
+              maxLength={10000}
               onChange={(event) => setBody(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
@@ -314,7 +362,7 @@ export default function PortalMessagesPage() {
               </p>
               <Button
                 type="submit"
-                disabled={sending || !body.trim()}
+                disabled={sending || !body.trim() || contextClosed || contextUnavailable}
                 className="w-full sm:w-auto"
               >
                 {sending ? (

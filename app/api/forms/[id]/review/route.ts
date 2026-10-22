@@ -2,6 +2,7 @@ import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
 import { getStore } from "@/lib/store";
 import { canAccessClient } from "@/lib/client-access";
+import { validateResourceEngagement } from "@/lib/engagement-resources";
 
 export const runtime = "nodejs";
 
@@ -15,6 +16,7 @@ export async function PATCH(req: Request, { params }: Params) {
     const form = await store.getForm(id);
     if (!form) throw jsonError("Form not found", 404);
     if (!await canAccessClient(session, form.clientId)) throw jsonError("Forbidden", 403);
+    await validateResourceEngagement(form.clientId, form.engagementId, form.taskId);
 
     const body = (await req.json().catch(() => ({}))) as {
       reviewNote?: string;

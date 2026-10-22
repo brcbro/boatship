@@ -5,9 +5,8 @@ import { useEffect, useRef } from "react";
 const MESSAGE_REFRESH_INTERVAL = 15_000;
 
 /** Keeps an active message thread fresh without reloading the route. */
-export function useMessagePolling(refresh: () => Promise<void>, enabled: boolean) {
+export function useMessagePolling(refresh: () => Promise<void>, enabled: boolean, contextKey = "") {
   const refreshRef = useRef(refresh);
-  const refreshingRef = useRef(false);
 
   useEffect(() => {
     refreshRef.current = refresh;
@@ -15,13 +14,14 @@ export function useMessagePolling(refresh: () => Promise<void>, enabled: boolean
 
   useEffect(() => {
     if (!enabled) return;
+    let refreshing = false;
 
     const refreshWhenVisible = () => {
-      if (document.visibilityState !== "visible" || refreshingRef.current) return;
+      if (document.visibilityState !== "visible" || refreshing) return;
 
-      refreshingRef.current = true;
+      refreshing = true;
       void refreshRef.current().finally(() => {
-        refreshingRef.current = false;
+        refreshing = false;
       });
     };
 
@@ -38,5 +38,5 @@ export function useMessagePolling(refresh: () => Promise<void>, enabled: boolean
       window.removeEventListener("focus", refreshWhenVisible);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [enabled]);
+  }, [enabled, contextKey]);
 }

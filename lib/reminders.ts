@@ -2,6 +2,7 @@ import { executeTool, isComposioConfiguredForUser, listBoatshipConnections } fro
 import { sendEmail } from "@/lib/email";
 import { getStore } from "@/lib/store";
 import type { AppUser, Client } from "@/types";
+import { integrationProviderConfirmed } from "@/lib/integration-job-policy";
 
 export type ReminderChannel = "email" | "telegram" | "slack";
 export type ReminderReason = "overdue" | "stale" | "suspicious_completion";
@@ -135,13 +136,14 @@ async function sendComposioNotification(userId: string, channel: ReminderChannel
   if (!slug || !connections.some((connection) => connection.slug === slug && connection.connected)) {
     return { status: "skipped" as const, reason: `${slug || channel}_not_connected` };
   }
-  const toolSlug = channel === "slack" ? "SLACK_SENDS_A_MESSAGE" : "TELEGRAM_BOT_SEND_MESSAGE";
+  const toolSlug = channel === "slack" ? "SLACK_SEND_MESSAGE" : "TELEGRAM_BOT_SEND_MESSAGE";
   const args = channel === "slack"
-    ? { channel: process.env.COMPOSIO_SLACK_CHANNEL || "general", text }
+    ? { channel: process.env.COMPOSIO_SLACK_CHANNEL || "general", markdown_text: text }
     : { chat_id: process.env.COMPOSIO_TELEGRAM_CHAT_ID || "", text };
   if (channel === "telegram" && !args.chat_id) return { status: "skipped" as const, reason: "telegram_chat_id_not_configured" };
   try {
-    await executeTool({ boatshipUid: userId, toolSlug, arguments: args });
+    const result = await executeTool({ boatshipUid: userId, toolSlug, arguments: args });
+    if (!integrationProviderConfirmed(result)) return { status: "failed" as const, reason: "provider_did_not_confirm_delivery" };
     return { status: "sent" as const };
   } catch (error) {
     return { status: "failed" as const, reason: error instanceof Error ? error.message : "provider_error" };

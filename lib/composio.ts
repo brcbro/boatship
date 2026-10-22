@@ -3,6 +3,7 @@ import { VercelProvider } from "@composio/vercel";
 import { appBaseUrl } from "@/lib/client-status";
 import { getPrisma } from "@/lib/prisma";
 import { resolveUserSecret } from "@/lib/user-secrets";
+import { integrationProviderConfirmed, integrationProviderItems } from "@/lib/integration-job-policy";
 
 /** Curated client delivery toolkits (Composio catalog has 250+). */
 export const BOATSHIP_TOOLKITS = [
@@ -11,7 +12,7 @@ export const BOATSHIP_TOOLKITS = [
     name: "Google Drive",
     description:
       "Each team member connects their own Drive. Create client folders, list files, and share links from the Agent.",
-    testTool: "GOOGLEDRIVE_LIST_FILES",
+    testTool: "GOOGLEDRIVE_FIND_FILE",
   },
   {
     slug: "googlecalendar",
@@ -35,7 +36,7 @@ export const BOATSHIP_TOOLKITS = [
     slug: "slack",
     name: "Slack",
     description: "Notify your team when client work progresses or needs attention.",
-    testTool: "SLACK_SENDS_A_MESSAGE",
+    testTool: "SLACK_SEND_MESSAGE",
   },
   {
     slug: "gmail",
@@ -389,14 +390,6 @@ function splitContactName(fullName: string): { firstname: string; lastname: stri
   return { firstname: parts[0]!, lastname: parts.slice(1).join(" ") };
 }
 
-function toolSucceeded(result: unknown): boolean {
-  if (!result || typeof result !== "object") return false;
-  const r = result as Record<string, unknown>;
-  if (r.successful === false) return false;
-  if (typeof r.error === "string" && r.error.trim()) return false;
-  return true;
-}
-
 function digHubspotContactId(result: unknown): string | null {
   if (!result || typeof result !== "object") return null;
   const record = result as Record<string, unknown>;
@@ -422,10 +415,7 @@ function digHubspotContactId(result: unknown): string | null {
   return null;
 }
 
-/**
- * Soft HubSpot contact create-or-update on invite.
- * Never throws — returns a small status object for logging.
- */
+/** Search by exact email before creation so retried invitations reuse contacts. */
 async function upsertHubspotContact(
   boatshipUid: string,
   event: Extract<IntegrationEvent, { type: "client.invited" }>
@@ -439,22 +429,7 @@ async function upsertHubspotContact(
   };
   if (lastname) createArgs.lastname = lastname;
 
-  try {
-    const created = await executeTool({
-      boatshipUid,
-      toolSlug: "HUBSPOT_CREATE_CONTACT",
-      arguments: createArgs,
-    });
-    if (toolSucceeded(created)) {
-      return { action: "created" as const, result: created };
-    }
-    console.warn("[composio] hubspot create unsuccessful, trying update", created);
-  } catch (createErr) {
-    // Duplicate email / other create failure → search + update
-    console.warn("[composio] hubspot create failed, trying update", createErr);
-  }
-
-  try {
+  async function findExisting() {
     const search = await executeTool({
       boatshipUid,
       toolSlug: "HUBSPOT_SEARCH_CONTACTS_BY_CRITERIA",
@@ -471,93 +446,48 @@ async function upsertHubspotContact(
         ],
       },
     });
-    const contactId = digHubspotContactId(search);
-    if (!contactId) {
-      return { action: "skipped" as const, reason: "not_found_after_create_fail" };
-    }
-
-    const properties: Record<string, string> = {
-      email: event.email,
-      firstname,
-      company: event.companyName,
-    };
-    if (lastname) properties.lastname = lastname;
-
-    const updated = await executeTool({
-      boatshipUid,
-      toolSlug: "HUBSPOT_UPDATE_CONTACT",
-      arguments: { contactId, properties },
-    });
-    return { action: "updated" as const, result: updated, contactId };
-  } catch (updateErr) {
-    console.error("[composio] hubspot upsert failed", updateErr);
-    return {
-      action: "error" as const,
-      error: updateErr instanceof Error ? updateErr.message : "unknown",
-    };
+    if (!integrationProviderConfirmed(search)) throw new Error("HubSpot contact search did not succeed");
+    const contacts = integrationProviderItems(search, ["results", "contacts"]);
+    if (!contacts) throw new Error("HubSpot contact search returned no confirmed result list");
+    return contacts[0] ? digHubspotContactId(contacts[0]) : null;
   }
+
+  let contactId = await findExisting();
+  if (!contactId) {
+    try {
+      const created = await executeTool({ boatshipUid, toolSlug: "HUBSPOT_CREATE_CONTACT", arguments: createArgs });
+      if (!integrationProviderConfirmed(created)) throw new Error("HubSpot contact creation did not succeed");
+      return { action: "created" as const };
+    } catch {
+      // A timed-out create can have succeeded upstream. Search again before
+      // treating the attempt as failed; the durable queue will retry later.
+      contactId = await findExisting();
+      if (!contactId) throw new Error("HubSpot contact creation could not be confirmed");
+    }
+  }
+
+  const properties: Record<string, string> = { email: event.email, firstname, company: event.companyName };
+  if (lastname) properties.lastname = lastname;
+  const updated = await executeTool({ boatshipUid, toolSlug: "HUBSPOT_UPDATE_CONTACT", arguments: { contactId, properties } });
+  if (!integrationProviderConfirmed(updated)) throw new Error("HubSpot contact update did not succeed");
+  return { action: "updated" as const, contactId };
 }
 
-/**
- * Best-effort Slack (+ HubSpot on invite) when COMPOSIO_API_KEY + toolkits are connected.
- * Never throws — integrations must not break core client workflows.
- */
-export async function notifyIntegrations(boatshipUid: string, event: IntegrationEvent) {
-  if (!(await isComposioConfiguredForUser(boatshipUid))) return { skipped: true as const, reason: "not_configured" };
-
-  try {
-    const connections = await listBoatshipConnections(boatshipUid);
-    const channel = process.env.COMPOSIO_SLACK_CHANNEL?.trim();
-    const slack = connections.find((c) => c.slug === "slack" && c.connected);
-    const hubspot = connections.find((c) => c.slug === "hubspot" && c.connected);
-
-    let slackResult: unknown = null;
-    let slackSkipped: string | null = null;
-    if (!channel) {
-      slackSkipped = "no_slack_channel";
-    } else if (!slack) {
-      slackSkipped = "slack_not_connected";
-    } else {
-      slackResult = await executeTool({
-        boatshipUid,
-        toolSlug: "SLACK_SENDS_A_MESSAGE",
-        arguments: {
-          channel,
-          text: formatEventMessage(event),
-        },
-      });
-    }
-
-    let hubspotResult: unknown = null;
-    let hubspotSkipped: string | null = null;
-    if (event.type === "client.invited") {
-      if (!hubspot) {
-        hubspotSkipped = "hubspot_not_connected";
-      } else {
-        hubspotResult = await upsertHubspotContact(boatshipUid, event);
-      }
-    }
-
-    const didAnything = Boolean(slackResult) || Boolean(hubspotResult);
-    return {
-      skipped: !didAnything,
-      reason: didAnything
-        ? undefined
-        : slackSkipped || hubspotSkipped || "nothing_connected",
-      slack: slackResult ? { ok: true, result: slackResult } : { skipped: true, reason: slackSkipped },
-      hubspot:
-        event.type === "client.invited"
-          ? hubspotResult
-            ? { ok: true, result: hubspotResult }
-            : { skipped: true, reason: hubspotSkipped }
-          : undefined,
-    };
-  } catch (err) {
-    console.error("[composio] notify failed", err);
-    return {
-      skipped: true as const,
-      reason: "error",
-      error: err instanceof Error ? err.message : "unknown",
-    };
+/** One provider per durable job: one failure never resends a successful sibling. */
+export async function deliverIntegrationEvent(boatshipUid: string, event: IntegrationEvent, provider: "slack" | "hubspot") {
+  if (!(await isComposioConfiguredForUser(boatshipUid))) return { skipped: true as const, reason: "Configure Composio, then retry this job." };
+  const connections = await listBoatshipConnections(boatshipUid);
+  if (!connections.some((connection) => connection.slug === provider && connection.connected)) {
+    return { skipped: true as const, reason: `Connect ${provider === "slack" ? "Slack" : "HubSpot"}, then retry this job.` };
   }
+  if (provider === "slack") {
+    const channel = process.env.COMPOSIO_SLACK_CHANNEL?.trim();
+    if (!channel) return { skipped: true as const, reason: "Configure a Slack destination, then retry this job." };
+    const result = await executeTool({ boatshipUid, toolSlug: "SLACK_SEND_MESSAGE", arguments: { channel, markdown_text: formatEventMessage(event), unfurl_links: false } });
+    if (!integrationProviderConfirmed(result)) throw new Error("Slack delivery did not succeed");
+  } else {
+    if (event.type !== "client.invited") throw new Error("HubSpot jobs require a client invitation");
+    await upsertHubspotContact(boatshipUid, event);
+  }
+  return { skipped: false as const, reason: null };
 }

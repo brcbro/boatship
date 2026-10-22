@@ -6,7 +6,8 @@ import { canAccessClient } from "@/lib/client-access";
 import { getStore } from "@/lib/store";
 import { documentMetadata } from "@/lib/document-response";
 import { dispatchWebhooks } from "@/lib/webhooks";
-import type { DocumentStatus, DocumentVersion } from "@/types";
+import type { DocumentStatus } from "@/types";
+import { validateResourceEngagement } from "@/lib/engagement-resources";
 
 export const runtime = "nodejs";
 
@@ -22,7 +23,7 @@ export async function GET(req: Request, { params }: Params) {
     if (!await canAccessClient(session, document.clientId)) {
       throw jsonError("Forbidden", 403);
     }
-    return { document };
+    return { document: documentMetadata(document) };
   });
 }
 
@@ -36,6 +37,7 @@ export async function PATCH(req: Request, { params }: Params) {
     if (!await canAccessClient(session, existing.clientId)) {
       throw jsonError("Forbidden", 403);
     }
+    await validateResourceEngagement(existing.clientId, existing.engagementId, existing.taskId);
 
     const body = (await req.json().catch(() => ({}))) as {
       status?: DocumentStatus;
@@ -48,13 +50,11 @@ export async function PATCH(req: Request, { params }: Params) {
       size?: number;
     };
 
-    const isReplacingFile =
-      typeof body.fileName === "string" ||
-      typeof body.storagePath === "string" ||
-      typeof body.contentType === "string" ||
-      typeof body.size === "number";
+    const isReplacingFile = ["fileName", "storagePath", "contentType", "size", "contentBase64", "contentId", "versions"].some((key) => Object.hasOwn(body, key));
 
-    // Staff-only review / metadata fields (clients may re-upload file fields)
+    if (isReplacingFile) throw jsonError("Replace files through /api/documents/upload so their contents and history remain consistent.", 400);
+
+    // File content changes use the validated upload route.
     const wantsReviewOrMeta =
       body.status !== undefined ||
       body.reviewNote !== undefined ||
@@ -70,14 +70,13 @@ export async function PATCH(req: Request, { params }: Params) {
     }
 
     if (
-      !isReplacingFile &&
       body.status === undefined &&
       body.reviewNote === undefined &&
       body.documentType === undefined &&
       body.expiresAt === undefined
     ) {
       throw jsonError(
-        "Provide status, reviewNote, documentType, expiresAt, and/or file fields to update",
+        "Provide status, reviewNote, documentType, or expiresAt to update",
         400
       );
     }
@@ -88,6 +87,9 @@ export async function PATCH(req: Request, { params }: Params) {
     ) {
       throw jsonError("status must be approved, rejected, or pending_review", 400);
     }
+    if (body.reviewNote !== undefined && (typeof body.reviewNote !== "string" || body.reviewNote.length > 10000)) throw jsonError("Enter a review note of at most 10000 characters.", 400);
+    if (body.documentType !== undefined && body.documentType !== null && (typeof body.documentType !== "string" || body.documentType.length > 100)) throw jsonError("Enter a document type of at most 100 characters.", 400);
+    if (body.expiresAt !== undefined && body.expiresAt !== null && (typeof body.expiresAt !== "string" || !/^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(body.expiresAt) || !Number.isFinite(Date.parse(body.expiresAt)))) throw jsonError("Choose a valid expiry date.", 400);
 
     const patch: Partial<typeof existing> = {};
 
@@ -95,54 +97,11 @@ export async function PATCH(req: Request, { params }: Params) {
     if (body.documentType !== undefined) patch.documentType = body.documentType;
     if (body.expiresAt !== undefined) patch.expiresAt = body.expiresAt;
 
-    if (isReplacingFile) {
-      if (!body.fileName || !body.storagePath || !body.contentType) {
-        throw jsonError(
-          "fileName, storagePath, and contentType are required when replacing a file",
-          400
-        );
-      }
-
-      const previous: DocumentVersion = {
-        storagePath: existing.storagePath,
-        fileName: existing.fileName,
-        uploadedAt: existing.uploadedAt,
-        uploadedBy: existing.uploadedBy,
-        contentType: existing.contentType,
-        size: existing.size,
-      };
-
-      const versions = [...(existing.versions || []), previous];
-      const uploadedAt = new Date().toISOString();
-
-      patch.fileName = body.fileName;
-      patch.storagePath = body.storagePath;
-      patch.contentType = body.contentType;
-      patch.size = body.size ?? existing.size;
-      patch.versions = versions;
-      patch.status = "pending_review";
-      patch.uploadedAt = uploadedAt;
-      patch.uploadedBy = session.uid;
-      if (body.reviewNote === undefined) patch.reviewNote = "";
-    } else if (body.status !== undefined) {
-      patch.status = body.status;
-    }
+    if (body.status !== undefined) patch.status = body.status;
 
     const document = await store.updateDocument(id, patch);
 
-    if (isReplacingFile) {
-      await store.addActivity({
-        clientId: existing.clientId,
-        actorId: session.uid,
-        actorName: session.name,
-        action: "document.reuploaded",
-        meta: {
-          documentId: id,
-          fileName: document.fileName,
-          versionCount: document.versions?.length ?? 0,
-        },
-      });
-    } else if (body.status !== undefined) {
+    if (body.status !== undefined) {
       await store.addActivity({
         clientId: existing.clientId,
         actorId: session.uid,

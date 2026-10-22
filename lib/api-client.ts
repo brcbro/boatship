@@ -1,6 +1,7 @@
 "use client";
 
 import type { AuthSession } from "@/types";
+import { clearSessionDrafts } from "@/lib/session-drafts";
 
 export async function apiFetch<T>(
   path: string,
@@ -30,6 +31,7 @@ export function getStoredToken() {
 
 export function setStoredToken(token: string | null) {
   if (typeof window === "undefined") return;
+  if (getStoredToken() !== token) clearSessionDrafts();
   if (token) localStorage.setItem("boatship_token", token);
   else localStorage.removeItem("boatship_token");
 }
@@ -47,6 +49,7 @@ export function getStoredSession(): AuthSession | null {
 
 export function setStoredSession(session: AuthSession | null) {
   if (typeof window === "undefined") return;
+  if (!session || getStoredSession()?.uid !== session.uid) clearSessionDrafts();
   if (session) localStorage.setItem("boatship_session", JSON.stringify(session));
   else localStorage.removeItem("boatship_session");
 }

@@ -14,6 +14,15 @@ import {
   PageHeader,
 } from "@/components/shared/ui";
 import { apiFetch } from "@/lib/api-client";
+import type { IntegrationJobKind, IntegrationJobStatus } from "@/lib/integration-job-policy";
+
+type JobRow = {
+  id: string; clientId: string; clientName: string; kind: IntegrationJobKind; status: IntegrationJobStatus;
+  attempts: number; nextAttemptAt: string; error: string | null; retryable: boolean; createdAt: string; updatedAt: string;
+};
+
+const JOB_NAMES: Record<IntegrationJobKind, string> = { "drive.folder": "Drive client folder", "slack.event": "Slack update", "hubspot.contact": "HubSpot contact" };
+const JOB_STATUSES: Record<IntegrationJobStatus, string> = { pending: "Queued", processing: "Sending", succeeded: "Complete", skipped: "Needs connection", failed: "Stopped" };
 
 type ToolkitRow = {
   slug: string;
@@ -96,6 +105,21 @@ function IntegrationsContent() {
   const [secretStatuses, setSecretStatuses] = useState<SecretStatus[]>([]);
   const [secretsLoading, setSecretsLoading] = useState(true);
   const [secretBusy, setSecretBusy] = useState<SecretProvider | null>(null);
+  const [jobs, setJobs] = useState<JobRow[]>([]);
+  const [jobsLoading, setJobsLoading] = useState(true);
+  const [jobsError, setJobsError] = useState("");
+  const [retryingJob, setRetryingJob] = useState<string | null>(null);
+
+  const loadJobs = useCallback(async () => {
+    setJobsLoading(true);
+    setJobsError("");
+    try {
+      const response = await apiFetch<{ jobs: JobRow[] }>("/api/integrations/jobs", { token });
+      setJobs(response.jobs);
+    } catch (err) {
+      setJobsError(err instanceof Error ? err.message : "Integration work could not be loaded.");
+    } finally { setJobsLoading(false); }
+  }, [token]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -127,9 +151,28 @@ function IntegrationsContent() {
     const timer = setTimeout(() => {
       void load();
       void loadSecretStatuses();
+      void loadJobs();
     }, 0);
     return () => clearTimeout(timer);
-  }, [load, loadSecretStatuses]);
+  }, [load, loadSecretStatuses, loadJobs]);
+
+  useEffect(() => {
+    if (!jobs.some((job) => job.status === "pending" || job.status === "processing")) return;
+    const timer = setInterval(() => { if (document.visibilityState === "visible") void loadJobs(); }, 60_000);
+    return () => clearInterval(timer);
+  }, [jobs, loadJobs]);
+
+  async function retryJob(id: string) {
+    setRetryingJob(id);
+    setJobsError("");
+    try {
+      await apiFetch("/api/integrations/jobs", { method: "POST", token, body: JSON.stringify({ id }) });
+      setMessage("Integration work queued; delivery starts shortly.");
+      await loadJobs();
+    } catch (err) {
+      setJobsError(err instanceof Error ? err.message : "This work could not be queued again.");
+    } finally { setRetryingJob(null); }
+  }
 
   useEffect(() => {
     const connected = searchParams.get("connected");
@@ -243,10 +286,10 @@ function IntegrationsContent() {
         method: "POST",
         token,
         body: JSON.stringify({
-          tool: "SLACK_SENDS_A_MESSAGE",
+          tool: "SLACK_SEND_MESSAGE",
           arguments: {
             channel: testChannel.trim(),
-            text: "Boatship connected — client work updates can post here.",
+            markdown_text: "Boatship connected — client work updates can post here.",
           },
         }),
       });
@@ -268,7 +311,7 @@ function IntegrationsContent() {
         method: "POST",
         token,
         body: JSON.stringify({
-          tool: "GOOGLEDRIVE_LIST_FILES",
+          tool: "GOOGLEDRIVE_FIND_FILE",
           arguments: {
             pageSize: 5,
             // Request the fields the UI renders; Drive otherwise may omit the
@@ -302,15 +345,45 @@ function IntegrationsContent() {
       />
 
       {error ? (
-        <p className="rounded-md border border-[var(--danger)]/30 bg-[var(--danger)]/5 px-3 py-2 text-sm text-[var(--danger)]">
+        <p role="alert" className="rounded-md border border-[var(--danger)]/30 bg-[var(--danger)]/5 px-3 py-2 text-sm text-[var(--danger)]">
           {error}
         </p>
       ) : null}
       {message ? (
-        <p className="rounded-md border border-[var(--brand)]/20 bg-[var(--brand)]/5 px-3 py-2 text-sm text-[var(--ink)]">
+        <p role="status" className="rounded-md border border-[var(--brand)]/20 bg-[var(--brand)]/5 px-3 py-2 text-sm text-[var(--ink)]">
           {message}
         </p>
       ) : null}
+
+      <Card className="space-y-4 p-5">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="font-[family-name:var(--font-display)] text-lg text-[var(--brand)]">Recent integration work</h2>
+            <p className="mt-1 text-sm text-[var(--ink-muted)]">Client folders, team updates, and CRM contacts are tracked here. Queued work runs every five minutes in the hosted workspace.</p>
+          </div>
+          <Button type="button" size="sm" variant="secondary" disabled={jobsLoading} onClick={() => void loadJobs()}>{jobsLoading ? "Refreshing…" : "Refresh"}</Button>
+        </div>
+        {jobsError ? <p role="alert" className="text-sm text-[var(--danger)]">{jobsError}</p> : null}
+        {jobsLoading && !jobs.length ? <p role="status" className="text-sm text-[var(--ink-muted)]">Loading recent work…</p> : jobs.length ? (
+          <ul className="divide-y divide-[var(--border)]" aria-label="Integration work">
+            {jobs.map((job) => (
+              <li key={job.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <p className="font-medium text-[var(--ink)]">{JOB_NAMES[job.kind]} <span className="font-normal text-[var(--ink-muted)]">· {job.clientName}</span></p>
+                  <p className="mt-1 text-xs text-[var(--ink-muted)]">{job.attempts} {job.attempts === 1 ? "attempt" : "attempts"} · {new Date(job.updatedAt).toLocaleString()}</p>
+                  {job.error ? <p className="mt-1 text-sm text-[var(--ink-muted)]">{job.error}</p> : null}
+                  {job.status === "pending" && job.error ? <p className="mt-1 text-xs text-[var(--ink-muted)]">Retry after {new Date(job.nextAttemptAt).toLocaleString()}</p> : null}
+                  {job.status === "failed" ? <p className="mt-1 text-xs text-[var(--ink-muted)]">Retrying an unconfirmed delivery can create a repeated team update.</p> : null}
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Badge tone={job.status === "succeeded" ? "success" : job.status === "failed" ? "danger" : "neutral"}>{JOB_STATUSES[job.status]}</Badge>
+                  {job.retryable ? <Button type="button" size="sm" variant="secondary" disabled={retryingJob !== null} onClick={() => void retryJob(job.id)} aria-label={`Retry ${JOB_NAMES[job.kind]} for ${job.clientName}`}>{retryingJob === job.id ? "Queuing…" : "Retry"}</Button> : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : !jobsError ? <p className="text-sm text-[var(--ink-muted)]">No integration work has been queued yet. New client and task events will appear here.</p> : null}
+      </Card>
 
       <Card className="space-y-5 border-[var(--accent)]/30 bg-[var(--surface-raised)] p-5">
         <div className="space-y-1">
@@ -513,6 +586,7 @@ function IntegrationsContent() {
           </p>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Input
+              aria-label="Slack test channel"
               placeholder="#general or C01234567"
               value={testChannel}
               onChange={(e) => setTestChannel(e.target.value)}

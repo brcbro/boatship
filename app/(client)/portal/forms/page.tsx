@@ -1,12 +1,14 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/shared/AuthProvider";
 import {
   Badge,
   Button,
   Card,
   EmptyState,
+  Dropdown,
   Input,
   Label,
   Modal,
@@ -16,11 +18,12 @@ import {
 } from "@/components/shared/ui";
 import { apiFetch } from "@/lib/api-client";
 import {
-  computeRiskScore,
+  FORM_RESPONSE_LIMITS,
   isFieldVisible,
   isNativeTemplate,
-  missingRequiredFields,
+  validateFormResponses,
 } from "@/lib/form-fields";
+import { discardSessionDraft, readSessionDraft, sessionDraftKey, writeSessionDraft } from "@/lib/session-drafts";
 import { formatDateTime, statusLabel } from "@/lib/utils";
 import type { FormField, FormSubmission, FormTemplate } from "@/types";
 
@@ -31,7 +34,19 @@ function formStatusTone(status: string): "neutral" | "success" | "warning" | "da
 }
 
 export default function PortalFormsPage() {
+  return <Suspense fallback={<p className="text-sm text-[var(--ink-muted)]">Loading your forms…</p>}><PortalFormsInner /></Suspense>;
+}
+
+type EngagementOption = { id: string; name: string; status: string };
+
+function PortalFormsInner() {
   const { session, token, loading: authLoading } = useAuth();
+  const searchParams = useSearchParams();
+  const initialEngagementId = searchParams.get("engagementId") || "";
+  const initialIncludeAccountWide = searchParams.get("includeAccountWide") === "1" || searchParams.get("includeAccountWide") === "true";
+  const [engagementId, setEngagementId] = useState(initialEngagementId);
+  const [includeAccountWide, setIncludeAccountWide] = useState(initialIncludeAccountWide);
+  const [engagements, setEngagements] = useState<EngagementOption[]>([]);
   const [forms, setForms] = useState<FormSubmission[]>([]);
   const [templates, setTemplates] = useState<FormTemplate[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -41,6 +56,17 @@ export default function PortalFormsPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [answers, setAnswers] = useState<FormSubmission["responses"]>({});
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [draftStatus, setDraftStatus] = useState("");
+  const [draftPersisted, setDraftPersisted] = useState(false);
+  const draftMemory = useRef(new Map<string, { responses: FormSubmission["responses"]; saved: boolean }>());
+  const submissionComplete = useRef(new Set<string>());
+  const loadSequence = useRef(0);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => { setEngagementId(initialEngagementId); setIncludeAccountWide(initialIncludeAccountWide); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [initialEngagementId, initialIncludeAccountWide]);
 
   const templateMap = useMemo(() => {
     const map = new Map<string, FormTemplate>();
@@ -50,10 +76,33 @@ export default function PortalFormsPage() {
 
   const selected = forms.find((f) => f.id === selectedId) || null;
   const selectedTemplate = selected ? templateMap.get(selected.formTemplateId) : undefined;
-  const canMarkSubmitted = selected?.status === "not_started";
+  const selectedContext = engagements.find((item) => item.id === selected?.engagementId);
+  const contextClosed = selectedContext?.status === "completed" || selectedContext?.status === "cancelled";
+  const canMarkSubmitted = selected?.status === "not_started" && !contextClosed;
   const clientId = session?.clientId;
+  const hasDraftChanges = selected?.status === "not_started" && JSON.stringify(answers) !== JSON.stringify(selected.responses || {});
+
+  useEffect(() => {
+    if (!hasDraftChanges) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [hasDraftChanges]);
+
+  function draftKey(form: FormSubmission) {
+    return sessionDraftKey({
+      userId: session!.uid,
+      area: "form",
+      resourceId: form.id,
+      context: `${form.clientId}:${form.engagementId || "account"}:${form.formTemplateId}`,
+    });
+  }
 
   const load = useCallback(async () => {
+    const request = ++loadSequence.current;
     if (!clientId) {
       setError("No client account is linked to this user.");
       setLoading(false);
@@ -63,21 +112,24 @@ export default function PortalFormsPage() {
     setLoading(true);
     setError("");
     try {
-      const [formsRes, templatesRes] = await Promise.all([
+      const [formsRes, templatesRes, engagementRes] = await Promise.all([
         apiFetch<{ forms: FormSubmission[] }>(
-          `/api/forms?clientId=${encodeURIComponent(clientId)}`,
+          `/api/forms?clientId=${encodeURIComponent(clientId)}${engagementId ? `&engagementId=${encodeURIComponent(engagementId)}` : ""}${includeAccountWide ? "&includeAccountWide=1" : ""}`,
           { token }
         ),
         apiFetch<{ templates: FormTemplate[] }>("/api/forms/templates", { token }),
+        apiFetch<{ engagements: EngagementOption[] }>(`/api/clients/${encodeURIComponent(clientId)}/engagements`, { token }),
       ]);
+      if (request !== loadSequence.current) return;
       setForms(formsRes.forms);
       setTemplates(templatesRes.templates);
+      setEngagements(engagementRes.engagements);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load forms");
+      if (request === loadSequence.current) setError(err instanceof Error ? err.message : "Failed to load forms");
     } finally {
-      setLoading(false);
+      if (request === loadSequence.current) setLoading(false);
     }
-  }, [clientId, token]);
+  }, [clientId, token, engagementId, includeAccountWide]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -87,8 +139,19 @@ export default function PortalFormsPage() {
 
   function openForm(formId: string) {
     const form = forms.find((f) => f.id === formId);
+    if (!form || !session) return;
+    const fields = templateMap.get(form.formTemplateId)?.fields || [];
+    const key = draftKey(form);
+    const draft = form.status === "not_started" && !submissionComplete.current.has(key)
+      ? readSessionDraft(key, (value) => decodeFormDraft(value, fields)) : null;
+    const memory = form.status === "not_started" ? draftMemory.current.get(key) : undefined;
     setSelectedId(formId);
-    setAnswers(form?.responses || {});
+    setAnswers(memory?.responses || draft?.value || form.responses || {});
+    setFieldErrors({});
+    setDraftPersisted(Boolean(draft));
+    setDraftStatus(memory && !memory.saved
+      ? "Answers restored on this page. Browser draft storage is unavailable; copy them before leaving."
+      : memory || draft ? "Draft restored. Your answers stay in this tab for up to 24 hours and clear on sign-out." : "");
     setError("");
     setSuccess("");
     setModalOpen(true);
@@ -99,10 +162,37 @@ export default function PortalFormsPage() {
     setModalOpen(false);
     setSelectedId(null);
     setAnswers({});
+    setFieldErrors({});
   }
 
   function setAnswer(key: string, value: string | number | boolean | null) {
-    setAnswers((prev) => ({ ...prev, [key]: value }));
+    if (!selected || !session) return;
+    const next = { ...answers, [key]: value };
+    setAnswers(next);
+    setFieldErrors((prev) => Object.fromEntries(Object.entries(prev).filter(([fieldKey]) => fieldKey !== key)));
+    const storageKey = draftKey(selected);
+    const saved = writeSessionDraft(storageKey, { fields: JSON.stringify(selectedTemplate?.fields || []), responses: next });
+    draftMemory.current.set(storageKey, { responses: next, saved });
+    setDraftPersisted((previous) => previous || saved);
+    setDraftStatus(saved
+      ? "Draft saved in this tab. It expires after 24 hours and clears on sign-out."
+      : "Browser draft storage is unavailable. Your answers stay on this page; copy them before leaving.");
+  }
+
+  function discardDraft() {
+    if (!selected || !session || submitting || !window.confirm("Discard these draft answers? Submitted answers are kept.")) return;
+    const key = draftKey(selected);
+    const removed = discardSessionDraft(key);
+    if (!removed && draftPersisted) {
+      setError("Couldn’t remove the saved draft. Try again before closing this form.");
+      return;
+    }
+    draftMemory.current.delete(key);
+    setAnswers(selected.responses || {});
+    setFieldErrors({});
+    setDraftPersisted(false);
+    setDraftStatus("Draft discarded.");
+    setError("");
   }
 
   async function markSubmitted() {
@@ -129,13 +219,20 @@ export default function PortalFormsPage() {
     e.preventDefault();
     if (!selected || !canMarkSubmitted || !selectedTemplate) return;
     const fields = selectedTemplate.fields || [];
-    const missing = missingRequiredFields(fields, answers);
-    if (missing.length) {
-      setError(`Please complete: ${missing.map((f) => f.label).join(", ")}`);
+    const checked = validateFormResponses(fields, answers);
+    setFieldErrors(checked.errors);
+    if (!checked.valid) {
+      const invalidHidden = fields.filter((field) => checked.errors[field.key] && !isFieldVisible(field, answers));
+      setError(invalidHidden.length
+        ? `Correct these earlier answers before submitting: ${invalidHidden.map((field) => field.label).join(", ")}. Restore the related option to show them.`
+        : "Check the highlighted answers, then submit again.");
+      requestAnimationFrame(() => {
+        const key = Object.keys(checked.errors).find((key) => key !== "_form");
+        if (key) document.getElementById(`nf-${key}`)?.focus();
+      });
       return;
     }
 
-    const riskScore = computeRiskScore(fields, answers);
     setSubmitting(true);
     setError("");
     setSuccess("");
@@ -143,9 +240,15 @@ export default function PortalFormsPage() {
       const data = await apiFetch<{ form: FormSubmission }>(`/api/forms/${selected.id}/submit`, {
         method: "POST",
         token,
-        body: JSON.stringify({ responses: answers, riskScore }),
+        body: JSON.stringify({ responses: checked.responses }),
       });
       setForms((prev) => prev.map((f) => (f.id === selected.id ? data.form : f)));
+      const key = draftKey(selected);
+      submissionComplete.current.add(key);
+      draftMemory.current.delete(key);
+      discardSessionDraft(key);
+      setDraftStatus("");
+      setFieldErrors({});
       setSuccess("Form submitted. Our team will review your answers.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to submit form");
@@ -196,6 +299,15 @@ export default function PortalFormsPage() {
         title="Forms"
         description="Complete the forms your team has assigned, then submit them for review. Your completed answers stay available here."
       />
+      <div className="mb-5 max-w-md">
+        <Label htmlFor="portal-forms-context">Work context</Label>
+        <Dropdown id="portal-forms-context" value={engagementId} disabled={submitting} onChange={(value) => { closeModal(); setEngagementId(value); }} options={[
+          { value: "", label: "All work" },
+          { value: "account", label: "Account-wide" },
+          ...engagements.map((item) => ({ value: item.id, label: item.name })),
+        ]} />
+        {engagementId && engagementId !== "account" ? <label className="mt-2 flex min-h-11 items-center gap-2 text-sm text-[var(--ink-muted)]"><input type="checkbox" className="h-4 w-4 accent-[var(--brand)]" checked={includeAccountWide} disabled={submitting} onChange={(event) => { closeModal(); setIncludeAccountWide(event.target.checked); }} />Also show account-wide forms</label> : null}
+      </div>
 
       {error && !modalOpen ? (
         <p role="alert" className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
@@ -211,7 +323,7 @@ export default function PortalFormsPage() {
       {forms.length === 0 ? (
         <EmptyState
           title="No forms assigned"
-          description="Forms linked to your assigned tasks will appear here."
+          description={engagementId ? "No forms are assigned in this work context." : "Forms linked to your assigned tasks will appear here."}
         />
       ) : (
         <Card className="p-2">
@@ -225,8 +337,9 @@ export default function PortalFormsPage() {
                     onClick={() => openForm(form.id)}
                     className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition hover:bg-[var(--surface-2)]/70"
                   >
-                    <span className="min-w-0 truncate text-sm font-medium text-[var(--ink)]">
-                      {name}
+                    <span className="min-w-0 text-sm font-medium text-[var(--ink)]">
+                      <span className="block truncate">{name}</span>
+                      <span className="mt-0.5 block truncate text-xs font-normal text-[var(--ink-muted)]">{form.engagementId ? engagements.find((item) => item.id === form.engagementId)?.name || "Engagement" : "Account-wide"}</span>
                     </span>
                     <Badge tone={formStatusTone(form.status)}>{statusLabel(form.status)}</Badge>
                   </button>
@@ -261,11 +374,11 @@ export default function PortalFormsPage() {
             ) : null}
             {liveForm && liveForm.status === "not_started" ? (
               native ? (
-                <Button type="submit" form="native-form-submit" disabled={submitting}>
+                <Button type="submit" form="native-form-submit" disabled={submitting || contextClosed}>
                   {submitting ? "Submitting…" : "Submit form"}
                 </Button>
               ) : (
-                <Button type="button" disabled={submitting} onClick={() => void markSubmitted()}>
+                <Button type="button" disabled={submitting || contextClosed} onClick={() => void markSubmitted()}>
                   {submitting ? "Saving…" : "Mark as submitted"}
                 </Button>
               )
@@ -295,6 +408,7 @@ export default function PortalFormsPage() {
               <Badge tone={formStatusTone(liveForm!.status)}>
                 {statusLabel(liveForm!.status)}
               </Badge>
+              <span>{liveForm!.engagementId ? engagements.find((item) => item.id === liveForm!.engagementId)?.name || "Engagement" : "Account-wide"}</span>
               {typeof liveForm!.riskScore === "number" ? (
                 <Badge tone={liveForm!.riskScore > 0 ? "warning" : "neutral"}>
                   Risk {liveForm!.riskScore}
@@ -327,6 +441,7 @@ export default function PortalFormsPage() {
                 )}
               </div>
             ) : null}
+            {!alreadyDone && contextClosed ? <p className="text-sm text-[var(--ink-muted)]">This engagement is closed. Your saved answers are read-only.</p> : null}
 
             {native ? (
               alreadyDone ? (
@@ -348,15 +463,24 @@ export default function PortalFormsPage() {
                 <form
                   id="native-form-submit"
                   onSubmit={(e) => void submitNative(e)}
+                  noValidate
                   className="space-y-4"
                 >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <p role="status" className="max-w-prose text-sm text-[var(--ink-muted)]">
+                      {draftStatus || "Unsubmitted answers are saved in this tab for up to 24 hours. Submit them to share with your team."}
+                    </p>
+                    {hasDraftChanges ? <Button type="button" variant="ghost" disabled={submitting} onClick={discardDraft}>Discard draft</Button> : null}
+                  </div>
+                  {fieldErrors._form ? <p role="alert" className="text-sm text-[var(--danger)]">{fieldErrors._form}</p> : null}
                   {visibleNativeFields.map((field) => (
                     <NativeFieldInput
                       key={field.key}
                       field={field}
                       value={answers[field.key]}
                       onChange={(v) => setAnswer(field.key, v)}
-                      disabled={submitting}
+                      disabled={submitting || contextClosed}
+                      error={fieldErrors[field.key]}
                     />
                   ))}
                   {visibleNativeFields.length === 0 ? (
@@ -412,29 +536,53 @@ function formatAnswer(value: string | number | boolean | null | undefined) {
   return String(value);
 }
 
+function decodeFormDraft(value: unknown, fields: FormField[]): FormSubmission["responses"] | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const draft = value as { fields?: unknown; responses?: unknown };
+  if (draft.fields !== JSON.stringify(fields) || !draft.responses || typeof draft.responses !== "object" || Array.isArray(draft.responses)) return null;
+  const known = new Map(fields.map((field) => [field.key, field]));
+  for (const [key, answer] of Object.entries(draft.responses)) {
+    const field = known.get(key);
+    if (!field || ["__proto__", "constructor", "prototype"].includes(key)) return null;
+    if (answer !== null && typeof answer !== "string" && typeof answer !== "number" && typeof answer !== "boolean") return null;
+    if (typeof answer === "string" && answer.length > FORM_RESPONSE_LIMITS[field.type]) return null;
+    if (typeof answer === "number" && !Number.isFinite(answer)) return null;
+  }
+  // Retain unfinished, invalid text so it can be corrected after refresh.
+  return draft.responses as FormSubmission["responses"];
+}
+
 function NativeFieldInput({
   field,
   value,
   onChange,
   disabled,
+  error,
 }: {
   field: FormField;
   value: string | number | boolean | null | undefined;
   onChange: (value: string | number | boolean | null) => void;
   disabled?: boolean;
+  error?: string;
 }) {
   const id = `nf-${field.key}`;
   const str = value === null || value === undefined ? "" : String(value);
+  const errorId = `${id}-error`;
+  const feedback = error ? <p id={errorId} className="mt-1 text-sm text-[var(--danger)]">{error}</p> : null;
 
   if (field.type === "checkbox") {
     return (
       <div>
-        <label className="flex items-center gap-2 text-sm text-[var(--ink)]">
+        <label className="flex min-h-11 items-center gap-3 text-sm text-[var(--ink)]">
           <input
             id={id}
             type="checkbox"
             checked={value === true || str.toLowerCase() === "true" || str === "1"}
             disabled={disabled}
+            aria-required={field.required}
+            aria-invalid={Boolean(error)}
+            aria-describedby={error ? errorId : undefined}
+            className="h-5 w-5 accent-[var(--brand)]"
             onChange={(e) => onChange(e.target.checked)}
           />
           <span>
@@ -442,6 +590,7 @@ function NativeFieldInput({
             {field.required ? " *" : ""}
           </span>
         </label>
+        {feedback}
       </div>
     );
   }
@@ -457,10 +606,14 @@ function NativeFieldInput({
           id={id}
           rows={3}
           required={field.required}
+          maxLength={FORM_RESPONSE_LIMITS.textarea}
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? errorId : undefined}
           disabled={disabled}
           value={str}
           onChange={(e) => onChange(e.target.value)}
         />
+        {feedback}
       </div>
     );
   }
@@ -475,6 +628,8 @@ function NativeFieldInput({
         <Select
           id={id}
           required={field.required}
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? errorId : undefined}
           disabled={disabled}
           value={str}
           onChange={(e) => onChange(e.target.value)}
@@ -486,6 +641,7 @@ function NativeFieldInput({
             </option>
           ))}
         </Select>
+        {feedback}
       </div>
     );
   }
@@ -511,13 +667,19 @@ function NativeFieldInput({
         id={id}
         type={inputType}
         required={field.required}
+        maxLength={FORM_RESPONSE_LIMITS[field.type]}
+        step={field.type === "number" ? "any" : undefined}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? errorId : field.type === "file" ? `${id}-hint` : undefined}
         disabled={disabled}
         value={str}
         onChange={(e) =>
-          onChange(field.type === "number" ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value)
+          onChange(e.target.value)
         }
         placeholder={field.type === "file" ? "Paste a file URL or filename" : undefined}
       />
+      {field.type === "file" ? <p id={`${id}-hint`} className="mt-1 text-xs text-[var(--ink-muted)]">Upload files in Documents, then enter their filename or link here.</p> : null}
+      {feedback}
     </div>
   );
 }

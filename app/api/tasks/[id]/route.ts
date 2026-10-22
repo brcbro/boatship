@@ -1,7 +1,7 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles, requireSession } from "@/lib/auth";
 import { syncClientStatusFromTasks } from "@/lib/client-status";
-import { notifyIntegrations } from "@/lib/composio";
+import { enqueueIntegrationEvent } from "@/lib/integration-jobs";
 import { canAccessClient } from "@/lib/client-access";
 import { isStaff } from "@/lib/rbac";
 import { getStore } from "@/lib/store";
@@ -112,21 +112,21 @@ export async function PATCH(req: Request, { params }: Params) {
         actorUid: session.uid,
       });
 
-      if (patch.status === "completed" && existing!.status !== "completed") {
+      if (patch.status === "completed") {
         const client = await store.getClient(task.clientId);
         if (client) {
           const notifyUid =
             session.role === "client"
               ? client.assignedTeamMemberId || session.uid
               : session.uid;
-          void notifyIntegrations(notifyUid, {
+          await enqueueIntegrationEvent(notifyUid, {
             type: "task.completed",
             clientId: client.id,
             clientName: client.name,
             companyName: client.companyName,
             taskTitle: task.title,
-          });
-          await dispatchWebhooks("task.completed", {
+          }, `task.completed:${task.id}:${task.completedAt || task.createdAt}`);
+          if (existing!.status !== "completed") await dispatchWebhooks("task.completed", {
             taskId: task.id,
             taskTitle: task.title,
             clientId: client.id,

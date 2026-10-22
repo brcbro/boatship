@@ -12,11 +12,13 @@ import {
   Card,
   Dropdown,
   EmptyState,
+  Label,
   PageHeader,
   ProgressBar,
   Textarea,
 } from "@/components/shared/ui";
 import { apiFetch } from "@/lib/api-client";
+import { messageMatchesContext } from "@/lib/message-context";
 import { cn, formatDate, formatDateTime, statusLabel } from "@/lib/utils";
 import type { MessageClientSummary, PortalMessage } from "@/types";
 
@@ -45,10 +47,15 @@ function AdminMessagesInner() {
   const { session, token } = useAuth();
   const searchParams = useSearchParams();
   const initialClientId = searchParams.get("clientId") || "";
+  const initialEngagementId = searchParams.get("engagementId") || "";
+  const initialIncludeAccountWide = searchParams.get("includeAccountWide") === "1" || searchParams.get("includeAccountWide") === "true";
 
   const [clients, setClients] = useState<MessageClientSummary[]>([]);
   const [clientId, setClientId] = useState(initialClientId);
-  const [messages, setMessages] = useState<PortalMessage[]>([]);
+  const [engagementId, setEngagementId] = useState(initialEngagementId);
+  const [includeAccountWide, setIncludeAccountWide] = useState(initialIncludeAccountWide);
+  const [engagements, setEngagements] = useState<{ id: string; name: string; status: string }[]>([]);
+  const [thread, setThread] = useState<{ key: string; messages: PortalMessage[] }>({ key: "", messages: [] });
   const [body, setBody] = useState("");
   const [loadingClients, setLoadingClients] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -58,12 +65,33 @@ function AdminMessagesInner() {
   const pickedDefault = useRef(false);
   const previousThreadRef = useRef("");
   const previousMessageCountRef = useRef(0);
+  const requestSequence = useRef(0);
+  const threadKey = `${clientId}:${engagementId}:${includeAccountWide}`;
+  const messages = useMemo(() => thread.key === threadKey ? thread.messages : [], [thread, threadKey]);
+  const selectedEngagement = engagements.find((item) => item.id === engagementId);
+  const contextName = selectedEngagement?.name || (engagementId && engagementId !== "account" ? "Selected engagement" : "Account-wide");
+  const contextClosed = selectedEngagement?.status === "completed" || selectedEngagement?.status === "cancelled";
+  const contextUnavailable = Boolean(engagementId && engagementId !== "account" && !selectedEngagement);
 
   useEffect(() => {
     if (!initialClientId) return;
-    const syncClient = window.setTimeout(() => setClientId(initialClientId), 0);
+    const syncClient = window.setTimeout(() => { setClientId(initialClientId); setBody(""); }, 0);
     return () => window.clearTimeout(syncClient);
   }, [initialClientId]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => { setEngagementId(initialEngagementId); setIncludeAccountWide(initialIncludeAccountWide); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [initialEngagementId, initialIncludeAccountWide]);
+
+  useEffect(() => {
+    if (!clientId) return;
+    let cancelled = false;
+    void apiFetch<{ engagements: { id: string; name: string; status: string }[] }>(`/api/clients/${encodeURIComponent(clientId)}/engagements`, { token }).then((data) => {
+      if (!cancelled) setEngagements(data.engagements);
+    }).catch((cause) => { if (!cancelled) setError(cause instanceof Error ? cause.message : "Couldn’t load work contexts."); });
+    return () => { cancelled = true; };
+  }, [clientId, token]);
 
   const loadClients = useCallback(async () => {
     setLoadingClients(true);
@@ -82,24 +110,26 @@ function AdminMessagesInner() {
   }, [token, initialClientId]);
 
   const loadMessages = useCallback(async (background = false) => {
+    const request = ++requestSequence.current;
     if (!clientId) {
-      setMessages([]);
+      setThread({ key: threadKey, messages: [] });
       return;
     }
     if (!background) setLoadingMessages(true);
     setError("");
     try {
       const data = await apiFetch<{ messages: PortalMessage[] }>(
-        `/api/messages?clientId=${encodeURIComponent(clientId)}`,
+        `/api/messages?clientId=${encodeURIComponent(clientId)}${engagementId ? `&engagementId=${encodeURIComponent(engagementId)}` : ""}${includeAccountWide ? "&includeAccountWide=1" : ""}`,
         { token }
       );
-      setMessages(uniqueMessages(data.messages));
+      if (request !== requestSequence.current) return;
+      setThread((previous) => ({ key: threadKey, messages: uniqueMessages([...data.messages, ...(previous.key === threadKey ? previous.messages : [])]) }));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load messages");
+      if (request === requestSequence.current) setError(err instanceof Error ? err.message : "Failed to load messages");
     } finally {
-      if (!background) setLoadingMessages(false);
+      if (!background && request === requestSequence.current) setLoadingMessages(false);
     }
-  }, [clientId, token]);
+  }, [clientId, token, engagementId, includeAccountWide, threadKey]);
 
   useEffect(() => {
     const initialLoad = window.setTimeout(() => void loadClients(), 0);
@@ -114,21 +144,23 @@ function AdminMessagesInner() {
   const liveConnected = useMessageRealtime({
     clientId,
     token,
+    engagementId,
+    includeAccountWide,
     onMessage: useCallback((message: PortalMessage) => {
-      setMessages((current) => uniqueMessages([...current, message]));
-    }, []),
+      setThread((current) => ({ key: threadKey, messages: uniqueMessages([...(current.key === threadKey ? current.messages : []), message]) }));
+    }, [threadKey]),
   });
-  useMessagePolling(() => loadMessages(true), Boolean(clientId) && !liveConnected);
+  useMessagePolling(() => loadMessages(true), Boolean(clientId) && !liveConnected, threadKey);
 
   useEffect(() => {
-    const isNewThread = previousThreadRef.current !== clientId;
+    const isNewThread = previousThreadRef.current !== threadKey;
     const hasNewMessage = messages.length > previousMessageCountRef.current;
     if (messages.length && (isNewThread || hasNewMessage)) {
       bottomRef.current?.scrollIntoView({ behavior: isNewThread ? "auto" : "smooth" });
     }
-    previousThreadRef.current = clientId;
+    previousThreadRef.current = threadKey;
     previousMessageCountRef.current = messages.length;
-  }, [clientId, messages.length]);
+  }, [threadKey, messages.length]);
 
   const options = useMemo(
     () =>
@@ -147,16 +179,16 @@ function AdminMessagesInner() {
   }, [messages]);
 
   async function send() {
-    if (!clientId || !body.trim()) return;
+    if (!clientId || !body.trim() || sending || contextClosed || contextUnavailable) return;
     setSending(true);
     setError("");
     try {
       const data = await apiFetch<{ message: PortalMessage }>("/api/messages", {
         method: "POST",
         token,
-        body: JSON.stringify({ clientId, body: body.trim() }),
+        body: JSON.stringify({ clientId, body: body.trim(), engagementId: engagementId && engagementId !== "account" ? engagementId : null }),
       });
-      setMessages((prev) => uniqueMessages([...prev, data.message]));
+      if (messageMatchesContext(data.message, engagementId, includeAccountWide)) setThread((current) => ({ key: threadKey, messages: uniqueMessages([...(current.key === threadKey ? current.messages : []), data.message]) }));
       setBody("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send message");
@@ -173,7 +205,7 @@ function AdminMessagesInner() {
       />
 
       {error ? (
-        <p className="mb-4 rounded-md border border-[var(--danger)]/30 bg-[var(--danger)]/5 px-3 py-2 text-sm text-[var(--danger)]">
+        <p role="alert" className="mb-4 rounded-md border border-[var(--danger)]/30 bg-[var(--danger)]/5 px-3 py-2 text-sm text-[var(--danger)]">
           {error}
         </p>
       ) : null}
@@ -185,21 +217,29 @@ function AdminMessagesInner() {
             <p className="mt-1 text-sm text-[var(--ink-muted)]">Choose the client thread you want to work in.</p>
           </div>
           <div className="w-full sm:w-[min(100%,25rem)]">
-            <span className="sr-only">Client</span>
+            <Label htmlFor="message-client" className="sr-only">Client</Label>
             {loadingClients ? (
               <p className="py-2 text-sm text-[var(--ink-muted)]">Loading clients…</p>
             ) : options.length === 0 ? (
               <p className="py-2 text-sm text-[var(--ink-muted)]">No clients yet.</p>
             ) : (
               <Dropdown
+                id="message-client"
                 value={clientId}
-                onChange={setClientId}
+                disabled={sending}
+                onChange={(value) => {
+                  if (body.trim() && !window.confirm("Switch client? Your unsent message will be cleared.")) return;
+                  setClientId(value); setEngagementId(""); setIncludeAccountWide(false); setBody(""); setEngagements([]);
+                }}
                 options={options}
                 placeholder="Select a client…"
               />
             )}
           </div>
         </div>
+        {clientId ? <div className="mt-4 max-w-md"><Label htmlFor="staff-message-context">Work context</Label><Dropdown id="staff-message-context" value={engagementId} disabled={sending} onChange={setEngagementId} options={[
+          { value: "", label: "All work" }, { value: "account", label: "Account-wide" }, ...engagements.map((item) => ({ value: item.id, label: item.name })),
+        ]} />{engagementId && engagementId !== "account" ? <label className="mt-2 flex min-h-11 items-center gap-2 text-sm text-[var(--ink-muted)]"><input type="checkbox" className="h-4 w-4 accent-[var(--brand)]" checked={includeAccountWide} disabled={sending} onChange={(event) => setIncludeAccountWide(event.target.checked)} />Also show account-wide messages</label> : null}</div> : null}
       </Card>
 
       {!clientId ? (
@@ -222,7 +262,7 @@ function AdminMessagesInner() {
               </div>
               <span className="inline-flex shrink-0 items-center gap-2 self-start rounded-full border border-emerald-600/15 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-700 sm:self-auto">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
-                Live updates
+                {liveConnected ? "Live updates" : "Checking for updates"}
               </span>
             </div>
 
@@ -251,7 +291,7 @@ function AdminMessagesInner() {
                           <div className={cn("rounded-2xl px-3.5 py-2.5 text-sm leading-6 shadow-sm", mine ? "rounded-tr-md bg-[var(--brand)] text-white" : "rounded-tl-md border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--ink)]")}>
                             <p className="whitespace-pre-wrap break-words">{m.body}</p>
                           </div>
-                          <p className={cn("mt-1 px-1 text-[11px] text-[var(--ink-muted)]", mine && "text-right")}>{formatDateTime(m.createdAt)}</p>
+                          <p className={cn("mt-1 px-1 text-[11px] text-[var(--ink-muted)]", mine && "text-right")}>{m.engagementId ? engagements.find((item) => item.id === m.engagementId)?.name || "Engagement" : "Account-wide"} · {formatDateTime(m.createdAt)}</p>
                         </div>
                       </div>
                     </div>
@@ -263,10 +303,11 @@ function AdminMessagesInner() {
 
             <div className="border-t border-[var(--border)] bg-[var(--surface)]/35 p-4 sm:p-5">
               <label htmlFor="message-body" className="mb-2 block text-sm font-medium text-[var(--ink)]">Reply to {selected?.name || "client"}</label>
-              <Textarea id="message-body" rows={3} placeholder="Write a clear, helpful message…" value={body} onChange={(e) => setBody(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void send(); } }} />
+              <p className="mb-2 text-xs text-[var(--ink-muted)]">{contextUnavailable ? "Choose an available work context before sending." : contextClosed ? `${contextName} is closed. Choose an active engagement or Account-wide to reply.` : `Sending to ${contextName}.`}</p>
+              <Textarea id="message-body" rows={3} placeholder="Write a clear, helpful message…" value={body} disabled={sending || contextClosed || contextUnavailable} maxLength={10000} onChange={(e) => setBody(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void send(); } }} />
               <div className="mt-3 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-xs text-[var(--ink-muted)]">Press <kbd className="rounded border border-[var(--border)] bg-[var(--surface-raised)] px-1 py-0.5 font-sans text-[10px]">Ctrl</kbd> <span aria-hidden="true">+</span> <kbd className="rounded border border-[var(--border)] bg-[var(--surface-raised)] px-1 py-0.5 font-sans text-[10px]">Enter</kbd> to send</p>
-                <Button type="button" disabled={sending || !body.trim()} onClick={() => void send()}><Send className="h-4 w-4" aria-hidden="true" />{sending ? "Sending…" : "Send message"}</Button>
+                <Button type="button" disabled={sending || !body.trim() || contextClosed || contextUnavailable} onClick={() => void send()}><Send className="h-4 w-4" aria-hidden="true" />{sending ? "Sending…" : "Send message"}</Button>
               </div>
             </div>
           </Card>

@@ -2,6 +2,104 @@ import type { Client, FormField, FormSubmission } from "@/types";
 
 export type FormResponses = FormSubmission["responses"];
 
+export const FORM_RESPONSE_LIMITS = {
+  text: 2000,
+  textarea: 20000,
+  email: 254,
+  dropdown: 2000,
+  date: 10,
+  file: 2048,
+  number: 100,
+  checkbox: 5,
+} as const;
+
+const UNSAFE_KEYS = new Set(["__proto__", "prototype", "constructor"]);
+
+export function isValidEmail(value: string) {
+  const email = value.trim();
+  if (email.length > FORM_RESPONSE_LIMITS.email || /[\s\u0000-\u001f\u007f]/.test(email)) return false;
+  const parts = email.split("@");
+  if (parts.length !== 2 || !parts[0] || parts[0].length > 64 || !parts[1]) return false;
+  if (parts[0].startsWith(".") || parts[0].endsWith(".") || parts[0].includes("..")) return false;
+  if (!/^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+$/.test(parts[0])) return false;
+  const labels = parts[1].split(".");
+  return labels.length >= 2 && labels.every((label) =>
+    /^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/.test(label)
+  );
+}
+
+function isValidDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value.startsWith("0000-")) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+/** The same field rules run in the portal and at the server's write boundary. */
+export function validateFormResponses(
+  fields: FormField[],
+  raw: unknown,
+  { partial = false }: { partial?: boolean } = {}
+): { responses: FormResponses; errors: Record<string, string>; valid: boolean } {
+  const responses: FormResponses = {};
+  const errors: Record<string, string> = {};
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return { responses, errors: { _form: "Answers must be a field-value object." }, valid: false };
+  }
+  const known = new Map(fields.filter((field) => !UNSAFE_KEYS.has(field.key)).map((field) => [field.key, field]));
+  for (const [key, value] of Object.entries(raw)) {
+    const field = known.get(key);
+    if (!field) {
+      errors._form = "The form contains an unknown answer. Reopen the current form and try again.";
+      continue;
+    }
+    if (value === null || value === "") {
+      responses[key] = value;
+      continue;
+    }
+    if (field.type === "checkbox") {
+      if (typeof value === "boolean") responses[key] = value;
+      else errors[key] = "Choose yes or no.";
+      continue;
+    }
+    if (field.type === "number") {
+      const numericText = typeof value === "string" ? value.trim() : "";
+      const numeric = typeof value === "number" ? value :
+        numericText && /^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(numericText) ? Number(numericText) : NaN;
+      if (!Number.isFinite(numeric) || Math.abs(numeric) > Number.MAX_SAFE_INTEGER) {
+        errors[key] = "Enter a finite number within the supported range.";
+      } else responses[key] = numeric;
+      continue;
+    }
+    if (typeof value !== "string") {
+      errors[key] = "Enter a text answer.";
+      continue;
+    }
+    const normalized = value.trim();
+    if (value.length > FORM_RESPONSE_LIMITS[field.type]) {
+      errors[key] = `Use ${FORM_RESPONSE_LIMITS[field.type].toLocaleString("en-US")} characters or fewer.`;
+    } else if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value)) {
+      errors[key] = "Remove unsupported control characters.";
+    } else if (normalized && field.type === "email" && !isValidEmail(normalized)) {
+      errors[key] = "Enter a valid email address.";
+    } else if (normalized && field.type === "date" && !isValidDate(normalized)) {
+      errors[key] = "Enter a valid date in YYYY-MM-DD format.";
+    } else if (normalized && field.type === "dropdown" && !(field.options || []).includes(normalized)) {
+      errors[key] = "Choose one of the available options.";
+    } else responses[key] = field.type === "email" ? normalized.toLowerCase() :
+      field.type === "text" || field.type === "textarea" ? value : normalized;
+  }
+  // Visibility is evaluated against validated answers: an invalid parent value
+  // cannot hide a required field or alter the server's risk calculation.
+  if (!partial) {
+    for (const field of visibleFields(fields, responses)) {
+      if (field.required && !errors[field.key] && isEmptyResponse(responses[field.key])) {
+        errors[field.key] = `${field.label} is required.`;
+      }
+    }
+  }
+  return { responses, errors, valid: Object.keys(errors).length === 0 };
+}
+
 function normalizedFieldName(value: string) {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
 }
@@ -30,6 +128,7 @@ export function clientDetailsFromForm(
   let lastName = "";
 
   for (const field of fields) {
+    if (!isFieldVisible(field, responses)) continue;
     const value = responseText(responses[field.key]);
     if (!value) continue;
 
@@ -150,7 +249,7 @@ export function normalizeFormFields(raw: unknown): FormField[] {
       .trim()
       .replace(/\s+/g, "_");
     const label = String(row.label || "").trim();
-    if (!key || !label) continue;
+    if (!key || !label || UNSAFE_KEYS.has(key) || out.some((field) => field.key === key)) continue;
     const type = String(row.type || "text") as FormField["type"];
     const allowed: FormField["type"][] = [
       "text",

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api-client";
+import { messageMatchesContext } from "@/lib/message-context";
 import type { PortalMessage } from "@/types";
 
 type LiveEvent = { message: PortalMessage; type: "message" } | { type: "connected" };
@@ -10,6 +11,8 @@ type Options = {
   clientId: string | null | undefined;
   onMessage: (message: PortalMessage) => void;
   token: string | null | undefined;
+  engagementId?: string | null;
+  includeAccountWide?: boolean;
 };
 
 /**
@@ -17,9 +20,10 @@ type Options = {
  * Worker is not deployed or a connection drops, callers keep their polling
  * fallback; this hook retries without triggering route navigation.
  */
-export function useMessageRealtime({ clientId, onMessage, token }: Options) {
+export function useMessageRealtime({ clientId, onMessage, token, engagementId, includeAccountWide = false }: Options) {
   const callbackRef = useRef(onMessage);
-  const [connected, setConnected] = useState(false);
+  const connectionKey = JSON.stringify([clientId, token, engagementId, includeAccountWide]);
+  const [connectedKey, setConnectedKey] = useState<string | null>(null);
 
   useEffect(() => {
     callbackRef.current = onMessage;
@@ -46,24 +50,27 @@ export function useMessageRealtime({ clientId, onMessage, token }: Options) {
         const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
         socket = new WebSocket(`${protocol}//${window.location.host}/api/messages/live?ticket=${encodeURIComponent(ticket)}`);
         socket.onopen = () => {
+          if (closed) return;
           retryDelay = 1_000;
-          setConnected(true);
+          setConnectedKey(connectionKey);
         };
         socket.onmessage = (event) => {
           try {
             const data = JSON.parse(String(event.data)) as LiveEvent;
-            if (data.type === "message" && data.message.clientId === clientId) callbackRef.current(data.message);
+            if (!closed && data.type === "message" && data.message.clientId === clientId && messageMatchesContext(data.message, engagementId, includeAccountWide)) callbackRef.current(data.message);
           } catch {
             // Ignore malformed frames; the API remains the source of truth.
           }
         };
         socket.onclose = () => {
-          setConnected(false);
+          if (closed) return;
+          setConnectedKey(null);
           if (!closed) scheduleRetry();
         };
         socket.onerror = () => socket?.close();
       } catch {
-        setConnected(false);
+        if (closed) return;
+        setConnectedKey(null);
         if (!closed) scheduleRetry();
       }
     };
@@ -83,7 +90,7 @@ export function useMessageRealtime({ clientId, onMessage, token }: Options) {
       if (retryTimer !== undefined) window.clearTimeout(retryTimer);
       socket?.close(1000, "Conversation changed");
     };
-  }, [clientId, token]);
+  }, [clientId, token, engagementId, includeAccountWide, connectionKey]);
 
-  return connected;
+  return Boolean(clientId) && connectedKey === connectionKey;
 }

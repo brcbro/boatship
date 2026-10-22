@@ -5,6 +5,7 @@ import type {
 } from "@/types";
 import { getStore, type DataStore } from "@/lib/store";
 import { filterAssignedClients } from "@/lib/client-access";
+import { hasPermission } from "@/lib/rbac";
 
 export interface McpContext {
   store: DataStore;
@@ -20,6 +21,7 @@ function canSeeClient(context: McpContext, client: Client) {
   if (context.projectIds && !context.projectIds.has(client.id)) return false;
   if (context.session.role === "admin") return true;
   if (context.session.role === "client") return context.session.clientId === client.id;
+  if (!hasPermission(context.session, "clients.view")) return false;
   return context.assignedClientIds?.has(client.id) ?? false;
 }
 
@@ -93,6 +95,7 @@ export async function visibleTasks(context: McpContext, clientId?: string) {
     if (context.session.role === "client") {
       return task.clientId === context.session.clientId && task.assignedRole === "client";
     }
+    if (!hasPermission(context.session, "clients.view")) return false;
     return context.assignedClientIds?.has(client.id) ?? false;
   });
 }

@@ -226,6 +226,8 @@ export interface TaskComment {
 }
 
 export interface DocumentVersion {
+  contentId?: string | null;
+  contentAvailable?: boolean;
   storagePath: string;
   fileName: string;
   uploadedAt: string;
@@ -238,6 +240,9 @@ export interface DocumentVersion {
 export interface DocumentRecord {
   id: string;
   clientId: string;
+  engagementId?: string | null;
+  contentId?: string | null;
+  contentAvailable?: boolean;
   taskId: string | null;
   fileName: string;
   storagePath: string;
@@ -284,6 +289,7 @@ export interface FormTemplate {
 export interface FormSubmission {
   id: string;
   clientId: string;
+  engagementId?: string | null;
   formTemplateId: string;
   taskId: string | null;
   responses: Record<string, string | number | boolean | null>;
@@ -332,6 +338,7 @@ export interface AppNotification {
 export interface PortalMessage {
   id: string;
   clientId: string;
+  engagementId?: string | null;
   authorId: string;
   authorName: string;
   authorRole: UserRole;

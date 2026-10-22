@@ -4,6 +4,7 @@ import type { AuthSession, UserRole } from "@/types";
 import { getStore } from "@/lib/store";
 import { getPrisma } from "@/lib/prisma";
 import { isUnsafeDemoUser } from "@/lib/demo-users";
+import { requireStaffRequestPermissions } from "@/lib/rbac";
 import {
   SESSION_COOKIE,
   encodeLocalSession,
@@ -69,12 +70,16 @@ export async function getSessionFromRequest(req: Request): Promise<AuthSession |
     // HTTP-only cookie is the authoritative browser session; prioritising it
     // prevents an expired header from logging a valid dashboard session out
     // during a page refresh.
-    return verifyIdToken(decodeURIComponent(match[1]));
+    const session = await verifyIdToken(decodeURIComponent(match[1]));
+    if (session) requireStaffRequestPermissions(session, req);
+    return session;
   }
 
   const authHeader = req.headers.get("authorization");
   if (authHeader?.startsWith("Bearer ")) {
-    return verifyIdToken(authHeader.slice(7));
+    const session = await verifyIdToken(authHeader.slice(7));
+    if (session) requireStaffRequestPermissions(session, req);
+    return session;
   }
 
   return null;

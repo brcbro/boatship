@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   CheckSquare,
   FileText,
@@ -44,6 +44,22 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
   const { session, logout, loading } = useAuth();
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const frame = window.requestAnimationFrame(() => menuRef.current?.querySelector<HTMLElement>("a[href]")?.focus());
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { event.preventDefault(); setOpen(false); }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.removeEventListener("keydown", onKeyDown);
+      trigger?.focus();
+    };
+  }, [open]);
 
   async function onLogout() {
     setLoggingOut(true);
@@ -108,7 +124,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
         </div>
 
         {open ? (
-          <div id="portal-mobile-menu" className="border-t border-[var(--border)] bg-[var(--surface-raised)] px-4 py-4 xl:hidden">
+          <div id="portal-mobile-menu" ref={menuRef} className="max-h-[calc(100dvh-9rem)] overflow-y-auto border-t border-[var(--border)] bg-[var(--surface-raised)] px-4 py-4 xl:hidden">
             <nav className="flex flex-col gap-1" aria-label="All client sections">
               {NAV.map((item) => (
                 <Link

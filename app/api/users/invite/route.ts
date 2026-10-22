@@ -3,10 +3,10 @@ import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
 import { appBaseUrl } from "@/lib/client-status";
 import { emailDeliveryConfigured, teamInviteEmailHtml, sendEmail } from "@/lib/email";
-import { DEFAULT_TEAM_PERMISSIONS } from "@/lib/rbac";
+import { DEFAULT_TEAM_PERMISSIONS, effectiveStaffPermissions, parseStaffPermissions } from "@/lib/rbac";
 import { getStore } from "@/lib/store";
 import { consumeAccountAndIpLimit, consumeRateLimit } from "@/lib/rate-limit";
-import type { StaffPermission, UserRole } from "@/types";
+import type { UserRole } from "@/types";
 
 export const runtime = "nodejs";
 
@@ -18,7 +18,7 @@ export async function POST(req: Request) {
       email?: string;
       name?: string;
       role?: UserRole;
-      permissions?: StaffPermission[];
+      permissions?: unknown;
     };
 
     const email = (body.email || "").trim().toLowerCase();
@@ -36,6 +36,12 @@ export async function POST(req: Request) {
       throw jsonError("role must be admin or team", 400);
     }
 
+    let explicitPermissions;
+    if (body.permissions !== undefined) {
+      try { explicitPermissions = parseStaffPermissions(body.permissions); }
+      catch { throw jsonError("permissions must be an array of known staff permissions", 400); }
+    }
+
     const store = await getStore();
     const existing = await store.getUserByEmail(email);
     if (existing && existing.role === "client") {
@@ -50,9 +56,7 @@ export async function POST(req: Request) {
 
     const permissions =
       role === "team"
-        ? Array.isArray(body.permissions) && body.permissions.length > 0
-          ? body.permissions
-          : [...DEFAULT_TEAM_PERMISSIONS]
+        ? explicitPermissions ?? [...DEFAULT_TEAM_PERMISSIONS]
         : undefined;
 
     const loginUrl = `${appBaseUrl(req)}/login?reset=${encodeURIComponent(inviteToken)}`;
@@ -88,7 +92,8 @@ export async function POST(req: Request) {
         email: user.email,
         name: user.name,
         role: user.role,
-        permissions: user.permissions || [],
+        permissions: user.permissions,
+        effectivePermissions: effectiveStaffPermissions(user),
       },
       invitationSent: true,
     };

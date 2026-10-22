@@ -1,15 +1,15 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireSession } from "@/lib/auth";
 import {
-  clientDetailsFromForm,
-  computeRiskScore,
   isNativeTemplate,
-  missingRequiredFields,
+  validateFormResponses,
 } from "@/lib/form-fields";
 import { canAccessClient } from "@/lib/client-access";
 import { getStore } from "@/lib/store";
-import { dispatchWebhooks } from "@/lib/webhooks";
-import type { FormSubmission } from "@/types";
+import { FormSubmissionError } from "@/lib/form-submission";
+import { validateResourceEngagement } from "@/lib/engagement-resources";
+import { drainWebhooks } from "@/lib/webhooks";
+import { drainAfterResponse } from "@/lib/queue-drain";
 
 export const runtime = "nodejs";
 
@@ -23,77 +23,44 @@ export async function POST(req: Request, { params }: Params) {
     const form = await store.getForm(id);
     if (!form) throw jsonError("Form not found", 404);
     if (!await canAccessClient(session, form.clientId)) throw jsonError("Forbidden", 403);
+    if (form.status !== "not_started") throw jsonError("This form has already been submitted.", 409);
+    const engagementId = await validateResourceEngagement(form.clientId, form.engagementId, form.taskId);
 
-    const body = (await req.json().catch(() => ({}))) as {
-      responses?: FormSubmission["responses"];
-      riskScore?: number | null;
-    };
-
-    const responses = body.responses ?? form.responses ?? {};
+    const text = await req.text();
+    if (text.length > 500000) throw jsonError("Form answers are too large.", 413);
+    let body: Record<string, unknown>;
+    try {
+      const parsed: unknown = JSON.parse(text);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Invalid body");
+      body = parsed as Record<string, unknown>;
+    } catch {
+      throw jsonError("Provide a valid form submission.", 400);
+    }
     const template = await store.getFormTemplate(form.formTemplateId);
+    if (!template) throw jsonError("Form template could not be found.", 404);
     const fields = template?.fields || [];
-
-    if (template && (isNativeTemplate(template) || fields.length > 0)) {
-      const missing = missingRequiredFields(fields, responses);
-      if (missing.length) {
-        throw jsonError(
-          `Missing required fields: ${missing.map((f) => f.label || f.key).join(", ")}`,
-          400
-        );
+    let responses = {};
+    if (isNativeTemplate(template) || fields.length > 0) {
+      const raw = Object.hasOwn(body, "responses") ? body.responses : {};
+      const supplied = validateFormResponses(fields, raw, { partial: true });
+      if (!supplied.valid) {
+        throw jsonError(Object.values(supplied.errors).join(" "), 400);
       }
+      const checked = validateFormResponses(fields, { ...(form.responses || {}), ...supplied.responses });
+      if (!checked.valid) throw jsonError(Object.values(checked.errors).join(" "), 400);
+      responses = supplied.responses;
+    } else if (Object.hasOwn(body, "responses")) {
+      const checked = validateFormResponses([], body.responses);
+      if (!checked.valid) throw jsonError("Answers for this form are collected in Google Forms.", 400);
     }
 
-    let riskScore: number | null =
-      typeof body.riskScore === "number" && Number.isFinite(body.riskScore)
-        ? Math.max(0, Math.round(body.riskScore))
-        : body.riskScore === null
-          ? null
-          : form.riskScore;
-
-    if (fields.length > 0) {
-      riskScore = computeRiskScore(fields, responses);
+    try {
+      const updated = await store.submitFormOnce({ id, responses, actorId: session.uid, actorName: session.name, submittedAt: new Date().toISOString() });
+      drainAfterResponse("webhook", () => drainWebhooks());
+      return { form: { ...updated, engagementId } };
+    } catch (cause) {
+      if (cause instanceof FormSubmissionError) throw jsonError(cause.message, cause.status);
+      throw cause;
     }
-
-    const updated = await store.updateForm(id, {
-      responses,
-      riskScore,
-      status: "submitted",
-      submittedAt: new Date().toISOString(),
-    });
-
-    // Keep the client profile in sync with the answers they just submitted.
-    // This is intentionally done server-side so both the client portal and
-    // staff view read from the same persisted client record.
-    if (template && fields.length > 0) {
-      await store.updateClient(form.clientId, clientDetailsFromForm(
-        (await store.getClient(form.clientId))!,
-        fields,
-        responses
-      ));
-    }
-
-    await store.addActivity({
-      clientId: form.clientId,
-      actorId: session.uid,
-      actorName: session.name,
-      action: "form.submitted",
-      meta: {
-        formId: id,
-        formTemplateId: form.formTemplateId,
-        riskScore: updated.riskScore,
-      },
-    });
-
-    const client = await store.getClient(form.clientId);
-    await dispatchWebhooks("form.submitted", {
-      formId: updated.id,
-      formTemplateId: updated.formTemplateId,
-      clientId: form.clientId,
-      clientName: client?.name ?? null,
-      companyName: client?.companyName ?? null,
-      riskScore: updated.riskScore,
-    });
-
-    return { form: updated };
   });
 }

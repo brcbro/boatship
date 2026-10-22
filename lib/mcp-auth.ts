@@ -4,6 +4,7 @@ import type { AuthSession } from "@/types";
 import { getSessionFromRequest } from "@/lib/auth";
 import { getPrisma } from "@/lib/prisma";
 import { getStore } from "@/lib/store";
+import { isUnsafeDemoUser } from "@/lib/demo-users";
 
 export const MCP_TOKEN_PREFIX = "boatship_mcp_";
 export const DEFAULT_MCP_SCOPES = ["tasks:read", "projects:read", "context:read"] as const;
@@ -54,7 +55,7 @@ function bearerToken(req: Request) {
 
 async function sessionForUser(userId: string): Promise<AuthSession | null> {
   const user = await (await getStore()).getUser(userId);
-  if (!user) return null;
+  if (!user || user.mustResetPassword || isUnsafeDemoUser(user)) return null;
   return {
     uid: user.uid,
     email: user.email,

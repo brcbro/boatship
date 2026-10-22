@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Check, ChevronDown, ChevronRight, Plus } from "lucide-react";
 import {
@@ -77,6 +77,7 @@ type TaskBoardProps = {
   mode: TaskBoardMode;
   tasks: Task[];
   busy?: boolean;
+  canEdit?: boolean;
   users?: Array<{ uid: string; name: string }>;
   onUpdate: (taskId: string, patch: Record<string, unknown>) => Promise<void> | void;
   onDelete?: (taskId: string) => Promise<void> | void;
@@ -94,6 +95,7 @@ export function TaskBoard({
   mode,
   tasks,
   busy,
+  canEdit = true,
   users = [],
   onUpdate,
   onDelete,
@@ -214,7 +216,7 @@ export function TaskBoard({
 
   async function toggleComplete(task: Task, e: React.MouseEvent) {
     e.stopPropagation();
-    if (busy) return;
+    if (busy || !canEdit) return;
     if (task.status !== "completed" && isDependencyBlocked(task, tasks)) return;
     const next: TaskStatus = task.status === "completed" ? "in_progress" : "completed";
     await onUpdate(task.id, { status: next });
@@ -222,7 +224,7 @@ export function TaskBoard({
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
-    if (!onCreate || !newTitle.trim()) return;
+    if (!canEdit || !onCreate || !newTitle.trim()) return;
     await onCreate({
       title: newTitle.trim(),
       description: newDesc.trim(),
@@ -282,7 +284,7 @@ export function TaskBoard({
         >
           <button
             type="button"
-            disabled={busy || (blocked && task.status !== "completed")}
+            disabled={busy || !canEdit || (blocked && task.status !== "completed")}
             aria-pressed={task.status === "completed"}
             aria-label={task.status === "completed" ? `Reopen ${task.title}` : blocked ? `Complete ${task.title}. Waiting on ${waitingOn.join(", ")}` : `Complete ${task.title}`}
             title={task.status === "completed" ? `Reopen ${task.title}` : blocked ? `Complete ${waitingOn.join(", ")} first` : `Mark ${task.title} complete`}
@@ -336,7 +338,7 @@ export function TaskBoard({
             <button
               type="button"
               className={cn(
-                "rounded px-2.5 py-1 text-xs font-medium transition",
+                "min-h-9 rounded px-2.5 py-1 text-xs font-medium transition max-sm:min-h-11",
                 viewMode === "list"
                   ? "bg-[var(--brand)] text-white"
                   : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
@@ -348,7 +350,7 @@ export function TaskBoard({
             <button
               type="button"
               className={cn(
-                "rounded px-2.5 py-1 text-xs font-medium transition",
+                "min-h-9 rounded px-2.5 py-1 text-xs font-medium transition max-sm:min-h-11",
                 viewMode === "kanban"
                   ? "bg-[var(--brand)] text-white"
                   : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
@@ -363,7 +365,7 @@ export function TaskBoard({
               <button
                 type="button"
                 className={cn(
-                  "rounded px-2.5 py-1 text-xs font-medium transition",
+                  "min-h-9 rounded px-2.5 py-1 text-xs font-medium transition max-sm:min-h-11",
                   groupBy === "section"
                     ? "bg-[var(--brand)] text-white"
                     : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
@@ -375,7 +377,7 @@ export function TaskBoard({
               <button
                 type="button"
                 className={cn(
-                  "rounded px-2.5 py-1 text-xs font-medium transition",
+                  "min-h-9 rounded px-2.5 py-1 text-xs font-medium transition max-sm:min-h-11",
                   groupBy === "status"
                     ? "bg-[var(--brand)] text-white"
                     : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
@@ -394,7 +396,7 @@ export function TaskBoard({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          {mode === "admin" && onCreate ? (
+          {mode === "admin" && canEdit && onCreate ? (
             <Button type="button" size="sm" onClick={() => setShowAdd(true)}>
               <Plus className="h-4 w-4" />
               Task
@@ -518,7 +520,7 @@ export function TaskBoard({
       )}
 
       <Modal
-        open={showAdd && mode === "admin" && !!onCreate}
+        open={showAdd && mode === "admin" && canEdit && !!onCreate}
         onClose={closeAdd}
         title="Add task"
         size="md"
@@ -535,8 +537,9 @@ export function TaskBoard({
       >
         <form id="task-create-form" onSubmit={handleCreate} className="space-y-3">
           <div>
-            <Label>Title</Label>
+            <Label htmlFor="create-task-title">Title</Label>
             <Input
+              id="create-task-title"
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
               required
@@ -544,13 +547,14 @@ export function TaskBoard({
             />
           </div>
           <div>
-            <Label>Description</Label>
-            <Textarea rows={3} value={newDesc} onChange={(e) => setNewDesc(e.target.value)} />
+            <Label htmlFor="create-task-description">Description</Label>
+            <Textarea id="create-task-description" rows={3} value={newDesc} onChange={(e) => setNewDesc(e.target.value)} />
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <Label>Section</Label>
+              <Label htmlFor="create-task-section">Section</Label>
               <Input
+                id="create-task-section"
                 list="task-sections"
                 value={newSection}
                 onChange={(e) => setNewSection(e.target.value)}
@@ -562,8 +566,9 @@ export function TaskBoard({
               </datalist>
             </div>
             <div>
-              <Label>Type</Label>
+              <Label htmlFor="create-task-type">Type</Label>
               <Dropdown
+                id="create-task-type"
                 value={newType}
                 onChange={(v) => setNewType(v as TaskType)}
                 options={TYPE_OPTIONS}
@@ -578,6 +583,7 @@ export function TaskBoard({
         open={!!openTask}
         mode={mode}
         busy={busy}
+        canEdit={canEdit}
         users={users}
         allTasks={tasks}
         sectionOptions={sectionOptions}
@@ -595,6 +601,7 @@ export function TaskDetailModal({
   open,
   mode,
   busy,
+  canEdit = true,
   users,
   allTasks,
   sectionOptions,
@@ -607,6 +614,7 @@ export function TaskDetailModal({
   open: boolean;
   mode: TaskBoardMode;
   busy?: boolean;
+  canEdit?: boolean;
   users: Array<{ uid: string; name: string }>;
   allTasks: Task[];
   sectionOptions: string[];
@@ -615,6 +623,7 @@ export function TaskDetailModal({
   onDelete?: (taskId: string) => Promise<void> | void;
   onReorder?: (task: Task, direction: -1 | 1) => Promise<void> | void;
 }) {
+  const fieldId = useId();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [internalNotes, setInternalNotes] = useState("");
@@ -636,12 +645,12 @@ export function TaskDetailModal({
   }, [task]);
 
   async function saveField(patch: Record<string, unknown>) {
-    if (!task) return;
+    if (!task || !canEdit) return;
     await onUpdate(task.id, patch);
   }
 
   async function toggleSubtask(sub: TaskSubtask) {
-    if (!task || busy) return;
+    if (!task || busy || !canEdit) return;
     const next = (task.subtasks || []).map((s) =>
       s.id === sub.id ? { ...s, completed: !s.completed } : s
     );
@@ -650,7 +659,7 @@ export function TaskDetailModal({
 
   async function addSubtask(e: FormEvent) {
     e.preventDefault();
-    if (!task || busy) return;
+    if (!task || busy || !canEdit) return;
     const titleText = newSubtask.trim();
     if (!titleText) return;
     const next: TaskSubtask[] = [
@@ -689,10 +698,10 @@ export function TaskDetailModal({
       open={open && !!task}
       onClose={onClose}
       size="lg"
-      title={mode === "admin" ? "Edit task" : task?.title}
+      title={mode === "admin" && canEdit ? "Edit task" : task?.title}
       description={task ? task.section || "General" : undefined}
       footer={
-        task && mode === "admin" ? (
+        task && mode === "admin" && canEdit ? (
           <>
             <div className="mr-auto flex gap-1">
               {onReorder ? (
@@ -701,7 +710,7 @@ export function TaskDetailModal({
                     type="button"
                     size="sm"
                     variant="secondary"
-                    disabled={busy}
+                    disabled={busy || !canEdit}
                     onClick={() => void onReorder(task, -1)}
                   >
                     Move up
@@ -710,7 +719,7 @@ export function TaskDetailModal({
                     type="button"
                     size="sm"
                     variant="secondary"
-                    disabled={busy}
+                    disabled={busy || !canEdit}
                     onClick={() => void onReorder(task, 1)}
                   >
                     Move down
@@ -723,7 +732,7 @@ export function TaskDetailModal({
                 type="button"
                 size="sm"
                 variant="danger"
-                disabled={busy}
+                disabled={busy || !canEdit}
                 onClick={() => void onDelete(task.id)}
               >
                 Delete
@@ -753,10 +762,11 @@ export function TaskDetailModal({
 
           {mode === "admin" ? (
             <div>
-              <Label>Title</Label>
+              <Label htmlFor={`${fieldId}-title`}>Title</Label>
               <Input
+                id={`${fieldId}-title`}
                 value={title}
-                disabled={busy}
+                disabled={busy || !canEdit}
                 onChange={(e) => setTitle(e.target.value)}
                 onBlur={() => {
                   if (title.trim() && title.trim() !== task.title) {
@@ -769,21 +779,23 @@ export function TaskDetailModal({
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <Label>Status</Label>
+              <Label htmlFor={`${fieldId}-status`}>Status</Label>
               <Dropdown
+                id={`${fieldId}-status`}
                 value={task.status}
-                disabled={busy}
+                disabled={busy || !canEdit}
                 options={statusOptions}
                 onChange={(v) => void saveField({ status: v as TaskStatus })}
               />
             </div>
             <div>
-              <Label>Due date</Label>
+              <Label htmlFor={`${fieldId}-due-date`}>Due date</Label>
               {mode === "admin" ? (
                 <Input
+                  id={`${fieldId}-due-date`}
                   type="date"
                   value={dueDate}
-                  disabled={busy}
+                  disabled={busy || !canEdit}
                   onChange={(e) => setDueDate(e.target.value)}
                   onBlur={() => {
                     const next = dueDate ? new Date(dueDate).toISOString() : null;
@@ -804,20 +816,22 @@ export function TaskDetailModal({
           {mode === "admin" ? (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <Label>Priority</Label>
+                <Label htmlFor={`${fieldId}-priority`}>Priority</Label>
                 <Dropdown
+                  id={`${fieldId}-priority`}
                   value={task.priority || "medium"}
-                  disabled={busy}
+                  disabled={busy || !canEdit}
                   options={PRIORITY_OPTIONS}
                   onChange={(v) => void saveField({ priority: v as TaskPriority })}
                 />
               </div>
               <div>
-                <Label>Section</Label>
+                <Label htmlFor={`${fieldId}-section`}>Section</Label>
                 <Input
+                  id={`${fieldId}-section`}
                   list="modal-sections"
                   value={section}
-                  disabled={busy}
+                  disabled={busy || !canEdit}
                   onChange={(e) => setSection(e.target.value)}
                   onBlur={() => {
                     const next = section.trim() || "General";
@@ -831,19 +845,21 @@ export function TaskDetailModal({
                 </datalist>
               </div>
               <div>
-                <Label>Type</Label>
+                <Label htmlFor={`${fieldId}-type`}>Type</Label>
                 <Dropdown
+                  id={`${fieldId}-type`}
                   value={task.type}
-                  disabled={busy}
+                  disabled={busy || !canEdit}
                   options={TYPE_OPTIONS}
                   onChange={(v) => void saveField({ type: v as TaskType })}
                 />
               </div>
               <div>
-                <Label>Assignee</Label>
+                <Label htmlFor={`${fieldId}-assignee`}>Assignee</Label>
                 <Dropdown
+                  id={`${fieldId}-assignee`}
                   value={task.assignedTo || ""}
-                  disabled={busy}
+                  disabled={busy || !canEdit}
                   options={assigneeOptions}
                   placeholder="Unassigned"
                   onChange={(v) => void saveField({ assignedTo: v || null })}
@@ -851,10 +867,11 @@ export function TaskDetailModal({
               </div>
               {dependencyOptions.length > 0 ? (
                 <div className="sm:col-span-2">
-                  <Label>Depends on</Label>
+                  <Label htmlFor={`${fieldId}-dependencies`}>Depends on</Label>
                   <select
+                    id={`${fieldId}-dependencies`}
                     multiple
-                    disabled={busy}
+                    disabled={busy || !canEdit}
                     className="mt-1 min-h-[5.5rem] w-full rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-2 py-1.5 text-sm text-[var(--ink)]"
                     value={task.dependsOnTaskIds || []}
                     onChange={(e) => {
@@ -887,12 +904,13 @@ export function TaskDetailModal({
           )}
 
           <div>
-            <Label>Description</Label>
+            <Label htmlFor={`${fieldId}-description`}>Description</Label>
             {mode === "admin" ? (
               <Textarea
+                id={`${fieldId}-description`}
                 rows={4}
                 value={description}
-                disabled={busy}
+                disabled={busy || !canEdit}
                 onChange={(e) => setDescription(e.target.value)}
                 onBlur={() => {
                   if (description !== task.description) {
@@ -909,11 +927,12 @@ export function TaskDetailModal({
 
           {mode === "admin" ? (
             <div>
-              <Label>Internal notes</Label>
+              <Label htmlFor={`${fieldId}-internal-notes`}>Internal notes</Label>
               <Textarea
+                id={`${fieldId}-internal-notes`}
                 rows={3}
                 value={internalNotes}
-                disabled={busy}
+                disabled={busy || !canEdit}
                 onChange={(e) => setInternalNotes(e.target.value)}
                 onBlur={() => {
                   if (internalNotes !== task.internalNotes) {
@@ -941,7 +960,7 @@ export function TaskDetailModal({
                   <li key={sub.id}>
                     <button
                       type="button"
-                      disabled={busy}
+                      disabled={busy || !canEdit}
                       onClick={() => void toggleSubtask(sub)}
                       className="flex w-full items-center gap-2 px-2.5 py-2 text-left hover:bg-[var(--surface-2)]/60 disabled:opacity-60"
                     >
@@ -970,10 +989,11 @@ export function TaskDetailModal({
                 ))}
               </ul>
             )}
-            <form onSubmit={(e) => void addSubtask(e)} className="flex gap-2">
+            {canEdit ? <form onSubmit={(e) => void addSubtask(e)} className="flex gap-2">
               <Input
+                aria-label="New subtask title"
                 value={newSubtask}
-                disabled={busy}
+                disabled={busy || !canEdit}
                 placeholder="Add a subtask…"
                 onChange={(e) => setNewSubtask(e.target.value)}
               />
@@ -986,14 +1006,14 @@ export function TaskDetailModal({
                 <Plus className="h-4 w-4" />
                 Add
               </Button>
-            </form>
+            </form> : null}
           </div>
 
           <TaskComments taskId={task.id} users={users} defaultOpen collapsible />
 
-          <TaskEvidencePanel taskId={task.id} canValidate={mode === "admin"} />
+          <TaskEvidencePanel taskId={task.id} canValidate={mode === "admin" && canEdit} />
 
-          {mode === "client" ? (
+          {mode === "client" && canEdit ? (
             <div className="flex flex-wrap gap-2">
               {task.requiresUpload ? (
                 <Link href={`/portal/documents?taskId=${encodeURIComponent(task.id)}`}>
@@ -1023,7 +1043,7 @@ export function TaskDetailModal({
                   type="button"
                   size="sm"
                   variant="secondary"
-                  disabled={busy}
+                  disabled={busy || !canEdit}
                   onClick={() => void saveField({ status: "in_progress" })}
                 >
                   Reopen

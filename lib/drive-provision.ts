@@ -5,6 +5,7 @@ import {
 } from "@/lib/composio";
 import { getStore } from "@/lib/store";
 import type { Client } from "@/types";
+import { integrationDriveFolderName, integrationProviderConfirmed, integrationProviderData, integrationProviderItems } from "@/lib/integration-job-policy";
 
 export type ProvisionedDriveFolder = {
   folderId: string;
@@ -38,65 +39,74 @@ function extractFolderInfo(result: unknown): { id: string; url: string } | null 
   return { id, url };
 }
 
-/** Folder name: `[Boatship] {companyName} — {clientName}` */
-export function clientDriveFolderName(client: Pick<Client, "name" | "companyName">) {
-  return `[Boatship] ${client.companyName} — ${client.name}`;
+/** Include the stable account ID so uncertain creates can be found on retry. */
+export function clientDriveFolderName(client: Pick<Client, "id" | "name" | "companyName">) {
+  return integrationDriveFolderName(client);
 }
 
 /**
  * Create a Google Drive folder for a client via Composio when Drive is connected.
- * Soft-fails: returns null (never throws) if Composio/Drive is missing or the tool errors.
+ * Missing connections return null. Provider or persistence failures throw so
+ * the durable integration queue can retry rather than report a false success.
  */
 export async function provisionClientDriveFolder(
   boatshipUid: string,
   client: Pick<Client, "id" | "name" | "companyName" | "driveFolderId" | "driveFolderUrl">
 ): Promise<ProvisionedDriveFolder | null> {
-  try {
-    if (!(await isComposioConfiguredForUser(boatshipUid))) return null;
-    if (client.driveFolderId) {
-      return {
-        folderId: client.driveFolderId,
-        folderUrl:
-          client.driveFolderUrl ||
-          `https://drive.google.com/drive/folders/${client.driveFolderId}`,
-        folderName: clientDriveFolderName(client),
-      };
-    }
-
-    const connections = await listBoatshipConnections(boatshipUid);
-    const drive = connections.find((c) => c.slug === "googledrive" && c.connected);
-    if (!drive) return null;
-
-    const folderName = clientDriveFolderName(client);
-    const parentId = process.env.COMPOSIO_DRIVE_PARENT_FOLDER_ID?.trim();
-    const args: Record<string, unknown> = { name: folderName };
-    if (parentId) args.parent_id = parentId;
-
-    const result = await executeTool({
-      boatshipUid,
-      toolSlug: "GOOGLEDRIVE_CREATE_FOLDER",
-      arguments: args,
-    });
-
-    const extracted = extractFolderInfo(result);
-    if (!extracted) {
-      console.error("[drive-provision] create folder returned no id", result);
-      return null;
-    }
-
-    const store = await getStore();
-    await store.updateClient(client.id, {
-      driveFolderId: extracted.id,
-      driveFolderUrl: extracted.url,
-    });
-
+  if (!(await isComposioConfiguredForUser(boatshipUid))) return null;
+  if (client.driveFolderId) {
     return {
-      folderId: extracted.id,
-      folderUrl: extracted.url,
-      folderName,
+      folderId: client.driveFolderId,
+      folderUrl:
+        client.driveFolderUrl ||
+        `https://drive.google.com/drive/folders/${client.driveFolderId}`,
+      folderName: clientDriveFolderName(client),
     };
-  } catch (err) {
-    console.error("[drive-provision] failed", err);
-    return null;
   }
+
+  const connections = await listBoatshipConnections(boatshipUid);
+  const drive = connections.find((c) => c.slug === "googledrive" && c.connected);
+  if (!drive) return null;
+
+  const folderName = clientDriveFolderName(client);
+  const parentId = process.env.COMPOSIO_DRIVE_PARENT_FOLDER_ID?.trim();
+  const escapeQuery = (value: string) => value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  const parentQuery = `'${escapeQuery(parentId || "root")}' in parents`;
+  const found = await executeTool({
+    boatshipUid,
+    toolSlug: "GOOGLEDRIVE_FIND_FILE",
+    arguments: { q: `mimeType = 'application/vnd.google-apps.folder' and name = '${escapeQuery(folderName)}' and trashed = false and ${parentQuery}`, fields: "id,name,webViewLink", pageSize: 2 },
+  });
+  if (!integrationProviderConfirmed(found)) throw new Error("Drive folder lookup did not succeed");
+  const folders = integrationProviderItems(found, ["files", "items", "results"]);
+  if (!folders) throw new Error("Drive folder lookup returned no confirmed result list");
+  const matchingFolder = folders.find((folder) => folder.name === folderName);
+  const existingFolder = matchingFolder ? extractFolderInfo(matchingFolder) : null;
+  if (matchingFolder && !existingFolder) throw new Error("Drive lookup returned a folder without its ID");
+  const args: Record<string, unknown> = { name: folderName };
+  if (parentId) args.parent_id = parentId;
+
+  const result = existingFolder ? null : await executeTool({
+    boatshipUid,
+    toolSlug: "GOOGLEDRIVE_CREATE_FOLDER",
+    arguments: args,
+  });
+
+  if (!existingFolder && !integrationProviderConfirmed(result)) throw new Error("Drive folder creation did not succeed");
+  const extracted = existingFolder || extractFolderInfo(integrationProviderData(result));
+  if (!extracted) {
+    throw new Error("Drive folder creation returned no confirmed folder ID");
+  }
+
+  const store = await getStore();
+  await store.updateClient(client.id, {
+    driveFolderId: extracted.id,
+    driveFolderUrl: extracted.url,
+  });
+
+  return {
+    folderId: extracted.id,
+    folderUrl: extracted.url,
+    folderName,
+  };
 }

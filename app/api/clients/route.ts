@@ -1,7 +1,6 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
-import { notifyIntegrations } from "@/lib/composio";
-import { provisionClientDriveFolder } from "@/lib/drive-provision";
+import { enqueueIntegrationEvent } from "@/lib/integration-jobs";
 import { getStore } from "@/lib/store";
 import { dispatchWebhooks } from "@/lib/webhooks";
 import { getRedisCacheVersion, redisCacheKey, withRedisCache } from "@/lib/redis-cache";
@@ -79,9 +78,10 @@ export async function POST(req: Request) {
       customFields?: Record<string, string>;
     };
 
-    if (!body.name?.trim() || !body.companyName?.trim() || !body.primaryContactEmail?.trim()) {
+    if (typeof body.name !== "string" || typeof body.companyName !== "string" || typeof body.primaryContactEmail !== "string" || !body.name.trim() || !body.companyName.trim() || !body.primaryContactEmail.trim()) {
       throw jsonError("name, companyName, and primaryContactEmail are required", 400);
     }
+    if (body.name.length > 255 || body.companyName.length > 255 || body.primaryContactEmail.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.primaryContactEmail.trim())) throw jsonError("Enter a valid contact email and names of at most 255 characters.", 400);
 
     const tags = Array.isArray(body.tags)
       ? body.tags.map((t) => String(t).trim()).filter(Boolean)
@@ -125,12 +125,12 @@ export async function POST(req: Request) {
       meta: { templateId, taskCount: tasks.length },
     });
 
-    void notifyIntegrations(session.uid, {
+    const integrationJobs = await enqueueIntegrationEvent(session.uid, {
       type: "client.created",
       clientId: client.id,
       clientName: client.name,
       companyName: client.companyName,
-    });
+    }, `client.created:${client.id}`);
 
     await dispatchWebhooks("client.created", {
       clientId: client.id,
@@ -139,28 +139,7 @@ export async function POST(req: Request) {
       primaryContactEmail: client.primaryContactEmail,
     });
 
-    // Soft Drive folder provision — never blocks client creation.
-    void (async () => {
-      const folder = await provisionClientDriveFolder(session.uid, client);
-      if (!folder) return;
-      try {
-        await store.addActivity({
-          clientId: client.id,
-          actorId: session.uid,
-          actorName: session.name,
-          action: "client.drive_folder",
-          meta: {
-            folderId: folder.folderId,
-            folderUrl: folder.folderUrl,
-            folderName: folder.folderName,
-          },
-        });
-      } catch (err) {
-        console.error("[clients] drive folder activity failed", err);
-      }
-    })();
-
     const progress = await store.clientProgress(client.id);
-    return { client: { ...client, ...progress }, tasks };
+    return { client: { ...client, ...progress }, tasks, integrationJobs: integrationJobs.map(({ id, kind, status }) => ({ id, kind, status })) };
   });
 }

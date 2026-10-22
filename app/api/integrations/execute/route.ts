@@ -1,6 +1,7 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
 import { executeTool, isComposioConfiguredForUser, isIntegrationTestTool } from "@/lib/composio";
+import { integrationProviderConfirmed } from "@/lib/integration-job-policy";
 
 export const runtime = "nodejs";
 
@@ -31,16 +32,9 @@ export async function POST(req: Request) {
     // Composio returns a successful HTTP response even when the provider tool
     // itself failed (for example, an expired Google connection). Convert that
     // result into an API error so the UI does not claim the action worked.
-    if (
-      result &&
-      typeof result === "object" &&
-      (result as { successful?: unknown }).successful === false
-    ) {
-      const error = (result as { error?: unknown }).error;
+    if (!integrationProviderConfirmed(result)) {
       throw jsonError(
-        typeof error === "string" && error.trim()
-          ? error
-          : "The integration could not complete that action. Reconnect it and try again.",
+        "The integration could not complete that action. Reconnect it and try again.",
         502
       );
     }

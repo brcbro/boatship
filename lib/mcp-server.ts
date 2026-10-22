@@ -13,6 +13,7 @@ import {
   visibleTasks,
 } from "@/lib/mcp-context";
 import { contextPack, runApprovedTaskAction, sessionHistory } from "@/lib/mcp-controls";
+import { staffCanUseMcpScope } from "@/lib/rbac";
 
 export const MCP_PROTOCOL_VERSION = "2024-11-05";
 
@@ -68,6 +69,7 @@ function stringArg(params: Record<string, unknown>, key: string) {
 type McpRequiredScope = "tasks:read" | "projects:read" | "context:read" | "git:validate" | "tasks:write" | "session:read";
 
 function missingScope(id: JsonRpcId, context: McpContext, scope: McpRequiredScope) {
+  if (!staffCanUseMcpScope(context.session, scope)) return error(id, -32001, "Current staff permission does not allow this action");
   return hasMcpScope(context, scope)
     ? null
     : error(id, -32001, `MCP scope required: ${scope}`);

@@ -136,7 +136,7 @@ function LoginContent() {
             {title}
           </h1>
           <p className="mt-2 text-sm text-[var(--ink-muted)]">{subtitle}</p>
-          <Link href="/" className="mt-4 inline-block text-sm font-medium text-[var(--ink-muted)] underline underline-offset-4 hover:text-[var(--ink)]">Back to Boatship home</Link>
+          <Link href="/" className="mt-4 inline-flex min-h-11 items-center text-sm font-medium text-[var(--ink-muted)] underline underline-offset-4 hover:text-[var(--ink)]">Back to Boatship home</Link>
         </div>
 
         <Card>
@@ -154,7 +154,7 @@ function LoginContent() {
                 />
               </div>
               <div>
-                <div className="flex items-center justify-between gap-3"><Label htmlFor="password">Password</Label><button type="button" className="text-sm font-medium text-[var(--ink-muted)] underline underline-offset-2 hover:text-[var(--ink)]" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Hide password" : "Show password"}>{showPassword ? "Hide" : "Show"}</button></div>
+                <div className="flex items-center justify-between gap-3"><Label htmlFor="password">Password</Label><button type="button" className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md px-2 text-sm font-medium text-[var(--ink-muted)] underline underline-offset-2 hover:text-[var(--ink)]" onClick={() => setShowPassword((value) => !value)} aria-controls="password" aria-pressed={showPassword} aria-label={showPassword ? "Hide password" : "Show password"}>{showPassword ? "Hide" : "Show"}</button></div>
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
@@ -171,7 +171,7 @@ function LoginContent() {
               </Button>
               <button
                 type="button"
-                className="w-full text-center text-sm text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                className="min-h-11 w-full rounded-md px-3 text-center text-sm text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
                 onClick={() => {
                   setError("");
                   setSuccess("");
@@ -203,7 +203,7 @@ function LoginContent() {
               </Button>
               <button
                 type="button"
-                className="w-full text-center text-sm text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                className="min-h-11 w-full rounded-md px-3 text-center text-sm text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
                 onClick={() => {
                   setError("");
                   setSuccess("");
@@ -218,7 +218,7 @@ function LoginContent() {
           {mode === "reset" ? (
             <form onSubmit={onReset} className="space-y-4">
               <div>
-                <div className="flex items-center justify-between gap-3"><Label htmlFor="new-password">New password</Label><button type="button" className="text-sm font-medium text-[var(--ink-muted)] underline underline-offset-2 hover:text-[var(--ink)]" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Hide passwords" : "Show passwords"}>{showPassword ? "Hide" : "Show"}</button></div>
+                <div className="flex items-center justify-between gap-3"><Label htmlFor="new-password">New password</Label><button type="button" className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md px-2 text-sm font-medium text-[var(--ink-muted)] underline underline-offset-2 hover:text-[var(--ink)]" onClick={() => setShowPassword((value) => !value)} aria-controls="new-password confirm-password" aria-pressed={showPassword} aria-label={showPassword ? "Hide passwords" : "Show passwords"}>{showPassword ? "Hide" : "Show"}</button></div>
                 <Input
                   id="new-password"
                   type={showPassword ? "text" : "password"}
@@ -248,7 +248,7 @@ function LoginContent() {
               </Button>
               <button
                 type="button"
-                className="w-full text-center text-sm text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                className="min-h-11 w-full rounded-md px-3 text-center text-sm text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
                 onClick={() => {
                   setError("");
                   setSuccess("");

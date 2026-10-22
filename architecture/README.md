@@ -1,6 +1,6 @@
 # Boatship architecture
 
-Last reviewed: 2026-09-25. Baseline: `dd47da8` plus the current working tree.
+Last reviewed: 2026-10-15. Describes repository history plus pending audit remediation in the current working tree.
 
 This folder is the entry point for understanding and changing Boatship. It describes the implementation visible in this repository; it is not a claim that every optional integration is configured or deployed. Read the source files linked below for exact behavior.
 
@@ -14,6 +14,10 @@ This folder is the entry point for understanding and changing Boatship. It descr
 Existing focused references: [Git integration](../docs/git-integration.md), [MCP clients](../docs/mcp-clients.md), [product integration plan](../docs/products-saas-integration-plan.md), [hosted secrets](../docs/cloudflare-secrets.md), [product principles](../PRODUCT.md), and [design record](../DESIGN.md).
 
 The [Client OS record](client-os.md) describes the account/engagement split, migration, access boundaries, and remaining rollout work.
+
+Audit implementation references: [staff permissions](permissions.md), [Neon documents and runtime scaling](document-storage.md), [forms and drafts](forms-validation-drafts.md), [durable integration jobs](integration-jobs.md), and [interface changes](interface-audit-remediation.md). These October changes are locally implemented and require the pending migration before deployment.
+
+The [audit completion record](audit-remediation.md) maps all ten findings to changes, verification, and remaining release boundaries.
 
 Operational references: [runbooks](../docs/operations/README.md) for first admin, releases, restore, and incidents; [dependency advisory triage](../docs/dependency-audit.md).
 
@@ -29,7 +33,9 @@ flowchart LR
   Next --> Relational[Prisma relational services]
   Store --> Neon[(Neon PostgreSQL)]
   Relational --> Neon
-  Next --> Composio[Composio / external apps]
+  Next --> Jobs[Durable integration queue]
+  Jobs --> Neon
+  Jobs --> Composio[Composio / external apps]
   Next --> Email[Zoho CPaaS or Resend email]
   Next --> Redis[Optional Redis REST cache]
   Next --> DO[MessageRoom Durable Object]

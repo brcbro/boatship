@@ -20,3 +20,20 @@ test("rejects missing origin for cookie mutations, but leaves safe reads alone",
   assert.equal(isCrossOriginCookieMutation(req("POST", { cookie }), "boatship_session"), true);
   assert.equal(isCrossOriginCookieMutation(req("GET", { cookie }), "boatship_session"), false);
 });
+
+test("development canonical localhost URLs retain exact loopback browser origin checks", () => {
+  const previous = process.env.NODE_ENV;
+  try {
+    process.env.NODE_ENV = "development";
+    const headers = { cookie, origin: "http://127.0.0.1:3100", host: "127.0.0.1:3100", "sec-fetch-site": "same-origin" };
+    assert.equal(isCrossOriginCookieMutation(req("POST", headers, "http://localhost:3100/api/auth/logout"), "boatship_session"), false);
+    assert.equal(isCrossOriginCookieMutation(req("POST", { ...headers, origin: "http://127.0.0.1:3200" }, "http://localhost:3100/api/auth/logout"), "boatship_session"), true);
+    assert.equal(isCrossOriginCookieMutation(req("POST", { ...headers, host: "evil.example", origin: "http://evil.example" }, "http://localhost:3100/api/auth/logout"), "boatship_session"), true);
+    assert.equal(isCrossOriginCookieMutation(req("POST", { ...headers, "sec-fetch-site": "cross-site" }, "http://localhost:3100/api/auth/logout"), "boatship_session"), true);
+    process.env.NODE_ENV = "production";
+    assert.equal(isCrossOriginCookieMutation(req("POST", headers, "http://localhost:3100/api/auth/logout"), "boatship_session"), true);
+  } finally {
+    if (previous === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = previous;
+  }
+});

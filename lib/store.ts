@@ -37,6 +37,10 @@ import { ensurePrimaryContact } from "@/lib/client-contacts";
 import { hashPassword } from "@/lib/password";
 import { bumpRedisCacheVersion } from "@/lib/redis-cache";
 import { webhookRetry } from "@/lib/webhook-retry";
+import { DEFAULT_TEAM_PERMISSIONS } from "@/lib/rbac";
+import { getRequestStoreScope } from "@/lib/store-context";
+import { applyFormSubmission, type FormSubmissionInput } from "@/lib/form-submission";
+import { applyDocumentUpload } from "@/lib/document-upload";
 import type {
   NotificationRecord as PrismaNotificationRecord,
   UserProfile as PrismaUserProfile,
@@ -111,7 +115,7 @@ function userProfileData(user: AppUser) {
     mustResetPassword: user.mustResetPassword ?? false,
     password: user.password ?? null,
     passwordHash: user.passwordHash ?? null,
-    permissions: user.permissions ?? [],
+    permissions: user.permissions ?? (user.role === "team" ? [...DEFAULT_TEAM_PERMISSIONS] : []),
     digestEnabled: user.digestEnabled ?? false,
     lastDigestAt: user.lastDigestAt ? new Date(user.lastDigestAt) : null,
   };
@@ -217,6 +221,7 @@ function migrateTask(raw: Partial<Task> & { id: string; clientId: string }): Tas
   return {
     id: raw.id,
     clientId: raw.clientId,
+    engagementId: raw.engagementId,
     title: raw.title || "",
     description: raw.description || "",
     type: raw.type || "internal",
@@ -249,6 +254,8 @@ function migrateDocument(
     id: raw.id,
     clientId: raw.clientId,
     taskId: raw.taskId ?? null,
+    engagementId: raw.engagementId ?? null,
+    contentId: raw.contentId ?? null,
     fileName: raw.fileName || "",
     storagePath: raw.storagePath || "",
     uploadedBy: raw.uploadedBy || "",
@@ -301,6 +308,7 @@ function migrateForm(raw: Partial<FormSubmission> & { id: string; clientId: stri
     clientId: raw.clientId,
     formTemplateId: raw.formTemplateId || "",
     taskId: raw.taskId ?? null,
+    engagementId: raw.engagementId ?? null,
     responses: raw.responses || {},
     status: raw.status || "not_started",
     riskScore: raw.riskScore ?? null,
@@ -523,9 +531,11 @@ export interface DataStore {
       expiryAlertSentAt?: string | null;
       versions?: DocumentRecord["versions"];
       contentBase64?: string | null;
+      id?: string;
     }
   ): Promise<DocumentRecord>;
   updateDocument(id: string, patch: Partial<DocumentRecord>): Promise<DocumentRecord>;
+  persistDocumentUpload(document: DocumentRecord, actor: { uid: string; name: string }): Promise<DocumentRecord>;
 
   listFormTemplates(): Promise<FormTemplate[]>;
   getFormTemplate(id: string): Promise<FormTemplate | null>;
@@ -546,6 +556,7 @@ export interface DataStore {
     }
   ): Promise<FormSubmission>;
   updateForm(id: string, patch: Partial<FormSubmission>): Promise<FormSubmission>;
+  submitFormOnce(input: FormSubmissionInput): Promise<FormSubmission>;
 
   listActivity(clientId: string): Promise<ActivityLog[]>;
   listAllActivity(): Promise<ActivityLog[]>;
@@ -1005,31 +1016,21 @@ class LocalStore implements DataStore {
       expiresAt?: string | null;
       expiryAlertSentAt?: string | null;
       versions?: DocumentRecord["versions"];
+      id?: string;
     }
   ) {
     return this.mutate((data) => {
       const uploadedAt = now();
       const record: DocumentRecord = {
         ...doc,
-        id: randomUUID(),
+        id: doc.id || randomUUID(),
         status: doc.status || "pending_review",
         reviewNote: doc.reviewNote || "",
         uploadedAt,
         documentType: doc.documentType ?? null,
         expiresAt: doc.expiresAt ?? null,
         expiryAlertSentAt: doc.expiryAlertSentAt ?? null,
-        versions:
-          doc.versions ||
-          [
-            {
-              storagePath: doc.storagePath,
-              fileName: doc.fileName,
-              uploadedAt,
-              uploadedBy: doc.uploadedBy,
-              contentType: doc.contentType,
-              size: doc.size,
-            },
-          ],
+        versions: doc.versions || [],
         contentBase64: doc.contentBase64 ?? null,
       };
       data.documents.push(record);
@@ -1044,6 +1045,10 @@ class LocalStore implements DataStore {
       data.documents[idx] = { ...data.documents[idx]!, ...patch, id };
       return data.documents[idx]!;
     });
+  }
+
+  async persistDocumentUpload(document: DocumentRecord, actor: { uid: string; name: string }) {
+    return this.mutate((data) => applyDocumentUpload(data, document, actor));
   }
 
   async listFormTemplates() {
@@ -1097,6 +1102,7 @@ class LocalStore implements DataStore {
         clientId: form.clientId,
         formTemplateId: form.formTemplateId,
         taskId: form.taskId,
+        engagementId: form.engagementId ?? (form.taskId ? data.tasks.find((task) => task.id === form.taskId && task.clientId === form.clientId)?.engagementId || `onboarding_${form.clientId}` : null),
         responses: form.responses || {},
         status: form.status || "not_started",
         riskScore: form.riskScore ?? null,
@@ -1122,6 +1128,10 @@ class LocalStore implements DataStore {
     return (await this.read()).activity
       .filter((a) => a.clientId === clientId)
       .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+  }
+
+  async submitFormOnce(input: FormSubmissionInput) {
+    return this.mutate((data) => applyFormSubmission(data, input));
   }
 
   async listAllActivity() {
@@ -1728,7 +1738,7 @@ class PrismaStore extends LocalStore {
     await super.deleteClientCascade(id);
     try {
       const prisma = getPrisma();
-      await prisma.$executeRaw`WITH notifications AS (DELETE FROM "NotificationRecord" WHERE "clientId" = ${id}), engagements AS (DELETE FROM "Engagement" WHERE "clientId" = ${id}), contacts AS (DELETE FROM "ClientContact" WHERE "clientId" = ${id}) DELETE FROM "UserProfile" WHERE "clientId" = ${id} AND "role" = 'client'`;
+      await prisma.$executeRaw`WITH notifications AS (DELETE FROM "NotificationRecord" WHERE "clientId" = ${id}), engagements AS (DELETE FROM "Engagement" WHERE "clientId" = ${id}), contacts AS (DELETE FROM "ClientContact" WHERE "clientId" = ${id}), files AS (DELETE FROM "DocumentContent" WHERE "clientId" = ${id}), jobs AS (DELETE FROM "IntegrationJob" WHERE "clientId" = ${id}) DELETE FROM "UserProfile" WHERE "clientId" = ${id} AND "role" = 'client'`;
     } catch (error) {
       if (!relationalStoreUnavailable(error)) throw error;
     }
@@ -1799,11 +1809,8 @@ class PrismaStore extends LocalStore {
   }
 
   protected override async read(): Promise<StoreData> {
-    // A StoreSnapshot contains the complete application store. Re-reading and
-    // decoding it for every collection lookup can exceed Cloudflare's CPU
-    // limit on pages such as global search and notifications. Reuse the
-    // in-memory snapshot for this Worker isolate; persist() refreshes it after
-    // every mutation.
+    // This store is scoped to one API request. Collection lookups reuse its
+    // snapshot, while later requests always read the latest committed state.
     if (this.cache) return this.cache;
 
     const prisma = getPrisma();
@@ -1840,19 +1847,20 @@ class PrismaStore extends LocalStore {
   }
 }
 
-let storePromise: Promise<DataStore> | null = null;
+let localStorePromise: Promise<DataStore> | null = null;
 
 export async function getStore(): Promise<DataStore> {
-  if (!storePromise) {
-    storePromise = (async () => {
-      if (process.env.DATABASE_URL?.trim()) return new PrismaStore();
-      if (process.env.ALLOW_LOCAL_STORE === "1") return new LocalStore();
-      throw new Error(
-        "Neon is not configured. Set DATABASE_URL and DIRECT_URL, or explicitly set ALLOW_LOCAL_STORE=1 for demo-only mode."
-      );
-    })();
+  if (process.env.DATABASE_URL?.trim()) {
+    const scope = getRequestStoreScope();
+    if (!scope) return new PrismaStore();
+    scope.store ??= Promise.resolve(new PrismaStore());
+    return scope.store;
   }
-  return storePromise;
+  if (process.env.ALLOW_LOCAL_STORE === "1") {
+    localStorePromise ??= Promise.resolve(new LocalStore());
+    return localStorePromise;
+  }
+  throw new Error("Neon is not configured. Set DATABASE_URL and DIRECT_URL, or explicitly set ALLOW_LOCAL_STORE=1 for demo-only mode.");
 }
 
 export type { TaskStatus, NotificationKind };

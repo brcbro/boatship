@@ -2,6 +2,9 @@ import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles, requireSession } from "@/lib/auth";
 import { canAccessClient, filterAssignedClients } from "@/lib/client-access";
 import { getStore } from "@/lib/store";
+import { getPrisma } from "@/lib/prisma";
+import { validateResourceEngagement, resourceInEngagement } from "@/lib/engagement-resources";
+import { requireStaffPermission } from "@/lib/rbac";
 import { createApproval, createMilestone, executeProjectIntegration, listProjectOps, updateApproval, weeklyEvidenceReport } from "@/lib/project-operations";
 
 export const runtime = "nodejs";
@@ -14,6 +17,12 @@ export async function GET(req: Request) {
     const clientId = session.role === "client" ? session.clientId || undefined : requestedClientId;
     if (requestedClientId && !await canAccessClient(session, requestedClientId)) throw jsonError("Forbidden", 403);
     if (clientId && !await canAccessClient(session, clientId)) throw jsonError("Forbidden", 403);
+    const selected = url.searchParams.get("engagementId");
+    if (selected && selected !== "account") {
+      const owner = clientId || (await getPrisma().engagement.findUnique({ where: { id: selected }, select: { clientId: true } }))?.clientId;
+      if (!owner || !await canAccessClient(session, owner)) throw jsonError("Forbidden", 403);
+      await validateResourceEngagement(owner, selected, undefined, true);
+    }
     const ops = await listProjectOps();
     const reports = session.role === "client" ? [] : await weeklyEvidenceReport(clientId);
     const visibleIds = session.role === "team"
@@ -22,7 +31,10 @@ export async function GET(req: Request) {
     const visible = (id: string) =>
       (session.role === "client" ? id === session.clientId : !clientId || id === clientId) &&
       (!visibleIds || visibleIds.has(id));
-    return { ...ops, milestones: ops.milestones.filter((item) => visible(item.clientId)), approvals: ops.approvals.filter((item) => visible(item.clientId)), reports: reports.filter((item) => visible(item.clientId)) };
+    const tasks = clientId ? await (await getStore()).listTasks(clientId) : [];
+    const includeAccountWide = url.searchParams.get("includeAccountWide") === "1" || url.searchParams.get("includeAccountWide") === "true";
+    const scoped = (item: { clientId: string; engagementId?: string | null }) => visible(item.clientId) && resourceInEngagement(item, tasks, selected, includeAccountWide);
+    return { workspace: session.role === "client" ? undefined : ops.workspace, milestones: ops.milestones.filter(scoped), approvals: ops.approvals.filter(scoped), schedules: ops.schedules.filter((item) => visible(item.clientId)), reports: reports.filter((item) => visible(item.clientId)) };
   });
 }
 
@@ -36,12 +48,21 @@ export async function POST(req: Request) {
     if (action === "milestone") {
       await requireRoles(req, ["admin", "team"]);
       if (!clientId || !String(body.title || "").trim()) throw jsonError("clientId and title are required", 400);
-      return { milestone: await createMilestone({ clientId, title: String(body.title).trim(), description: String(body.description || "").trim(), dueDate: body.dueDate ? String(body.dueDate) : null, status: "planned", taskIds: Array.isArray(body.taskIds) ? body.taskIds.map(String) : [] }) };
+      const taskIds = Array.isArray(body.taskIds) ? body.taskIds.map(String) : [];
+      const engagementId = await validateResourceEngagement(clientId, body.engagementId, taskIds[0]);
+      for (const id of taskIds.slice(1)) {
+        const linked = await validateResourceEngagement(clientId, engagementId, id);
+        if (linked !== engagementId) throw jsonError("Milestone tasks must share one engagement.", 400);
+      }
+      const dueDate = body.dueDate ? String(body.dueDate) : null;
+      if (dueDate && Number.isNaN(Date.parse(dueDate))) throw jsonError("Choose a valid due date.", 400);
+      return { milestone: await createMilestone({ clientId, engagementId, title: String(body.title).trim(), description: String(body.description || "").trim(), dueDate, status: "planned", taskIds }) };
     }
     if (action === "approval") {
       if (!clientId || !String(body.subject || "").trim()) throw jsonError("clientId and subject are required", 400);
       if (session.role !== "client") await requireRoles(req, ["admin", "team"]);
-      return { approval: await createApproval({ clientId, subject: String(body.subject).trim(), description: String(body.description || "").trim(), kind: body.kind === "design" || body.kind === "release" ? body.kind : "document", requestedBy: session.uid }) };
+      const engagementId = await validateResourceEngagement(clientId, body.engagementId);
+      return { approval: await createApproval({ clientId, engagementId, subject: String(body.subject).trim(), description: String(body.description || "").trim(), kind: body.kind === "design" || body.kind === "release" ? body.kind : "document", requestedBy: session.uid }) };
     }
     if (action === "approval-review") {
       await requireRoles(req, ["admin", "team", "client"]);
@@ -54,6 +75,7 @@ export async function POST(req: Request) {
       const approval = (await listProjectOps()).approvals.find((item) => item.id === approvalId);
       if (!approval) throw jsonError("Approval not found", 404);
       if (!await canAccessClient(session, approval.clientId)) throw jsonError("Forbidden", 403);
+      await validateResourceEngagement(approval.clientId, approval.engagementId);
       if (approval.status !== "pending") throw jsonError("This approval has already been reviewed", 409);
       const updated = await updateApproval(approvalId, status, session.uid, reviewNote || null);
       if (!updated) throw jsonError("This approval has already been reviewed", 409);
@@ -61,6 +83,7 @@ export async function POST(req: Request) {
     }
     if (action === "integration") {
       await requireRoles(req, ["admin", "team"]);
+      requireStaffPermission(session, "integrations.manage");
       const integration = body.integration;
       if (integration !== "calendar" && integration !== "docs" && integration !== "sheets" && integration !== "telegram") throw jsonError("Unsupported integration", 400);
       return { integration: await executeProjectIntegration({ userId: session.uid, action: integration, arguments: (body.arguments && typeof body.arguments === "object" ? body.arguments : {}) as Record<string, unknown> }) };

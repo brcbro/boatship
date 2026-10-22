@@ -1,4 +1,5 @@
 import type { AuthSession } from "@/types";
+import { hasPermission } from "@/lib/rbac";
 import {
   executeTool,
   isComposioConfiguredForUser,
@@ -89,7 +90,7 @@ function validate(payload: Payload): CalendarInput {
 }
 
 async function requireGoogleCalendar(session: AuthSession) {
-  if (session.role !== "admin" && session.role !== "team") throw new Error("Forbidden");
+  if (!hasPermission(session, "integrations.manage")) throw new Error("Forbidden");
   if (!(await isComposioConfiguredForUser(session.uid))) {
     throw new Error("Composio is not configured for this user or the server");
   }

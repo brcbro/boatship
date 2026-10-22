@@ -20,6 +20,8 @@ import {
 import { apiFetch } from "@/lib/api-client";
 import { formatDate, formatDateTime, statusLabel } from "@/lib/utils";
 import { TaskBoard } from "@/components/shared/TaskBoard";
+import { DocumentViewer } from "@/components/shared/DocumentViewer";
+import { hasPermission } from "@/lib/rbac";
 import { ClientWorkspaceNav } from "@/components/clients/ClientWorkspaceNav";
 import type {
   ClientStatus,
@@ -94,7 +96,10 @@ export default function ClientDetailPage() {
   const params = useParams();
   const router = useRouter();
   const id = String(params.id || "");
-  const { token } = useAuth();
+  const { token, session } = useAuth();
+  const canManageClient = !!session && hasPermission(session, "clients.manage");
+  const canReviewDocuments = !!session && hasPermission(session, "documents.review");
+  const canReviewForms = !!session && hasPermission(session, "forms.review");
 
   const [tab, setTab] = useState<Tab>("overview");
   const [client, setClient] = useState<ClientWithProgress | null>(null);
@@ -112,6 +117,8 @@ export default function ClientDetailPage() {
   const [contactEmail, setContactEmail] = useState("");
   const [contactRole, setContactRole] = useState<Contact["role"]>("contributor");
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
+  const [documentScope, setDocumentScope] = useState("all");
+  const [includeAccountDocuments, setIncludeAccountDocuments] = useState(true);
   const [documentCheckedAt, setDocumentCheckedAt] = useState(() => Date.now());
   const [selectedDocs, setSelectedDocs] = useState<Set<string>>(new Set());
   const [forms, setForms] = useState<FormSubmission[]>([]);
@@ -143,6 +150,7 @@ export default function ClientDetailPage() {
 
   // Document review notes
   const [docNotes, setDocNotes] = useState<Record<string, string>>({});
+  const visibleDocuments = documents.filter((document) => documentScope === "all" || (documentScope === "account" ? !document.engagementId : document.engagementId === documentScope || includeAccountDocuments && !document.engagementId));
 
   // Form review
   const [formNotes, setFormNotes] = useState<Record<string, string>>({});
@@ -758,7 +766,7 @@ export default function ClientDetailPage() {
       <PageHeader
         title={client.name}
         description={`${client.companyName} · ${client.primaryContactEmail}`}
-        actions={
+        actions={canManageClient ?
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
@@ -791,15 +799,15 @@ export default function ClientDetailPage() {
             <Button type="button" onClick={() => void inviteClient()} disabled={busy}>
               Invite client
             </Button>
-          </div>
+          </div> : undefined
         }
       />
 
       {message ? (
-        <p className="mb-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{message}</p>
+        <p role="status" className="mb-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{message}</p>
       ) : null}
       {error ? (
-        <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>
+        <p role="alert" className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>
       ) : null}
 
       <ClientWorkspaceNav active={tab} onChange={(next) => setTab(next as Tab)} />
@@ -810,10 +818,11 @@ export default function ClientDetailPage() {
             <h2 className="mb-4 font-[family-name:var(--font-display)] text-lg">Account owner</h2>
             <div className="space-y-4">
               <div>
-                <Label>Assigned team member</Label>
+                <Label htmlFor="account-owner">Assigned team member</Label>
                 <Dropdown
+                  id="account-owner"
                   value={client.assignedTeamMemberId || ""}
-                  disabled={busy}
+                  disabled={busy || !canManageClient}
                   onChange={(v) => void patchClient({ assignedTeamMemberId: v || null })}
                   options={[
                     { value: "", label: "Unassigned" },
@@ -893,8 +902,8 @@ export default function ClientDetailPage() {
             <h2 className="font-[family-name:var(--font-display)] text-lg">Legacy onboarding controls</h2>
             <p className="mb-4 text-sm text-[var(--ink-muted)]">These fields describe the original onboarding record. Use engagement status for newer work.</p>
             <div className="grid gap-4 sm:grid-cols-2">
-              <div><Label>Status</Label><Dropdown value={client.status} disabled={busy} onChange={(status) => void patchClient({ status: status as ClientStatus })} options={(["not_started", "in_progress", "completed", "on_hold"] as ClientStatus[]).map((status) => ({ value: status, label: statusLabel(status) }))} /></div>
-              <div><Label>Pipeline stage</Label><Dropdown value={client.pipelineStage || "intake"} disabled={busy} onChange={(pipelineStage) => void patchClient({ pipelineStage: pipelineStage as PipelineStage })} options={PIPELINE_STAGES.map((stage) => ({ value: stage, label: statusLabel(stage) }))} /></div>
+              <div><Dropdown label="Status" value={client.status} disabled={busy || !canManageClient} onChange={(status) => void patchClient({ status: status as ClientStatus })} options={(["not_started", "in_progress", "completed", "on_hold"] as ClientStatus[]).map((status) => ({ value: status, label: statusLabel(status) }))} /></div>
+              <div><Dropdown label="Pipeline stage" value={client.pipelineStage || "intake"} disabled={busy || !canManageClient} onChange={(pipelineStage) => void patchClient({ pipelineStage: pipelineStage as PipelineStage })} options={PIPELINE_STAGES.map((stage) => ({ value: stage, label: statusLabel(stage) }))} /></div>
             </div>
           </Card>
 
@@ -907,6 +916,7 @@ export default function ClientDetailPage() {
                 <Label htmlFor="tags">Tags</Label>
                 <Input
                   id="tags"
+                  readOnly={!canManageClient}
                   value={tagsInput}
                   onChange={(e) => setTagsInput(e.target.value)}
                   placeholder="Comma-separated tags"
@@ -926,6 +936,7 @@ export default function ClientDetailPage() {
                 <Label htmlFor="vesselImo">Vessel IMO</Label>
                 <Input
                   id="vesselImo"
+                  readOnly={!canManageClient}
                   value={vesselImo}
                   onChange={(e) => setVesselImo(e.target.value)}
                   disabled={busy}
@@ -935,17 +946,18 @@ export default function ClientDetailPage() {
                 <Label htmlFor="flag">Flag</Label>
                 <Input
                   id="flag"
+                  readOnly={!canManageClient}
                   value={flag}
                   onChange={(e) => setFlag(e.target.value)}
                   disabled={busy}
                 />
               </div>
             </div>
-            <div className="mt-4">
+            {canManageClient ? <div className="mt-4">
               <Button type="button" disabled={busy} onClick={() => void saveTagsAndFields()}>
                 Save tags & fields
               </Button>
-            </div>
+            </div> : null}
             {Object.entries(client.customFields || {}).some(([key]) => key !== "Vessel IMO" && key !== "Flag") ? (
               <div className="mt-5 border-t border-[var(--border)] pt-4">
                 <p className="mb-3 text-xs font-medium uppercase tracking-wide text-[var(--ink-muted)]">
@@ -971,7 +983,7 @@ export default function ClientDetailPage() {
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-[var(--ink-muted)]">Separate projects and ongoing service for this account.</p>
-            <Button type="button" disabled={busy} onClick={() => setEngagementOpen(true)}>New engagement</Button>
+            {canManageClient ? <Button type="button" disabled={busy} onClick={() => setEngagementOpen(true)}>New engagement</Button> : null}
           </div>
           {engagements.length === 0 ? <EmptyState title="No engagements yet" description="Create an engagement to organize this client’s work." /> : (
             <div className="grid gap-4 lg:grid-cols-2">
@@ -988,7 +1000,7 @@ export default function ClientDetailPage() {
                   <ProgressBar value={engagement.progress} />
                   <p className="mt-3 text-xs text-[var(--ink-muted)]">Owner: {users.find((user) => user.uid === engagement.ownerId)?.name || "Unassigned"}{engagement.targetDate ? ` · Target ${formatDate(engagement.targetDate)}` : ""}</p>
                   <div className="mt-4 flex flex-wrap items-end gap-3">
-                    <div className="min-w-40 flex-1">{engagement.id === `onboarding_${id}` ? <p className="text-sm text-[var(--ink-muted)]">Onboarding status is managed in the legacy controls on the Account tab.</p> : <><Label>Status</Label><Dropdown value={engagement.status} disabled={busy} onChange={(status) => void updateEngagement(engagement.id, { status })} options={(["planned", "active", "paused", "completed", "cancelled"] as Engagement["status"][]).map((status) => ({ value: status, label: statusLabel(status) }))} /></>}</div>
+                    <div className="min-w-40 flex-1">{engagement.id === `onboarding_${id}` ? <p className="text-sm text-[var(--ink-muted)]">Onboarding status is managed in the legacy controls on the Account tab.</p> : <><Dropdown label="Status" value={engagement.status} disabled={busy || !canManageClient} onChange={(status) => void updateEngagement(engagement.id, { status })} options={(["planned", "active", "paused", "completed", "cancelled"] as Engagement["status"][]).map((status) => ({ value: status, label: statusLabel(status) }))} /></>}</div>
                     <Button type="button" variant="secondary" onClick={() => { setSelectedEngagementId(engagement.id); setTab("tasks"); }}>Open tasks</Button>
                   </div>
                 </Card>
@@ -1002,13 +1014,13 @@ export default function ClientDetailPage() {
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div><p className="text-sm text-[var(--ink-muted)]">Account contact directory. Adding a contact does not create portal access.</p><p className="text-xs text-[var(--ink-muted)]">Use Invite client above to send a portal invitation to the primary contact.</p></div>
-            <Button type="button" disabled={busy} onClick={() => setContactOpen(true)}>Add contact</Button>
+            {canManageClient ? <Button type="button" disabled={busy} onClick={() => setContactOpen(true)}>Add contact</Button> : null}
           </div>
           {contacts.length === 0 ? <EmptyState title="No contacts yet" description="Add a contact to keep account details together." /> : (
             <div className="grid gap-3 lg:grid-cols-2">
               {contacts.map((contact) => <Card key={contact.id}>
-                <div className="flex items-start justify-between gap-3"><div><h2 className="font-semibold">{contact.name}</h2><p className="break-all text-sm text-[var(--ink-muted)]">{contact.email}</p></div><Button type="button" variant="ghost" disabled={busy} onClick={() => void deleteContact(contact.id)}>Remove</Button></div>
-                <div className="mt-4"><Label>Directory role</Label><Dropdown value={contact.role} disabled={busy} onChange={(role) => void updateContact(contact.id, role as Contact["role"])} options={[{ value: "account_admin", label: "Account admin" }, { value: "contributor", label: "Contributor" }, { value: "viewer", label: "Viewer" }]} /></div>
+                <div className="flex items-start justify-between gap-3"><div><h2 className="font-semibold">{contact.name}</h2><p className="break-all text-sm text-[var(--ink-muted)]">{contact.email}</p></div>{canManageClient ? <Button type="button" variant="ghost" disabled={busy} onClick={() => void deleteContact(contact.id)}>Remove</Button> : null}</div>
+                <div className="mt-4"><Dropdown label="Directory role" value={contact.role} disabled={busy || !canManageClient} onChange={(role) => void updateContact(contact.id, role as Contact["role"])} options={[{ value: "account_admin", label: "Account admin" }, { value: "contributor", label: "Contributor" }, { value: "viewer", label: "Viewer" }]} /></div>
               </Card>)}
             </div>
           )}
@@ -1017,9 +1029,10 @@ export default function ClientDetailPage() {
 
       {tab === "tasks" ? (
         <div className="space-y-4">
-          <div className="max-w-md"><Label>Engagement</Label><Dropdown value={selectedEngagementId} onChange={setSelectedEngagementId} options={engagements.map((engagement) => ({ value: engagement.id, label: `${engagement.name} · ${statusLabel(engagement.status)}` }))} /></div>
+          <div className="max-w-md"><Dropdown label="Engagement" value={selectedEngagementId} onChange={setSelectedEngagementId} options={engagements.map((engagement) => ({ value: engagement.id, label: `${engagement.name} · ${statusLabel(engagement.status)}` }))} /></div>
           <TaskBoard
           mode="admin"
+          canEdit={canManageClient}
           tasks={tasks.filter((task) => task.engagementId === selectedEngagementId)}
           busy={busy}
           users={users}
@@ -1032,27 +1045,29 @@ export default function ClientDetailPage() {
       ) : null}
 
       {tab === "documents" ? (
-        documents.length === 0 ? (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-end gap-3"><div className="w-full sm:max-w-md"><Label htmlFor="document-scope">Show documents for</Label><Dropdown id="document-scope" value={documentScope} onChange={(value) => { setDocumentScope(value); setSelectedDocs(new Set()); }} options={[{ value: "all", label: "All engagements and account files" }, { value: "account", label: "Account-wide files" }, ...engagements.map((engagement) => ({ value: engagement.id, label: engagement.name }))]} /></div>{documentScope !== "all" && documentScope !== "account" ? <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={includeAccountDocuments} onChange={(event) => { setIncludeAccountDocuments(event.target.checked); setSelectedDocs(new Set()); }} />Include account-wide files</label> : null}</div>
+        {visibleDocuments.length === 0 ? (
           <EmptyState
             title="No documents"
             description="Documents uploaded by the client will appear here for review."
           />
         ) : (
           <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <label className="flex items-center gap-2 text-sm text-[var(--ink)]">
+            {canReviewDocuments ? <div className="flex flex-wrap items-center gap-2">
+              <label className="flex min-h-11 items-center gap-2 text-sm text-[var(--ink)]">
                 <input
                   type="checkbox"
-                  checked={documents.length > 0 && documents.every((d) => selectedDocs.has(d.id))}
+                  checked={visibleDocuments.length > 0 && visibleDocuments.every((d) => selectedDocs.has(d.id))}
                   onChange={() => {
-                    if (documents.every((d) => selectedDocs.has(d.id))) {
+                    if (visibleDocuments.every((d) => selectedDocs.has(d.id))) {
                       setSelectedDocs(new Set());
                     } else {
-                      setSelectedDocs(new Set(documents.map((d) => d.id)));
+                      setSelectedDocs(new Set(visibleDocuments.map((d) => d.id)));
                     }
                   }}
                 />
-                Select all
+                Select visible files
               </label>
               <Button
                 type="button"
@@ -1071,12 +1086,12 @@ export default function ClientDetailPage() {
               >
                 Reject selected
               </Button>
-            </div>
-            {documents.map((doc) => (
+            </div> : <p className="text-sm text-[var(--ink-muted)]">You can view files and review notes. Document review permission is required to approve or reject files.</p>}
+            {visibleDocuments.map((doc) => (
               <Card key={doc.id}>
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex min-w-0 items-start gap-3">
-                    <input
+                    {canReviewDocuments ? <input
                       type="checkbox"
                       className="mt-1"
                       checked={selectedDocs.has(doc.id)}
@@ -1089,15 +1104,16 @@ export default function ClientDetailPage() {
                         });
                       }}
                       aria-label={`Select ${doc.fileName}`}
-                    />
-                    <div>
-                      <p className="font-medium text-[var(--ink)]">{doc.fileName}</p>
+                    /> : null}
+                    <div className="min-w-0">
+                      <p className="break-words font-medium text-[var(--ink)]">{doc.fileName}</p>
                       <p className="text-xs text-[var(--ink-muted)]">
                         Uploaded {formatDateTime(doc.uploadedAt)} · {(doc.size / 1024).toFixed(1)} KB
-                        {doc.versions && doc.versions.length > 1
-                          ? ` · ${doc.versions.length} versions`
+                        {doc.versions && doc.versions.length > 0
+                          ? ` · ${doc.versions.length + 1} versions`
                           : ""}
                       </p>
+                      <p className="mt-1 text-sm text-[var(--ink-muted)]">{doc.engagementId ? engagements.find((engagement) => engagement.id === doc.engagementId)?.name || "Historical engagement" : "Account-wide file"}</p>
                       {(doc.documentType || doc.expiresAt) && (
                         <p className="mt-1 text-xs text-[var(--ink-muted)]">
                           {doc.documentType ? (
@@ -1120,7 +1136,8 @@ export default function ClientDetailPage() {
                   </div>
                   <Badge tone={statusTone(doc.status)}>{statusLabel(doc.status)}</Badge>
                 </div>
-                <div className="mb-3">
+                <DocumentViewer document={doc} token={token} canReplace={canManageClient} onReplaced={(replacement) => { setDocuments((previous) => previous.map((document) => document.id === replacement.id ? replacement : document)); setDocNotes((previous) => ({ ...previous, [replacement.id]: "" })); }} />
+                {canReviewDocuments ? <div className="mb-3">
                   <Label htmlFor={`note-${doc.id}`}>Review note</Label>
                   <Textarea
                     id={`note-${doc.id}`}
@@ -1130,15 +1147,15 @@ export default function ClientDetailPage() {
                       setDocNotes((prev) => ({ ...prev, [doc.id]: e.target.value }))
                     }
                   />
-                </div>
-                <div className="flex flex-wrap gap-2">
+                </div> : doc.reviewNote ? <p className="mb-3 text-sm text-[var(--ink-muted)]">Review note: {doc.reviewNote}</p> : null}
+                {canReviewDocuments ? <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"
                     size="sm"
                     disabled={busy}
                     onClick={() => void reviewDocument(doc.id, "approved")}
                   >
-                    Approve
+                    Approve current file
                   </Button>
                   <Button
                     type="button"
@@ -1147,7 +1164,7 @@ export default function ClientDetailPage() {
                     disabled={busy}
                     onClick={() => void reviewDocument(doc.id, "rejected")}
                   >
-                    Reject
+                    Reject current file
                   </Button>
                   {doc.status !== "pending_review" ? (
                     <Button
@@ -1160,11 +1177,12 @@ export default function ClientDetailPage() {
                       Reset to pending
                     </Button>
                   ) : null}
-                </div>
+                </div> : null}
               </Card>
             ))}
           </div>
-        )
+        )}
+        </div>
       ) : null}
 
       {tab === "forms" ? (
@@ -1253,13 +1271,13 @@ export default function ClientDetailPage() {
                     >
                       Close
                     </Button>
-                    <Button
+                    {canReviewForms ? <Button
                       type="button"
                       disabled={busy || reviewingForm.status === "reviewed"}
                       onClick={() => void reviewForm(reviewingForm.id)}
                     >
                       {reviewingForm.status === "reviewed" ? "Reviewed" : "Mark reviewed"}
-                    </Button>
+                    </Button> : null}
                   </>
                 ) : null
               }
@@ -1337,7 +1355,7 @@ export default function ClientDetailPage() {
                           [reviewingForm.id]: e.target.value,
                         }))
                       }
-                      disabled={reviewingForm.status === "reviewed"}
+                      disabled={!canReviewForms || reviewingForm.status === "reviewed"}
                     />
                   </div>
                 </div>
@@ -1353,19 +1371,19 @@ export default function ClientDetailPage() {
             <p className="text-sm text-[var(--ink-muted)]">
               {vessels.length} vessel{vessels.length === 1 ? "" : "s"} registered
             </p>
-            <Button type="button" size="sm" onClick={openNewVessel} disabled={busy}>
+            {canManageClient ? <Button type="button" size="sm" onClick={openNewVessel} disabled={busy}>
               Add vessel
-            </Button>
+            </Button> : null}
           </div>
 
           {vessels.length === 0 ? (
             <EmptyState
               title="No vessels yet"
               description="Add vessels with IMO, flag, type, and class society."
-              action={
+              action={canManageClient ?
                 <Button type="button" onClick={openNewVessel}>
                   Add vessel
-                </Button>
+                </Button> : undefined
               }
             />
           ) : (
@@ -1392,14 +1410,14 @@ export default function ClientDetailPage() {
                         <dd className="truncate text-[var(--ink)]">{vessel.notes || "—"}</dd>
                       </div>
                     </dl>
-                    <div className="mt-4 grid grid-cols-2 gap-2">
+                    {canManageClient ? <div className="mt-4 grid grid-cols-2 gap-2">
                       <Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => openEditVessel(vessel)}>
                         Edit
                       </Button>
                       <Button type="button" size="sm" variant="danger" disabled={busy} onClick={() => void deleteVessel(vessel.id)}>
                         Delete
                       </Button>
-                    </div>
+                    </div> : null}
                   </Card>
                 ))}
               </div>
@@ -1434,7 +1452,7 @@ export default function ClientDetailPage() {
                         </td>
                         <td className="px-5 py-3 text-right">
                           <div className="flex justify-end gap-2">
-                            <Button
+                            {canManageClient ? <><Button
                               type="button"
                               size="sm"
                               variant="secondary"
@@ -1451,7 +1469,7 @@ export default function ClientDetailPage() {
                               onClick={() => void deleteVessel(vessel.id)}
                             >
                               Delete
-                            </Button>
+                            </Button></> : null}
                           </div>
                         </td>
                       </tr>
@@ -1464,7 +1482,7 @@ export default function ClientDetailPage() {
           )}
 
           <Modal
-            open={vesselModalOpen}
+            open={vesselModalOpen && canManageClient}
             onClose={() => setVesselModalOpen(false)}
             title={editingVesselId ? "Edit vessel" : "Add vessel"}
             description="IMO, flag, type, class society, and notes."
@@ -1598,7 +1616,7 @@ export default function ClientDetailPage() {
       ) : null}
 
       <Modal
-        open={contactOpen}
+        open={contactOpen && canManageClient}
         onClose={() => setContactOpen(false)}
         title="Add contact"
         description="Directory entries do not grant portal access."
@@ -1607,12 +1625,12 @@ export default function ClientDetailPage() {
         <div className="space-y-4">
           <div><Label htmlFor="contact-name">Name</Label><Input id="contact-name" value={contactName} onChange={(event) => setContactName(event.target.value)} maxLength={160} /></div>
           <div><Label htmlFor="contact-email">Email</Label><Input id="contact-email" type="email" value={contactEmail} onChange={(event) => setContactEmail(event.target.value)} /></div>
-          <div><Label>Directory role</Label><Dropdown value={contactRole} onChange={(role) => setContactRole(role as Contact["role"])} options={[{ value: "account_admin", label: "Account admin" }, { value: "contributor", label: "Contributor" }, { value: "viewer", label: "Viewer" }]} /></div>
+          <div><Dropdown label="Directory role" value={contactRole} onChange={(role) => setContactRole(role as Contact["role"])} options={[{ value: "account_admin", label: "Account admin" }, { value: "contributor", label: "Contributor" }, { value: "viewer", label: "Viewer" }]} /></div>
         </div>
       </Modal>
 
       <Modal
-        open={engagementOpen}
+        open={engagementOpen && canManageClient}
         onClose={() => setEngagementOpen(false)}
         title="New engagement"
         description="Add another piece of work under this client account."
@@ -1620,13 +1638,13 @@ export default function ClientDetailPage() {
       >
         <div className="space-y-4">
           <div><Label htmlFor="engagement-name">Name</Label><Input id="engagement-name" value={engagementName} onChange={(event) => setEngagementName(event.target.value)} maxLength={160} placeholder="e.g. Website relaunch" /></div>
-          <div><Label>Type</Label><Dropdown value={engagementType} onChange={(value) => setEngagementType(value as Engagement["type"])} options={[{ value: "onboarding", label: "Onboarding" }, { value: "project", label: "Project" }, { value: "ongoing_service", label: "Ongoing service" }]} /></div>
+          <div><Dropdown label="Type" value={engagementType} onChange={(value) => setEngagementType(value as Engagement["type"])} options={[{ value: "onboarding", label: "Onboarding" }, { value: "project", label: "Project" }, { value: "ongoing_service", label: "Ongoing service" }]} /></div>
           <div><Label htmlFor="engagement-target">Target date (optional)</Label><Input id="engagement-target" type="date" value={engagementTargetDate} onChange={(event) => setEngagementTargetDate(event.target.value)} /></div>
         </div>
       </Modal>
 
       <Modal
-        open={cloneOpen}
+        open={cloneOpen && canManageClient}
         onClose={() => setCloneOpen(false)}
         title="Clone client"
         description="Creates a new client with the same tags and fields, regenerates tasks from the template, and resets pipeline to intake."
@@ -1654,7 +1672,7 @@ export default function ClientDetailPage() {
       </Modal>
 
       <Modal
-        open={pauseOpen}
+        open={pauseOpen && canManageClient}
         onClose={() => setPauseOpen(false)}
         title="Pause onboarding"
         description="Client status will move to On Hold until resumed."

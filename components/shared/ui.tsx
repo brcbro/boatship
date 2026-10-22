@@ -103,6 +103,9 @@ export function Dropdown({
   disabled,
   className,
   ariaLabel,
+  label,
+  id,
+  ...props
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -111,11 +114,18 @@ export function Dropdown({
   disabled?: boolean;
   className?: string;
   ariaLabel?: string;
-}) {
+  label?: string;
+} & Omit<React.SelectHTMLAttributes<HTMLSelectElement>, "value" | "onChange" | "className" | "disabled">) {
+  const generatedId = useId();
+  const controlId = id || (label ? generatedId : undefined);
   const hasEmptyOption = options.some((option) => option.value === "");
   return (
+    <>
+    {label ? <Label htmlFor={controlId}>{label}</Label> : null}
     <Select
-        aria-label={ariaLabel || placeholder}
+        {...props}
+        id={controlId}
+        aria-label={props["aria-label"] || ariaLabel || (!controlId && !props["aria-labelledby"] ? placeholder : undefined)}
         className={className}
         value={value}
         disabled={disabled}
@@ -128,6 +138,7 @@ export function Dropdown({
           </option>
         ))}
     </Select>
+    </>
   );
 }
 

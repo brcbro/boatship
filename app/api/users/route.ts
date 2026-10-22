@@ -2,7 +2,7 @@ import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
 import { getStore } from "@/lib/store";
 import { getRedisCacheVersion, withRedisCache } from "@/lib/redis-cache";
-import type { StaffPermission } from "@/types";
+import { effectiveStaffPermissions, parseStaffPermissions } from "@/lib/rbac";
 
 export const runtime = "nodejs";
 
@@ -21,7 +21,8 @@ export async function GET(req: Request) {
           email: u.email,
           name: u.name,
           role: u.role,
-          permissions: u.permissions || [],
+          permissions: u.permissions,
+          effectivePermissions: effectiveStaffPermissions(u),
         }))
         .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -36,14 +37,14 @@ export async function PATCH(req: Request) {
     await requireRoles(req, ["admin"]);
     const body = (await req.json().catch(() => ({}))) as {
       uid?: string;
-      permissions?: StaffPermission[];
+      permissions?: unknown;
     };
 
     const uid = (body.uid || "").trim();
     if (!uid) throw jsonError("uid is required", 400);
-    if (!Array.isArray(body.permissions)) {
-      throw jsonError("permissions must be an array", 400);
-    }
+    let permissions;
+    try { permissions = parseStaffPermissions(body.permissions); }
+    catch { throw jsonError("permissions must be an array of known staff permissions", 400); }
 
     const store = await getStore();
     const user = await store.getUser(uid);
@@ -54,7 +55,7 @@ export async function PATCH(req: Request) {
 
     const updated = await store.upsertUser({
       ...user,
-      permissions: body.permissions,
+      permissions,
     });
 
     return {
@@ -63,7 +64,8 @@ export async function PATCH(req: Request) {
         email: updated.email,
         name: updated.name,
         role: updated.role,
-        permissions: updated.permissions || [],
+        permissions: updated.permissions,
+        effectivePermissions: effectiveStaffPermissions(updated),
       },
     };
   });

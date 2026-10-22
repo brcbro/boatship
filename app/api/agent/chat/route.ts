@@ -11,6 +11,7 @@ import type { AgentChatMessage } from "@/types";
 import { BOATSHIP_AGENT_SYSTEM, getAgentModel, isLlmConfiguredForUser } from "@/lib/agent";
 import { internalErrorResponse, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
+import { hasPermission } from "@/lib/rbac";
 import { buildBoatshipRagContext } from "@/lib/boatship-rag";
 import { createBoatshipAgentSession, isComposioConfiguredForUser } from "@/lib/composio";
 import { getStore } from "@/lib/store";
@@ -136,7 +137,7 @@ export async function POST(req: Request) {
     let composioSession: Awaited<ReturnType<typeof createBoatshipAgentSession>> | null = null;
     let connectedTools = {};
     let composioInstructions: string | undefined;
-    if (await isComposioConfiguredForUser(session.uid)) {
+    if (hasPermission(session, "integrations.manage") && await isComposioConfiguredForUser(session.uid)) {
       try {
         composioSession = await createBoatshipAgentSession(session.uid, req);
         connectedTools = await composioSession.tools();

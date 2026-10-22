@@ -27,45 +27,48 @@ import {
   Webhook,
   KeyRound,
   X,
+  ChevronDown,
 } from "lucide-react";
 import { useAuth } from "@/components/shared/AuthProvider";
 import { CommandPalette } from "@/components/shared/CommandPalette";
 import { NotificationBell } from "@/components/shared/NotificationBell";
 import { Button } from "@/components/shared/ui";
 import { cn, statusLabel } from "@/lib/utils";
+import { hasPermission } from "@/lib/rbac";
+import type { StaffPermission } from "@/types";
 import type { LucideIcon } from "lucide-react";
 
-type NavItem = { href: string; label: string; icon: LucideIcon; adminOnly?: boolean };
-type NavGroup = { label: string; items: readonly NavItem[] };
+type NavItem = { href: string; label: string; icon: LucideIcon; adminOnly?: boolean; permission?: StaffPermission };
+type NavGroup = { label: string; items: readonly NavItem[]; collapsible?: boolean };
 
 const NAV_GROUPS: readonly NavGroup[] = [
   { label: "Today", items: [
     { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
     { href: "/tasks", label: "Approval queue", icon: ClipboardCheck },
     { href: "/messages", label: "Messages", icon: MessageSquare },
-    { href: "/reminders", label: "Reminder scan", icon: BellRing },
+    { href: "/calendar", label: "Calendar", icon: CalendarDays },
   ] },
   { label: "Client delivery", items: [
-    { href: "/clients", label: "Clients", icon: Users },
-    { href: "/projects", label: "Projects", icon: ClipboardCheck },
-    { href: "/workspace", label: "Workspace", icon: UsersRound },
-    { href: "/calendar", label: "Calendar", icon: CalendarDays },
+    { href: "/clients", label: "Client accounts", icon: Users },
+    { href: "/projects", label: "Project operations", icon: ClipboardCheck },
     { href: "/forms", label: "Forms", icon: FileText },
+    { href: "/reminders", label: "Reminder scan", icon: BellRing },
   ] },
   { label: "Products", items: [{ href: "/products", label: "Products", icon: Boxes }] },
   { label: "Team and insight", items: [
     { href: "/team", label: "Team", icon: UsersRound },
     { href: "/workload", label: "Workload", icon: Gauge },
-    { href: "/analytics", label: "Analytics", icon: BarChart3 },
+    { href: "/analytics", label: "Analytics", icon: BarChart3, permission: "analytics.view" },
     { href: "/accounting", label: "Accounting", icon: WalletCards, adminOnly: true },
   ] },
-  { label: "Tools and settings", items: [
-    { href: "/templates", label: "Templates", icon: ClipboardCheck },
+  { label: "Tools and settings", collapsible: true, items: [
+    { href: "/workspace", label: "Workspace policies", icon: UsersRound },
+    { href: "/templates", label: "Service templates", icon: ClipboardCheck },
     { href: "/agent", label: "Hodi chat", icon: Bot },
     { href: "/hodi", label: "Hodi work queue", icon: ListTodo },
     { href: "/automations", label: "Automations", icon: Sparkles },
     { href: "/integrations", label: "Integrations", icon: Plug },
-    { href: "/webhooks", label: "Webhooks", icon: Webhook },
+    { href: "/webhooks", label: "Webhooks", icon: Webhook, adminOnly: true },
     { href: "/mcp", label: "MCP access", icon: KeyRound },
     { href: "/compliance", label: "Compliance", icon: ShieldCheck },
   ] },
@@ -83,6 +86,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [toolsChoice, setToolsChoice] = useState<{ path: string; open: boolean } | null>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -100,7 +104,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         return;
       }
       if (event.key !== "Tab" || !drawerRef.current) return;
-      const focusable = Array.from(drawerRef.current.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'));
+      const focusable = Array.from(drawerRef.current.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])')).filter((element) => element.getClientRects().length > 0);
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
       if (!first || !last) return;
@@ -136,12 +140,16 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     }
   }
 
-  function nav(compact = false) {
+  function nav(compact = false, instance = "desktop") {
     return (
     <nav aria-label="Admin navigation" className="flex flex-col gap-5">
-      {NAV_GROUPS.map((group) => <div key={group.label} className="space-y-1">
-        {compact ? <span className="sr-only">{group.label}</span> : <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">{group.label}</p>}
-        {group.items.filter((item) => !item.adminOnly || session?.role === "admin").map((item) => {
+      {NAV_GROUPS.map((group) => {
+        const items = group.items.filter((item) => (!item.adminOnly || session?.role === "admin") && (!item.permission || !!session && hasPermission(session, item.permission)));
+        const expanded = toolsChoice?.path === pathname ? toolsChoice.open : items.some((item) => isActive(pathname, item.href));
+        return <div key={group.label} className="space-y-1">
+        {group.collapsible ? <button type="button" title={compact ? group.label : undefined} onClick={() => setToolsChoice({ path: pathname, open: !expanded })} aria-expanded={expanded} aria-controls={`admin-tools-${instance}`} className={cn("flex min-h-11 w-full items-center rounded-lg text-sm font-medium text-slate-300 hover:bg-white/[0.07] hover:text-white", compact ? "justify-center px-2" : "justify-between gap-2 px-3")}><span className={compact ? "sr-only" : undefined}>{group.label}</span><ChevronDown aria-hidden="true" className={cn("h-4 w-4 transition-transform", expanded && "rotate-180")} /></button> : compact ? <span className="sr-only">{group.label}</span> : <p className="px-3 pb-1 text-xs font-semibold text-slate-400">{group.label}</p>}
+        <div id={group.collapsible ? `admin-tools-${instance}` : undefined} hidden={group.collapsible && !expanded} className="space-y-1">
+        {items.map((item) => {
           const Icon = item.icon;
           return <Link
             key={item.href}
@@ -151,7 +159,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             title={compact ? item.label : undefined}
             aria-current={isActive(pathname, item.href) ? "page" : undefined}
             className={cn(
-              "group flex items-center rounded-lg py-2.5 text-sm font-medium transition-all duration-200",
+              "group flex min-h-11 items-center rounded-lg py-2.5 text-sm font-medium transition-colors duration-200",
               compact ? "justify-center px-2" : "gap-3 px-3",
               isActive(pathname, item.href)
                 ? "bg-white/[0.14] text-white shadow-[inset_3px_0_0_var(--accent)]"
@@ -162,7 +170,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             {compact ? <span className="sr-only">{item.label}</span> : item.label}
           </Link>;
         })}
-      </div>)}
+        </div>
+      </div>; })}
     </nav>
     );
   }
@@ -188,7 +197,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         onClick={() => setOpen(false)}
         title={compact ? "Account settings" : undefined}
         aria-current={isActive(pathname, "/account") ? "page" : undefined}
-        className={cn("mb-2 flex min-h-10 items-center rounded-lg text-sm font-medium text-slate-200 transition hover:bg-white/[0.07] hover:text-white", compact ? "justify-center px-2" : "gap-2 px-3", isActive(pathname, "/account") && "bg-white/[0.14] text-white")}
+        className={cn("mb-2 flex min-h-11 items-center rounded-lg text-sm font-medium text-slate-200 transition hover:bg-white/[0.07] hover:text-white", compact ? "justify-center px-2" : "gap-2 px-3", isActive(pathname, "/account") && "bg-white/[0.14] text-white")}
       >
         <UserRound className="h-4 w-4" aria-hidden="true" />
         {compact ? <span className="sr-only">Account settings</span> : "Account settings"}
@@ -288,7 +297,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            {nav()}
+            {nav(false, "mobile")}
             {userBlock()}
           </aside>
         </div>

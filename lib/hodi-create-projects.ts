@@ -14,6 +14,9 @@ import {
 } from "@/lib/products";
 import { hasPermission } from "@/lib/rbac";
 import { getStore } from "@/lib/store";
+import { validateResourceEngagement } from "@/lib/engagement-resources";
+import { localClientDemo } from "@/lib/engagements";
+import { projectApprovalSchema, projectMilestoneSchema, ProjectContextError, resolveHodiProjectContext } from "@/lib/hodi-project-context";
 
 export const hodiProjectCreationActions = [
   "create_project_milestone",
@@ -27,20 +30,6 @@ export const hodiProjectCreationActions = [
 export type HodiProjectCreationAction = typeof hodiProjectCreationActions[number];
 type Payload = Record<string, unknown>;
 type Preview = { title: string; changes: string[]; diff: { field: string; label: string; before: string; after: string }[] };
-
-const projectMilestoneSchema = z.object({
-  clientId: z.string().trim().min(1),
-  title: z.string().trim().min(1).max(200),
-  description: z.string().max(10000).optional(),
-  dueDate: z.union([z.iso.date(), z.iso.datetime()]).nullable().optional(),
-  taskIds: z.array(z.string().min(1)).optional(),
-});
-const projectApprovalSchema = z.object({
-  clientId: z.string().trim().min(1),
-  subject: z.string().trim().min(1).max(200),
-  description: z.string().max(10000).optional(),
-  kind: z.enum(["document", "design", "release"]).optional(),
-});
 
 function text(value: unknown) { return typeof value === "string" ? value.trim() : ""; }
 function field(label: string, after: string) {
@@ -58,13 +47,14 @@ async function validateProjectMilestone(payload: Payload, session: AuthSession) 
   const client = await store.getClient(input.clientId);
   if (!client) throw jsonError("Client not found", 404);
   const taskIds = input.taskIds || [];
-  if (new Set(taskIds).size !== taskIds.length) throw jsonError("Duplicate task", 400);
-  if (taskIds.length) {
-    const tasks = await store.listTasks(input.clientId);
-    const available = new Set(tasks.map((task) => task.id));
-    if (taskIds.some((taskId) => !available.has(taskId))) throw jsonError("Tasks must belong to this client", 400);
+  let engagementId: string | null;
+  try {
+    engagementId = await resolveHodiProjectContext(input.clientId, input.engagementId, taskIds, validateResourceEngagement);
+  } catch (cause) {
+    if (cause instanceof ProjectContextError) throw jsonError(cause.message, 400);
+    throw cause;
   }
-  return { input, client };
+  return { input: { ...input, engagementId }, client };
 }
 
 async function validateProjectApproval(payload: Payload, session: AuthSession) {
@@ -73,7 +63,14 @@ async function validateProjectApproval(payload: Payload, session: AuthSession) {
   await requireClientAccess(session, input.clientId);
   const client = await (await getStore()).getClient(input.clientId);
   if (!client) throw jsonError("Client not found", 404);
-  return { input, client };
+  const engagementId = await validateResourceEngagement(input.clientId, input.engagementId);
+  return { input: { ...input, engagementId }, client };
+}
+
+async function engagementName(engagementId: string | null) {
+  if (!engagementId) return "Account-wide";
+  if (localClientDemo()) return "Onboarding";
+  return (await getPrisma().engagement.findUnique({ where: { id: engagementId }, select: { name: true } }))?.name || "Selected engagement";
 }
 
 async function validateProduct(action: HodiProjectCreationAction, payload: Payload, session: AuthSession) {
@@ -110,6 +107,7 @@ export async function previewHodiProjectCreation(action: HodiProjectCreationActi
     return preview(`Request approval for ${client.companyName}`, [
       field("Subject", input.subject), field("Client", client.companyName),
       field("Description", input.description || "None"), field("Kind", input.kind || "document"),
+      field("Engagement", await engagementName(input.engagementId)),
       field("Status", "pending"),
     ]);
   }
@@ -118,6 +116,7 @@ export async function previewHodiProjectCreation(action: HodiProjectCreationActi
     return preview(`Create milestone for ${client.companyName}`, [
       field("Title", input.title), field("Client", client.companyName),
       field("Description", input.description || "None"),
+      field("Engagement", await engagementName(input.engagementId)),
       field("Due date", input.dueDate || "Not set"),
       field("Linked tasks", input.taskIds?.join(", ") || "None"),
     ]);
@@ -143,14 +142,14 @@ export async function executeHodiProjectCreation(action: HodiProjectCreationActi
   // Repeat authorization and validation after approval; access or referenced records may have changed.
   if (action === "create_project_approval") {
     const { input } = await validateProjectApproval(payload, session);
-    const approval = await createApproval({ clientId: input.clientId, subject: input.subject, description: input.description || "", kind: input.kind || "document", requestedBy: session.uid });
-    await (await getStore()).addActivity({ clientId: input.clientId, actorId: session.uid, actorName: session.name, action: "hodi.project_approval_created", meta: { proposalId, approvalId: approval.id } });
+    const approval = await createApproval({ clientId: input.clientId, engagementId: input.engagementId, subject: input.subject, description: input.description || "", kind: input.kind || "document", requestedBy: session.uid });
+    await (await getStore()).addActivity({ clientId: input.clientId, actorId: session.uid, actorName: session.name, action: "hodi.project_approval_created", meta: { proposalId, approvalId: approval.id, engagementId: input.engagementId } });
     return { approval, href: `/clients/${input.clientId}` };
   }
   if (action === "create_project_milestone") {
     const { input } = await validateProjectMilestone(payload, session);
-    const milestone = await createMilestone({ clientId: input.clientId, title: input.title, description: input.description || "", dueDate: input.dueDate || null, status: "planned", taskIds: input.taskIds || [] });
-    await (await getStore()).addActivity({ clientId: input.clientId, actorId: session.uid, actorName: session.name, action: "hodi.project_milestone_created", meta: { proposalId, milestoneId: milestone.id } });
+    const milestone = await createMilestone({ clientId: input.clientId, engagementId: input.engagementId, title: input.title, description: input.description || "", dueDate: input.dueDate || null, status: "planned", taskIds: input.taskIds || [] });
+    await (await getStore()).addActivity({ clientId: input.clientId, actorId: session.uid, actorName: session.name, action: "hodi.project_milestone_created", meta: { proposalId, milestoneId: milestone.id, engagementId: input.engagementId } });
     return { milestone, href: `/clients/${input.clientId}` };
   }
   const checked = await validateProduct(action, payload, session);

@@ -1,5 +1,6 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
+import { hasPermission } from "@/lib/rbac";
 import {
   executeTool,
   isComposioConfiguredForUser,
@@ -143,7 +144,9 @@ export async function GET(req: Request) {
 
     let google = { configured: false, connected: false, error: null as string | null };
     try {
-      const status = await googleConnectionStatus(session.uid);
+      const status = hasPermission(session, "integrations.manage")
+        ? await googleConnectionStatus(session.uid)
+        : { configured: false, connected: false };
       google = { ...status, error: null };
       if (status.connected) {
         const result = await executeTool({

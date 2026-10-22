@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
 import { appBaseUrl } from "@/lib/client-status";
-import { notifyIntegrations } from "@/lib/composio";
+import { enqueueIntegrationEvent } from "@/lib/integration-jobs";
 import { emailDeliveryConfigured, inviteEmailHtml, sendEmail } from "@/lib/email";
 import { getStore } from "@/lib/store";
 import { canAccessClient } from "@/lib/client-access";
@@ -71,7 +71,7 @@ export async function POST(req: Request, { params }: Params) {
       passwordHash: null,
     });
 
-    await store.addActivity({
+    const invitationActivity = await store.addActivity({
       clientId: client.id,
       actorId: session.uid,
       actorName: session.name,
@@ -79,13 +79,13 @@ export async function POST(req: Request, { params }: Params) {
       meta: { email, userId: user.uid },
     });
 
-    void notifyIntegrations(session.uid, {
+    const integrationJobs = await enqueueIntegrationEvent(session.uid, {
       type: "client.invited",
       clientId: client.id,
       clientName: name,
       companyName: client.companyName,
       email,
-    });
+    }, `client.invited:${invitationActivity.id}`);
 
     await dispatchWebhooks("client.invited", {
       clientId: client.id,
@@ -104,6 +104,7 @@ export async function POST(req: Request, { params }: Params) {
         clientId: user.clientId,
       },
       invitationSent: true,
+      integrationJobs: integrationJobs.map(({ id, kind, status }) => ({ id, kind, status })),
     };
   });
 }

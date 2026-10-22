@@ -4,6 +4,7 @@ import { dispatchWebhooks } from "@/lib/webhooks";
 import { getStore } from "@/lib/store";
 import { canAccessClient } from "@/lib/client-access";
 import { documentMetadata } from "@/lib/document-response";
+import { validateResourceEngagement } from "@/lib/engagement-resources";
 import type { DocumentStatus } from "@/types";
 
 export const runtime = "nodejs";
@@ -17,10 +18,12 @@ export async function POST(req: Request) {
       reviewNote?: string;
     };
 
-    const ids = Array.isArray(body.ids)
-      ? body.ids.map((id) => String(id).trim()).filter(Boolean)
+    const ids = Array.isArray(body.ids) && body.ids.every((id) => typeof id === "string")
+      ? [...new Set(body.ids.map((id) => id.trim()).filter(Boolean))]
       : [];
     if (!ids.length) throw jsonError("ids is required", 400);
+    if (ids.length > 100) throw jsonError("Review at most 100 documents at a time.", 400);
+    if (body.reviewNote !== undefined && (typeof body.reviewNote !== "string" || body.reviewNote.length > 10000)) throw jsonError("Enter a review note of at most 10000 characters.", 400);
 
     if (
       !body.status ||
@@ -32,7 +35,8 @@ export async function POST(req: Request) {
     const store = await getStore();
     const updated = [];
     const missing: string[] = [];
-
+    const targets = [];
+    // Authorize the entire selection before changing any document.
     for (const id of ids) {
       const existing = await store.getDocument(id);
       if (!existing) {
@@ -40,7 +44,12 @@ export async function POST(req: Request) {
         continue;
       }
       if (!await canAccessClient(session, existing.clientId)) throw jsonError("Forbidden", 403);
+      await validateResourceEngagement(existing.clientId, existing.engagementId, existing.taskId);
+      targets.push(existing);
+    }
 
+    for (const existing of targets) {
+      const id = existing.id;
       const patch: { status: DocumentStatus; reviewNote?: string } = {
         status: body.status,
       };

@@ -13,7 +13,7 @@ import {
   PageHeader,
 } from "@/components/shared/ui";
 import { apiFetch } from "@/lib/api-client";
-import { ALL_STAFF_PERMISSIONS, DEFAULT_TEAM_PERMISSIONS } from "@/lib/rbac";
+import { ADMIN_ONLY_STAFF_PERMISSIONS, ALL_STAFF_PERMISSIONS, DEFAULT_TEAM_PERMISSIONS, effectiveStaffPermissions } from "@/lib/rbac";
 import { statusLabel } from "@/lib/utils";
 import type { StaffPermission } from "@/types";
 
@@ -50,7 +50,7 @@ function PermissionCheckboxes({
             disabled={disabled}
             className="rounded border-[var(--border)]"
           />
-          <span className="font-mono text-xs">{perm}</span>
+          <span className="font-mono text-xs">{perm}{ADMIN_ONLY_STAFF_PERMISSIONS.includes(perm) ? " (admin role required)" : ""}</span>
         </label>
       ))}
     </div>
@@ -132,11 +132,7 @@ export default function TeamPage() {
 
   function startEdit(u: TeamUser) {
     setEditingUid(u.uid);
-    setEditPerms(
-      u.permissions && u.permissions.length > 0
-        ? [...u.permissions]
-        : [...DEFAULT_TEAM_PERMISSIONS]
-    );
+    setEditPerms(effectiveStaffPermissions({ role: "team", permissions: u.permissions }));
     setMessage("");
     setError("");
   }
@@ -230,6 +226,9 @@ export default function TeamPage() {
                   {editingUid === u.uid ? (
                     <div className="mt-4 space-y-3 rounded-lg bg-[var(--surface-2)] p-3">
                       <PermissionCheckboxes value={editPerms} onChange={setEditPerms} />
+                      <p className="text-xs text-[var(--ink-muted)]">
+                        {editPerms.length === 0 ? "No capabilities selected. This member cannot access client work, reviews, analytics, or integrations." : "Only selected capabilities are granted. Client assignment and admin-only controls still apply."}
+                      </p>
                       <div className="flex gap-2">
                         <Button
                           type="button"
@@ -250,9 +249,9 @@ export default function TeamPage() {
                         </Button>
                       </div>
                     </div>
-                  ) : u.role === "team" && u.permissions && u.permissions.length > 0 ? (
+                  ) : u.role === "team" ? (
                     <p className="mt-2 text-xs text-[var(--ink-muted)]">
-                      {u.permissions.join(", ")}
+                      {u.permissions === undefined ? `Default access: ${DEFAULT_TEAM_PERMISSIONS.join(", ")}` : u.permissions.length ? u.permissions.join(", ") : "No staff capabilities granted"}
                     </p>
                   ) : null}
                 </li>
@@ -305,6 +304,9 @@ export default function TeamPage() {
                   <div className="mt-2">
                     <PermissionCheckboxes value={invitePerms} onChange={setInvitePerms} />
                   </div>
+                  <p className="mt-2 text-xs text-[var(--ink-muted)]">
+                    Clearing every checkbox invites a member with no staff capabilities. Team management still requires an admin; team.manage permits manager approval review.
+                  </p>
                 </div>
               ) : null}
               <Button type="submit" disabled={saving}>

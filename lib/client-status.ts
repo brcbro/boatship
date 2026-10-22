@@ -1,6 +1,7 @@
 import type { Client, ClientStatus, Task } from "@/types";
 import type { DataStore } from "@/lib/store";
-import { notifyIntegrations } from "@/lib/composio";
+import { enqueueIntegrationEvent } from "@/lib/integration-jobs";
+import { integrationCompletionEventKey } from "@/lib/integration-job-policy";
 import { onboardingCompleteEmailHtml, sendEmail } from "@/lib/email";
 import { dispatchWebhooks } from "@/lib/webhooks";
 import { legacyEngagementId, taskEngagementId } from "@/lib/engagements";
@@ -30,7 +31,16 @@ export async function syncClientStatusFromTasks(
     (task) => taskEngagementId(task) === legacyEngagementId(clientId)
   );
   const nextStatus = deriveClientStatus(tasks);
-  if (nextStatus === client.status) return client;
+  async function queueCompletion() {
+    const actorUid = options?.actorUid || client!.assignedTeamMemberId;
+    if (actorUid) {
+      await enqueueIntegrationEvent(actorUid, { type: "onboarding.completed", clientId: client!.id, clientName: client!.name, companyName: client!.companyName }, integrationCompletionEventKey(client!.id, tasks));
+    }
+  }
+  if (nextStatus === client.status) {
+    if (nextStatus === "completed" && options?.notifyComplete !== false) await queueCompletion();
+    return client;
+  }
 
   const updated = await store.updateClient(clientId, { status: nextStatus });
 
@@ -48,15 +58,7 @@ export async function syncClientStatusFromTasks(
       console.error("Failed to send onboarding complete email", err);
     }
 
-    const actorUid = options?.actorUid || client.assignedTeamMemberId;
-    if (actorUid) {
-      void notifyIntegrations(actorUid, {
-        type: "onboarding.completed",
-        clientId: client.id,
-        clientName: client.name,
-        companyName: client.companyName,
-      });
-    }
+    await queueCompletion();
 
     await dispatchWebhooks("client.completed", {
       clientId: client.id,
