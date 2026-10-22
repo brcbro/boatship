@@ -39,6 +39,7 @@ export type DocumentContentMinAggregateOutputType = {
   documentId: string | null
   clientId: string | null
   bytes: runtime.Bytes | null
+  objectKey: string | null
   contentType: string | null
   size: number | null
   createdAt: Date | null
@@ -49,6 +50,7 @@ export type DocumentContentMaxAggregateOutputType = {
   documentId: string | null
   clientId: string | null
   bytes: runtime.Bytes | null
+  objectKey: string | null
   contentType: string | null
   size: number | null
   createdAt: Date | null
@@ -59,6 +61,7 @@ export type DocumentContentCountAggregateOutputType = {
   documentId: number
   clientId: number
   bytes: number
+  objectKey: number
   contentType: number
   size: number
   createdAt: number
@@ -79,6 +82,7 @@ export type DocumentContentMinAggregateInputType = {
   documentId?: true
   clientId?: true
   bytes?: true
+  objectKey?: true
   contentType?: true
   size?: true
   createdAt?: true
@@ -89,6 +93,7 @@ export type DocumentContentMaxAggregateInputType = {
   documentId?: true
   clientId?: true
   bytes?: true
+  objectKey?: true
   contentType?: true
   size?: true
   createdAt?: true
@@ -99,6 +104,7 @@ export type DocumentContentCountAggregateInputType = {
   documentId?: true
   clientId?: true
   bytes?: true
+  objectKey?: true
   contentType?: true
   size?: true
   createdAt?: true
@@ -195,7 +201,8 @@ export type DocumentContentGroupByOutputType = {
   id: string
   documentId: string
   clientId: string
-  bytes: runtime.Bytes
+  bytes: runtime.Bytes | null
+  objectKey: string | null
   contentType: string
   size: number
   createdAt: Date
@@ -228,7 +235,8 @@ export type DocumentContentWhereInput = {
   id?: Prisma.StringFilter<"DocumentContent"> | string
   documentId?: Prisma.StringFilter<"DocumentContent"> | string
   clientId?: Prisma.StringFilter<"DocumentContent"> | string
-  bytes?: Prisma.BytesFilter<"DocumentContent"> | runtime.Bytes
+  bytes?: Prisma.BytesNullableFilter<"DocumentContent"> | runtime.Bytes | null
+  objectKey?: Prisma.StringNullableFilter<"DocumentContent"> | string | null
   contentType?: Prisma.StringFilter<"DocumentContent"> | string
   size?: Prisma.IntFilter<"DocumentContent"> | number
   createdAt?: Prisma.DateTimeFilter<"DocumentContent"> | Date | string
@@ -238,7 +246,8 @@ export type DocumentContentOrderByWithRelationInput = {
   id?: Prisma.SortOrder
   documentId?: Prisma.SortOrder
   clientId?: Prisma.SortOrder
-  bytes?: Prisma.SortOrder
+  bytes?: Prisma.SortOrderInput | Prisma.SortOrder
+  objectKey?: Prisma.SortOrderInput | Prisma.SortOrder
   contentType?: Prisma.SortOrder
   size?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -251,7 +260,8 @@ export type DocumentContentWhereUniqueInput = Prisma.AtLeast<{
   NOT?: Prisma.DocumentContentWhereInput | Prisma.DocumentContentWhereInput[]
   documentId?: Prisma.StringFilter<"DocumentContent"> | string
   clientId?: Prisma.StringFilter<"DocumentContent"> | string
-  bytes?: Prisma.BytesFilter<"DocumentContent"> | runtime.Bytes
+  bytes?: Prisma.BytesNullableFilter<"DocumentContent"> | runtime.Bytes | null
+  objectKey?: Prisma.StringNullableFilter<"DocumentContent"> | string | null
   contentType?: Prisma.StringFilter<"DocumentContent"> | string
   size?: Prisma.IntFilter<"DocumentContent"> | number
   createdAt?: Prisma.DateTimeFilter<"DocumentContent"> | Date | string
@@ -261,7 +271,8 @@ export type DocumentContentOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
   documentId?: Prisma.SortOrder
   clientId?: Prisma.SortOrder
-  bytes?: Prisma.SortOrder
+  bytes?: Prisma.SortOrderInput | Prisma.SortOrder
+  objectKey?: Prisma.SortOrderInput | Prisma.SortOrder
   contentType?: Prisma.SortOrder
   size?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -279,7 +290,8 @@ export type DocumentContentScalarWhereWithAggregatesInput = {
   id?: Prisma.StringWithAggregatesFilter<"DocumentContent"> | string
   documentId?: Prisma.StringWithAggregatesFilter<"DocumentContent"> | string
   clientId?: Prisma.StringWithAggregatesFilter<"DocumentContent"> | string
-  bytes?: Prisma.BytesWithAggregatesFilter<"DocumentContent"> | runtime.Bytes
+  bytes?: Prisma.BytesNullableWithAggregatesFilter<"DocumentContent"> | runtime.Bytes | null
+  objectKey?: Prisma.StringNullableWithAggregatesFilter<"DocumentContent"> | string | null
   contentType?: Prisma.StringWithAggregatesFilter<"DocumentContent"> | string
   size?: Prisma.IntWithAggregatesFilter<"DocumentContent"> | number
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"DocumentContent"> | Date | string
@@ -289,7 +301,8 @@ export type DocumentContentCreateInput = {
   id: string
   documentId: string
   clientId: string
-  bytes: runtime.Bytes
+  bytes?: runtime.Bytes | null
+  objectKey?: string | null
   contentType: string
   size: number
   createdAt?: Date | string
@@ -299,7 +312,8 @@ export type DocumentContentUncheckedCreateInput = {
   id: string
   documentId: string
   clientId: string
-  bytes: runtime.Bytes
+  bytes?: runtime.Bytes | null
+  objectKey?: string | null
   contentType: string
   size: number
   createdAt?: Date | string
@@ -309,7 +323,8 @@ export type DocumentContentUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   documentId?: Prisma.StringFieldUpdateOperationsInput | string
   clientId?: Prisma.StringFieldUpdateOperationsInput | string
-  bytes?: Prisma.BytesFieldUpdateOperationsInput | runtime.Bytes
+  bytes?: Prisma.NullableBytesFieldUpdateOperationsInput | runtime.Bytes | null
+  objectKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contentType?: Prisma.StringFieldUpdateOperationsInput | string
   size?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -319,7 +334,8 @@ export type DocumentContentUncheckedUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   documentId?: Prisma.StringFieldUpdateOperationsInput | string
   clientId?: Prisma.StringFieldUpdateOperationsInput | string
-  bytes?: Prisma.BytesFieldUpdateOperationsInput | runtime.Bytes
+  bytes?: Prisma.NullableBytesFieldUpdateOperationsInput | runtime.Bytes | null
+  objectKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contentType?: Prisma.StringFieldUpdateOperationsInput | string
   size?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -329,7 +345,8 @@ export type DocumentContentCreateManyInput = {
   id: string
   documentId: string
   clientId: string
-  bytes: runtime.Bytes
+  bytes?: runtime.Bytes | null
+  objectKey?: string | null
   contentType: string
   size: number
   createdAt?: Date | string
@@ -339,7 +356,8 @@ export type DocumentContentUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   documentId?: Prisma.StringFieldUpdateOperationsInput | string
   clientId?: Prisma.StringFieldUpdateOperationsInput | string
-  bytes?: Prisma.BytesFieldUpdateOperationsInput | runtime.Bytes
+  bytes?: Prisma.NullableBytesFieldUpdateOperationsInput | runtime.Bytes | null
+  objectKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contentType?: Prisma.StringFieldUpdateOperationsInput | string
   size?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -349,7 +367,8 @@ export type DocumentContentUncheckedUpdateManyInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   documentId?: Prisma.StringFieldUpdateOperationsInput | string
   clientId?: Prisma.StringFieldUpdateOperationsInput | string
-  bytes?: Prisma.BytesFieldUpdateOperationsInput | runtime.Bytes
+  bytes?: Prisma.NullableBytesFieldUpdateOperationsInput | runtime.Bytes | null
+  objectKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contentType?: Prisma.StringFieldUpdateOperationsInput | string
   size?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -360,6 +379,7 @@ export type DocumentContentCountOrderByAggregateInput = {
   documentId?: Prisma.SortOrder
   clientId?: Prisma.SortOrder
   bytes?: Prisma.SortOrder
+  objectKey?: Prisma.SortOrder
   contentType?: Prisma.SortOrder
   size?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -374,6 +394,7 @@ export type DocumentContentMaxOrderByAggregateInput = {
   documentId?: Prisma.SortOrder
   clientId?: Prisma.SortOrder
   bytes?: Prisma.SortOrder
+  objectKey?: Prisma.SortOrder
   contentType?: Prisma.SortOrder
   size?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -384,6 +405,7 @@ export type DocumentContentMinOrderByAggregateInput = {
   documentId?: Prisma.SortOrder
   clientId?: Prisma.SortOrder
   bytes?: Prisma.SortOrder
+  objectKey?: Prisma.SortOrder
   contentType?: Prisma.SortOrder
   size?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -393,8 +415,12 @@ export type DocumentContentSumOrderByAggregateInput = {
   size?: Prisma.SortOrder
 }
 
-export type BytesFieldUpdateOperationsInput = {
-  set?: runtime.Bytes
+export type NullableBytesFieldUpdateOperationsInput = {
+  set?: runtime.Bytes | null
+}
+
+export type NullableStringFieldUpdateOperationsInput = {
+  set?: string | null
 }
 
 
@@ -404,6 +430,7 @@ export type DocumentContentSelect<ExtArgs extends runtime.Types.Extensions.Inter
   documentId?: boolean
   clientId?: boolean
   bytes?: boolean
+  objectKey?: boolean
   contentType?: boolean
   size?: boolean
   createdAt?: boolean
@@ -414,6 +441,7 @@ export type DocumentContentSelectCreateManyAndReturn<ExtArgs extends runtime.Typ
   documentId?: boolean
   clientId?: boolean
   bytes?: boolean
+  objectKey?: boolean
   contentType?: boolean
   size?: boolean
   createdAt?: boolean
@@ -424,6 +452,7 @@ export type DocumentContentSelectUpdateManyAndReturn<ExtArgs extends runtime.Typ
   documentId?: boolean
   clientId?: boolean
   bytes?: boolean
+  objectKey?: boolean
   contentType?: boolean
   size?: boolean
   createdAt?: boolean
@@ -434,12 +463,13 @@ export type DocumentContentSelectScalar = {
   documentId?: boolean
   clientId?: boolean
   bytes?: boolean
+  objectKey?: boolean
   contentType?: boolean
   size?: boolean
   createdAt?: boolean
 }
 
-export type DocumentContentOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "documentId" | "clientId" | "bytes" | "contentType" | "size" | "createdAt", ExtArgs["result"]["documentContent"]>
+export type DocumentContentOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "documentId" | "clientId" | "bytes" | "objectKey" | "contentType" | "size" | "createdAt", ExtArgs["result"]["documentContent"]>
 
 export type $DocumentContentPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "DocumentContent"
@@ -448,7 +478,8 @@ export type $DocumentContentPayload<ExtArgs extends runtime.Types.Extensions.Int
     id: string
     documentId: string
     clientId: string
-    bytes: runtime.Bytes
+    bytes: runtime.Bytes | null
+    objectKey: string | null
     contentType: string
     size: number
     createdAt: Date
@@ -879,6 +910,7 @@ export interface DocumentContentFieldRefs {
   readonly documentId: Prisma.FieldRef<"DocumentContent", 'String'>
   readonly clientId: Prisma.FieldRef<"DocumentContent", 'String'>
   readonly bytes: Prisma.FieldRef<"DocumentContent", 'Bytes'>
+  readonly objectKey: Prisma.FieldRef<"DocumentContent", 'String'>
   readonly contentType: Prisma.FieldRef<"DocumentContent", 'String'>
   readonly size: Prisma.FieldRef<"DocumentContent", 'Int'>
   readonly createdAt: Prisma.FieldRef<"DocumentContent", 'DateTime'>

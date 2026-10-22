@@ -28,6 +28,12 @@ export async function createLocalQa({ web = false, port = 3100, log = () => {} }
   snapshot.forms.push({ ...snapshot.forms[0], id: "qa_api_form" });
   await db.query('UPDATE "StoreSnapshot" SET data=$1 WHERE id=$2', [JSON.stringify(snapshot), "main"]);
   await db.exec(await fs.readFile(path.join(root, "prisma", "migrations", "20261014000000_separate_document_content_and_integration_jobs", "migration.sql"), "utf8"));
+  // Later migrations are additive to the October schema; apply them in order so the
+  // fixture matches the generated client without re-running the legacy backfill.
+  const migrationsDirectory = path.join(root, "prisma", "migrations");
+  for (const name of (await fs.readdir(migrationsDirectory)).filter((entry) => /^\d{14}_/.test(entry) && entry.slice(0, 14) > "20261014000000").sort()) {
+    await db.exec(await fs.readFile(path.join(migrationsDirectory, name, "migration.sql"), "utf8"));
+  }
   const permissions = ["clients.view", "clients.manage", "documents.review", "forms.review", "analytics.view", "integrations.manage", "team.manage"];
   for (const [uid, email, role, clientId, grants] of [ ["qa_admin", "admin@qa.invalid", "admin", null, []], ["qa_team", "team@qa.invalid", "team", null, permissions], ["qa_viewer", "viewer@qa.invalid", "team", null, ["clients.view"]], ["qa_none", "none@qa.invalid", "team", null, []], ["qa_client_user", "client@qa.invalid", "client", "qa_client", []], ["qa_other_user", "other@qa.invalid", "client", "qa_other", []] ]) {
     const salt = randomBytes(16).toString("hex");

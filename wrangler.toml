@@ -33,6 +33,12 @@ new_sqlite_classes = ["AppRuntime"]
 # binding = "HYPERDRIVE"
 # id = "<set-your-real-hyperdrive-id>"
 
+# Document bytes. Create the bucket before deploying:
+#   wrangler r2 bucket create boatship-documents
+[[r2_buckets]]
+binding = "DOCUMENT_FILES"
+bucket_name = "boatship-documents"
+
 [[routes]]
 pattern = "boatship.cohortix.in"
 custom_domain = true

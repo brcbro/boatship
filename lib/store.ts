@@ -32,6 +32,7 @@ import type {
 import { calcProgress } from "@/lib/utils";
 import { SEED_FORM_TEMPLATES, SEED_ONBOARDING_TEMPLATES } from "@/lib/seed-templates";
 import { getPrisma } from "@/lib/prisma";
+import { deleteDocumentObjects, listClientDocumentObjectKeys } from "@/lib/document-content";
 import { ensureLegacyEngagement } from "@/lib/engagements";
 import { ensurePrimaryContact } from "@/lib/client-contacts";
 import { hashPassword } from "@/lib/password";
@@ -1738,7 +1739,9 @@ class PrismaStore extends LocalStore {
     await super.deleteClientCascade(id);
     try {
       const prisma = getPrisma();
+      const objectKeys = await listClientDocumentObjectKeys(id);
       await prisma.$executeRaw`WITH notifications AS (DELETE FROM "NotificationRecord" WHERE "clientId" = ${id}), engagements AS (DELETE FROM "Engagement" WHERE "clientId" = ${id}), contacts AS (DELETE FROM "ClientContact" WHERE "clientId" = ${id}), files AS (DELETE FROM "DocumentContent" WHERE "clientId" = ${id}), jobs AS (DELETE FROM "IntegrationJob" WHERE "clientId" = ${id}) DELETE FROM "UserProfile" WHERE "clientId" = ${id} AND "role" = 'client'`;
+      await deleteDocumentObjects(objectKeys);
     } catch (error) {
       if (!relationalStoreUnavailable(error)) throw error;
     }

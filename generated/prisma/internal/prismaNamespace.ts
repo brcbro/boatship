@@ -2863,6 +2863,7 @@ export const DocumentContentScalarFieldEnum = {
   documentId: 'documentId',
   clientId: 'clientId',
   bytes: 'bytes',
+  objectKey: 'objectKey',
   contentType: 'contentType',
   size: 'size',
   createdAt: 'createdAt'

@@ -60,6 +60,15 @@ npm run deploy
 
 Configure the same secrets in Cloudflare Pages / Workers.
 
+### Document files in R2
+
+Both Wrangler files bind the `boatship-documents` R2 bucket as `DOCUMENT_FILES`. Create it once with
+`npx wrangler r2 bucket create boatship-documents` before deploying. With the binding present, new
+uploads are stored in R2 and only their ownership record stays in the database; without it (local
+`next dev`, tests), bytes stay in the `DocumentContent` row. Existing row-stored files move in
+batches with `POST /api/internal/document-content-migrate?limit=5` using the `x-boatship-cron-secret`
+header; repeat until the response reports `remaining: 0`.
+
 ### Optional Cloudflare Hyperdrive
 
 Production can use Hyperdrive to avoid opening a full PostgreSQL connection to Neon for every

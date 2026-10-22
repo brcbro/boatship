@@ -29,7 +29,8 @@ model DocumentContent {
   id          String   @id
   documentId  String
   clientId    String
-  bytes       Bytes
+  bytes       Bytes?
+  objectKey   String?
   contentType String
   size        Int
   createdAt   DateTime @default(now()) @db.Timestamptz(3)
