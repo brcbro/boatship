@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "local-qa",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "local-qa"],
+      "port": 3100
+    }
+  ]
+}
