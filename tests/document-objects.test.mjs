@@ -21,6 +21,9 @@ test("Firebase configuration requires both secrets and a parseable service accou
   assert.throws(() => firebaseStorageConfigFromEnv({ FIREBASE_STORAGE_BUCKET: "bad bucket/name", FIREBASE_SERVICE_ACCOUNT: JSON.stringify({ client_email: "x", private_key: "y" }) }));
   const parsed = firebaseStorageConfigFromEnv({ FIREBASE_STORAGE_BUCKET: "b.appspot.com", FIREBASE_SERVICE_ACCOUNT: JSON.stringify({ client_email: "svc@x", private_key: privateKeyPem, token_uri: "https://oauth2.googleapis.com/token" }) });
   assert.deepEqual(parsed, { bucket: "b.appspot.com", clientEmail: "svc@x", privateKeyPem, tokenUri: "https://oauth2.googleapis.com/token" });
+  assert.throws(() => firebaseStorageConfigFromEnv({ FIREBASE_STORAGE_BUCKET: "b.appspot.com", FIREBASE_SERVICE_ACCOUNT: privateKeyPem }), /FIREBASE_CLIENT_EMAIL/);
+  const split = firebaseStorageConfigFromEnv({ FIREBASE_STORAGE_BUCKET: "b.appspot.com", FIREBASE_CLIENT_EMAIL: "svc@x", FIREBASE_SERVICE_ACCOUNT: privateKeyPem.replace(/\n/g, "\\n") });
+  assert.deepEqual(split, { bucket: "b.appspot.com", clientEmail: "svc@x", privateKeyPem });
 });
 
 test("the service-account assertion is a valid RS256 JWT for the storage scope", async () => {

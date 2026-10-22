@@ -18,16 +18,27 @@ const STORAGE_SCOPE = "https://www.googleapis.com/auth/devstorage.read_write";
 const DEFAULT_TOKEN_URI = "https://oauth2.googleapis.com/token";
 const STORAGE_API = "https://storage.googleapis.com";
 
-/** Parses FIREBASE_STORAGE_BUCKET and the FIREBASE_SERVICE_ACCOUNT JSON secret; null when either is absent. */
+/**
+ * Parses FIREBASE_STORAGE_BUCKET plus either the full FIREBASE_SERVICE_ACCOUNT
+ * JSON or a bare PEM private key in that variable with FIREBASE_CLIENT_EMAIL
+ * alongside it. Returns null when the bucket or key is absent.
+ */
 export function firebaseStorageConfigFromEnv(env: Record<string, string | undefined> = process.env): FirebaseStorageConfig | null {
   const bucket = env.FIREBASE_STORAGE_BUCKET?.trim();
   const raw = env.FIREBASE_SERVICE_ACCOUNT?.trim();
   if (!bucket || !raw) return null;
-  let account: { client_email?: unknown; private_key?: unknown; token_uri?: unknown };
-  try { account = JSON.parse(raw); } catch { throw new Error("FIREBASE_SERVICE_ACCOUNT must be the service account JSON."); }
-  if (typeof account.client_email !== "string" || typeof account.private_key !== "string") throw new Error("FIREBASE_SERVICE_ACCOUNT needs client_email and private_key.");
   if (!/^[a-z0-9][a-z0-9._-]{1,221}$/i.test(bucket)) throw new Error("FIREBASE_STORAGE_BUCKET must be a bucket name such as project-id.appspot.com.");
-  return { bucket, clientEmail: account.client_email, privateKeyPem: account.private_key, tokenUri: typeof account.token_uri === "string" ? account.token_uri : undefined };
+  // Env files often carry the PEM with literal "\n" sequences; restore real newlines.
+  const pem = (value: string) => value.replace(/\\n/g, "\n");
+  if (raw.startsWith("-----BEGIN")) {
+    const clientEmail = env.FIREBASE_CLIENT_EMAIL?.trim();
+    if (!clientEmail) throw new Error("FIREBASE_CLIENT_EMAIL is required when FIREBASE_SERVICE_ACCOUNT holds only the private key.");
+    return { bucket, clientEmail, privateKeyPem: pem(raw) };
+  }
+  let account: { client_email?: unknown; private_key?: unknown; token_uri?: unknown };
+  try { account = JSON.parse(raw); } catch { throw new Error("FIREBASE_SERVICE_ACCOUNT must be the service account JSON or a PEM private key."); }
+  if (typeof account.client_email !== "string" || typeof account.private_key !== "string") throw new Error("FIREBASE_SERVICE_ACCOUNT needs client_email and private_key.");
+  return { bucket, clientEmail: account.client_email, privateKeyPem: pem(account.private_key), tokenUri: typeof account.token_uri === "string" ? account.token_uri : undefined };
 }
 
 const base64Url = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
