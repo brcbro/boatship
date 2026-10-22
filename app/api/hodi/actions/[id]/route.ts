@@ -1,7 +1,6 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
-import { getPrisma } from "@/lib/prisma";
-import { reviewHodiActionProposal } from "@/lib/hodi-queue";
+import { HODI_ACTION_PROPOSALS, reviewHodiActionProposal } from "@/lib/hodi-queue";
 
 export const runtime = "nodejs";
 type Params = { params: Promise<{ id: string }> };
@@ -9,7 +8,7 @@ type Params = { params: Promise<{ id: string }> };
 export async function GET(req: Request, { params }: Params) {
   return handleApi(async () => {
     const session = await requireRoles(req, ["admin", "team"]);
-    const proposal = await getPrisma().hodiActionProposal.findUnique({ where: { id: (await params).id } });
+    const proposal = await HODI_ACTION_PROPOSALS.get((await params).id);
     if (!proposal) throw jsonError("Action proposal not found", 404);
     if (session.role !== "admin" && proposal.userId !== session.uid) throw jsonError("Forbidden", 403);
     return { proposal };

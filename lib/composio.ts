@@ -1,7 +1,16 @@
 import { Composio } from "@composio/core";
 import { VercelProvider } from "@composio/vercel";
 import { appBaseUrl } from "@/lib/client-status";
-import { getPrisma } from "@/lib/prisma";
+import { Collection, nowIso } from "@/lib/firestore";
+
+type ComposioConnectionDoc = { id: string; userId: string; toolkitSlug: string; connectedAccountId: string; status: string; createdAt: string; updatedAt: string };
+const COMPOSIO_CONNECTIONS = new Collection<ComposioConnectionDoc>("ComposioConnection");
+async function upsertComposioConnection(userId: string, toolkitSlug: string, connectedAccountId: string, status: string) {
+  const docId = `${userId}__${toolkitSlug}`;
+  const existing = await COMPOSIO_CONNECTIONS.get(docId);
+  const now = nowIso();
+  await COMPOSIO_CONNECTIONS.set(docId, { id: existing?.id || connectedAccountId, userId, toolkitSlug, connectedAccountId, status, createdAt: existing?.createdAt || now, updatedAt: now });
+}
 import { resolveUserSecret } from "@/lib/user-secrets";
 import { integrationProviderConfirmed, integrationProviderItems } from "@/lib/integration-job-policy";
 
@@ -234,20 +243,7 @@ export async function listBoatshipConnections(boatshipUid: string): Promise<Conn
     const slug = (item.toolkit?.slug || "").toLowerCase();
     if (!slug) continue;
     byToolkit.set(slug, { id: item.id, status: String(item.status || "ACTIVE") });
-    await getPrisma().composioConnection.upsert({
-      where: { userId_toolkitSlug: { userId: boatshipUid, toolkitSlug: slug } },
-      create: {
-        id: item.id,
-        userId: boatshipUid,
-        toolkitSlug: slug,
-        connectedAccountId: item.id,
-        status: String(item.status || "ACTIVE"),
-      },
-      update: {
-        connectedAccountId: item.id,
-        status: String(item.status || "ACTIVE"),
-      },
-    });
+    await upsertComposioConnection(boatshipUid, slug, item.id, String(item.status || "ACTIVE"));
   }
 
   return BOATSHIP_TOOLKITS.map((tk) => {
@@ -279,20 +275,7 @@ export async function startToolkitConnect(
     manageConnections: { callbackUrl },
   });
   const connectionRequest = await session.authorize(toolkitSlug);
-  await getPrisma().composioConnection.upsert({
-    where: { userId_toolkitSlug: { userId: boatshipUid, toolkitSlug } },
-    create: {
-      id: connectionRequest.id,
-      userId: boatshipUid,
-      toolkitSlug,
-      connectedAccountId: connectionRequest.id,
-      status: "PENDING",
-    },
-    update: {
-      connectedAccountId: connectionRequest.id,
-      status: "PENDING",
-    },
-  });
+  await upsertComposioConnection(boatshipUid, toolkitSlug, connectionRequest.id, "PENDING");
   return {
     redirectUrl: connectionRequest.redirectUrl,
     connectionId: connectionRequest.id,

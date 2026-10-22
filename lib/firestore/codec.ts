@@ -19,7 +19,7 @@ const bytesToBase64 = (bytes: Uint8Array) => {
 };
 const base64ToBytes = (text: string) => Uint8Array.from(atob(text), (character) => character.charCodeAt(0));
 
-export function encodeValue(value: FsValue | undefined, inArray = false): RestValue | undefined {
+export function encodeValue(value: unknown, inArray = false): RestValue | undefined {
   if (value === undefined) return undefined;
   if (value === null) return { nullValue: null };
   if (typeof value === "boolean") return { booleanValue: value };
@@ -32,9 +32,9 @@ export function encodeValue(value: FsValue | undefined, inArray = false): RestVa
   if (value instanceof Uint8Array) return { bytesValue: bytesToBase64(value) };
   if (Array.isArray(value)) {
     if (inArray) throw new FirestoreError("Firestore does not allow arrays directly inside arrays.", "INVALID_ARGUMENT", 400);
-    return { arrayValue: { values: value.map((item) => encodeValue(item === undefined ? null : item, true)!) } };
+    return { arrayValue: { values: (value as unknown[]).map((item) => encodeValue(item === undefined ? null : item, true)!) } };
   }
-  if (typeof value === "object") return { mapValue: { fields: encodeFields(value) } };
+  if (typeof value === "object") return { mapValue: { fields: encodeFields(value as FsData) } };
   throw new FirestoreError(`Unsupported value type: ${typeof value}`, "INVALID_ARGUMENT", 400);
 }
 
@@ -77,8 +77,8 @@ export function fieldPath(path: string): string {
  * strings < bytes < arrays < maps. Used by the in-memory store and for
  * client-side merges of chunked queries.
  */
-export function compareValues(a: FsValue | undefined, b: FsValue | undefined): number {
-  const rank = (value: FsValue | undefined) => {
+export function compareValues(a: unknown, b: unknown): number {
+  const rank = (value: unknown) => {
     if (value === undefined) return -1;
     if (value === null) return 0;
     if (typeof value === "boolean") return 1;
@@ -98,7 +98,7 @@ export function compareValues(a: FsValue | undefined, b: FsValue | undefined): n
     case 4: return compareUtf8(a as string, b as string);
     case 5: return compareBytes(a as Uint8Array, b as Uint8Array);
     case 6: {
-      const left = a as FsValue[], right = b as FsValue[];
+      const left = a as unknown[], right = b as unknown[];
       for (let index = 0; index < Math.min(left.length, right.length); index += 1) {
         const result = compareValues(left[index], right[index]);
         if (result) return result;
@@ -130,7 +130,7 @@ function compareBytes(a: Uint8Array, b: Uint8Array): number {
   return a.length - b.length;
 }
 
-export function valuesEqual(a: FsValue | undefined, b: FsValue | undefined): boolean {
+export function valuesEqual(a: unknown, b: unknown): boolean {
   if (a === undefined || b === undefined) return a === b;
   return compareValues(a, b) === 0;
 }

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
-import { getPrisma } from "@/lib/prisma";
+import { Collection, getFirestore, isLocalDemoStore, nowIso, type FirestoreTransaction } from "@/lib/firestore";
 import { getStore } from "@/lib/store";
 import { canAccessClient, filterAssignedClients } from "@/lib/client-access";
 import { hasPermission } from "@/lib/rbac";
@@ -16,31 +16,43 @@ import {
 } from "@/lib/integration-job-policy";
 import type { AuthSession } from "@/types";
 
-type DatabaseJob = Omit<IntegrationJob, "createdAt" | "updatedAt" | "nextAttemptAt" | "leaseUntil"> & {
-  createdAt: Date; updatedAt: Date; nextAttemptAt: Date; leaseUntil: Date | null;
-};
-
-function fromDatabase(job: DatabaseJob): IntegrationJob {
-  return { ...job, createdAt: job.createdAt.toISOString(), updatedAt: job.updatedAt.toISOString(), nextAttemptAt: job.nextAttemptAt.toISOString(), leaseUntil: job.leaseUntil?.toISOString() ?? null };
-}
+/** Firestore mirror of the former table; timestamps are ISO strings. */
+export const INTEGRATION_JOBS = new Collection<IntegrationJob>("IntegrationJob");
 
 function localQueue() {
-  return process.env.ALLOW_LOCAL_STORE === "1" && !process.env.DATABASE_URL?.trim()
+  return isLocalDemoStore()
     ? new LocalIntegrationJobs(join(process.cwd(), ".data", "integration-jobs.json"))
     : null;
+}
+
+const due = (job: IntegrationJob, now: string) =>
+  (job.status === "pending" && job.nextAttemptAt <= now) || (job.status === "processing" && Boolean(job.leaseUntil) && job.leaseUntil! <= now);
+
+async function dueJobs(tx: FirestoreTransaction, now: string): Promise<IntegrationJob[]> {
+  // Equality-only queries avoid composite indexes; the due filter runs in memory
+  // over the small set of unfinished jobs.
+  const [pending, processing] = await Promise.all([
+    tx.query<IntegrationJob>(INTEGRATION_JOBS.spec([{ field: "status", op: "==", value: "pending" }])),
+    tx.query<IntegrationJob>(INTEGRATION_JOBS.spec([{ field: "status", op: "==", value: "processing" }])),
+  ]);
+  return [...pending, ...processing].map((doc) => ({ ...doc.data, id: doc.id })).filter((job) => due(job, now));
 }
 
 async function insertJobs(jobs: IntegrationJob[]): Promise<IntegrationJob[]> {
   const local = localQueue();
   if (local) return local.insert(jobs);
-  const rows = await getPrisma().$queryRaw<DatabaseJob[]>`INSERT INTO "IntegrationJob"
-    ("id", "dedupKey", "clientId", "actorId", "kind", "payload", "status", "attempts", "nextAttemptAt", "createdAt", "updatedAt")
-    SELECT item."id", item."dedupKey", item."clientId", item."actorId", item."kind", item."payload", 'pending', 0, NOW(), NOW(), NOW()
-    FROM jsonb_to_recordset(${JSON.stringify(jobs)}::jsonb) AS item("id" text, "dedupKey" text, "clientId" text, "actorId" text, "kind" text, "payload" jsonb)
-    ON CONFLICT ("dedupKey") DO UPDATE SET "dedupKey" = EXCLUDED."dedupKey"
-    RETURNING *`;
+  const rows = await getFirestore().runTransaction(async (tx) => {
+    const result: IntegrationJob[] = [];
+    for (const job of jobs) {
+      const existing = await tx.query<IntegrationJob>(INTEGRATION_JOBS.spec([{ field: "dedupKey", op: "==", value: job.dedupKey }], { limit: 1 }));
+      if (existing.length) { result.push({ ...existing[0].data, id: existing[0].id }); continue; }
+      tx.write({ set: { collection: INTEGRATION_JOBS.name, id: job.id, data: job, precondition: { exists: false } } });
+      result.push(job);
+    }
+    return result;
+  });
   if (rows.length) drainAfterResponse("integration", () => drainIntegrationJobs());
-  return rows.map(fromDatabase);
+  return rows;
 }
 
 function newJob(kind: IntegrationJobKind, clientId: string, actorId: string, eventKey: string, payload: Record<string, unknown>): IntegrationJob {
@@ -68,32 +80,38 @@ async function claimJobs(limit: number): Promise<IntegrationJob[]> {
   const local = localQueue();
   if (local) return local.claim(limit, Date.now(), INTEGRATION_JOB_LEASE_MS, INTEGRATION_JOB_ATTEMPTS);
   const leaseToken = randomUUID();
-  const rows = await getPrisma().$queryRaw<DatabaseJob[]>`WITH exhausted AS (
-      UPDATE "IntegrationJob" SET "status" = 'failed', "error" = 'Delivery could not be confirmed after the last attempt.',
-        "leaseToken" = NULL, "leaseUntil" = NULL, "updatedAt" = NOW()
-      WHERE "attempts" >= ${INTEGRATION_JOB_ATTEMPTS} AND
-        (("status" = 'pending' AND "nextAttemptAt" <= NOW()) OR ("status" = 'processing' AND "leaseUntil" <= NOW()))
-      RETURNING "id"
-    ), candidates AS (
-      SELECT "id" FROM "IntegrationJob" WHERE "attempts" < ${INTEGRATION_JOB_ATTEMPTS} AND
-        (("status" = 'pending' AND "nextAttemptAt" <= NOW()) OR ("status" = 'processing' AND "leaseUntil" <= NOW()))
-      ORDER BY "nextAttemptAt", "createdAt" LIMIT ${limit} FOR UPDATE SKIP LOCKED
-    ) UPDATE "IntegrationJob" AS job SET "status" = 'processing', "attempts" = job."attempts" + 1,
-      "leaseToken" = ${leaseToken}, "leaseUntil" = NOW() + ${INTEGRATION_JOB_LEASE_MS} * INTERVAL '1 millisecond', "updatedAt" = NOW()
-    FROM candidates WHERE job."id" = candidates."id" RETURNING job.*`;
-  return rows.map(fromDatabase);
+  // One transaction per batch replaces FOR UPDATE SKIP LOCKED: a competing
+  // drain aborts on commit, retries, and claims whatever is still due.
+  return getFirestore().runTransaction(async (tx) => {
+    const now = nowIso();
+    const candidates = await dueJobs(tx, now);
+    const claimed: IntegrationJob[] = [];
+    for (const job of candidates.filter((item) => item.attempts >= INTEGRATION_JOB_ATTEMPTS)) {
+      tx.write({ update: { collection: INTEGRATION_JOBS.name, id: job.id, data: { status: "failed", error: "Delivery could not be confirmed after the last attempt.", leaseToken: null, leaseUntil: null, updatedAt: now } } });
+    }
+    const eligible = candidates.filter((item) => item.attempts < INTEGRATION_JOB_ATTEMPTS)
+      .sort((a, b) => a.nextAttemptAt.localeCompare(b.nextAttemptAt) || a.createdAt.localeCompare(b.createdAt))
+      .slice(0, limit);
+    for (const job of eligible) {
+      const patch = { status: "processing" as const, attempts: job.attempts + 1, leaseToken, leaseUntil: new Date(Date.now() + INTEGRATION_JOB_LEASE_MS).toISOString(), updatedAt: now };
+      tx.write({ update: { collection: INTEGRATION_JOBS.name, id: job.id, data: patch } });
+      claimed.push({ ...job, ...patch });
+    }
+    return claimed;
+  }, { attempts: 8 });
 }
 
 async function finishJob(job: IntegrationJob, outcome: IntegrationJobOutcome): Promise<boolean> {
   if (!job.leaseToken) return false;
   const local = localQueue();
   if (local) return local.finish(job.id, job.leaseToken, outcome, Date.now());
-  const retryDelayMs = Math.max(0, Date.parse(outcome.nextAttemptAt) - Date.now());
-  const updated = await getPrisma().$executeRaw`UPDATE "IntegrationJob" SET "status" = ${outcome.status},
-    "nextAttemptAt" = NOW() + ${retryDelayMs} * INTERVAL '1 millisecond', "error" = ${outcome.error}, "result" = ${JSON.stringify(outcome.result)}::jsonb,
-    "leaseUntil" = NULL, "leaseToken" = NULL, "updatedAt" = NOW()
-    WHERE "id" = ${job.id} AND "status" = 'processing' AND "leaseToken" = ${job.leaseToken}`;
-  return updated > 0;
+  const nextAttemptAt = new Date(Math.max(Date.now(), Date.parse(outcome.nextAttemptAt))).toISOString();
+  return getFirestore().runTransaction(async (tx) => {
+    const current = await tx.get<IntegrationJob>(INTEGRATION_JOBS.name, job.id);
+    if (!current || current.data.status !== "processing" || current.data.leaseToken !== job.leaseToken) return false;
+    tx.write({ update: { collection: INTEGRATION_JOBS.name, id: job.id, data: { status: outcome.status, nextAttemptAt, error: outcome.error, result: outcome.result as IntegrationJob["result"], leaseUntil: null, leaseToken: null, updatedAt: nowIso() } } });
+    return true;
+  });
 }
 
 async function executeJob(job: IntegrationJob): Promise<IntegrationJobOutcome> {
@@ -148,11 +166,11 @@ export async function drainIntegrationJobs(limit = 10) {
 async function savedJobs(clientId?: string, actorId?: string): Promise<IntegrationJob[]> {
   const local = localQueue();
   if (local) return (await local.list()).filter((job) => (!clientId || job.clientId === clientId) && (!actorId || job.actorId === actorId));
-  const rows = await getPrisma().$queryRaw<DatabaseJob[]>`SELECT * FROM "IntegrationJob"
-    WHERE (${clientId || null}::text IS NULL OR "clientId" = ${clientId || null})
-      AND (${actorId || null}::text IS NULL OR "actorId" = ${actorId || null})
-    ORDER BY "createdAt" DESC LIMIT 500`;
-  return rows.map(fromDatabase);
+  const where = [
+    ...(clientId ? [{ field: "clientId", op: "==" as const, value: clientId }] : []),
+    ...(actorId ? [{ field: "actorId", op: "==" as const, value: actorId }] : []),
+  ];
+  return (await INTEGRATION_JOBS.find(where)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 500);
 }
 
 export async function listIntegrationJobs(session: AuthSession, clientId?: string) {
@@ -173,14 +191,17 @@ export async function listIntegrationJobs(session: AuthSession, clientId?: strin
 
 export async function retryIntegrationJob(session: AuthSession, id: string): Promise<boolean> {
   const local = localQueue();
-  const job = local ? (await local.list()).find((entry) => entry.id === id)
-    : (await getPrisma().$queryRaw<DatabaseJob[]>`SELECT * FROM "IntegrationJob" WHERE "id" = ${id} LIMIT 1`).map(fromDatabase)[0];
+  const job = local ? (await local.list()).find((entry) => entry.id === id) : await INTEGRATION_JOBS.get(id);
   if (!job || !integrationJobRetryable(job.status)) return false;
   if (session.role !== "admin" && (session.role !== "team" || job.actorId !== session.uid || !await canAccessClient(session, job.clientId))) return false;
   if (local) return local.retry(id, Date.now());
-  const requeued = (await getPrisma().$executeRaw`UPDATE "IntegrationJob" SET "status" = 'pending', "attempts" = 0,
-    "nextAttemptAt" = NOW(), "leaseUntil" = NULL, "leaseToken" = NULL, "error" = NULL, "result" = NULL, "updatedAt" = NOW()
-    WHERE "id" = ${id} AND "status" IN ('failed', 'skipped')`) > 0;
+  const requeued = await getFirestore().runTransaction(async (tx) => {
+    const current = await tx.get<IntegrationJob>(INTEGRATION_JOBS.name, id);
+    if (!current || !integrationJobRetryable(current.data.status)) return false;
+    const now = nowIso();
+    tx.write({ update: { collection: INTEGRATION_JOBS.name, id, data: { status: "pending", attempts: 0, nextAttemptAt: now, leaseUntil: null, leaseToken: null, error: null, result: null, updatedAt: now } } });
+    return true;
+  });
   if (requeued) drainAfterResponse("integration", () => drainIntegrationJobs());
   return requeued;
 }

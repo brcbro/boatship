@@ -2,7 +2,7 @@ import { compareValues, decodeFields, encodeFields, fieldPath, type RestValue } 
 import { encodeValue } from "./codec";
 import {
   assertDocumentId, FirestoreError,
-  type DocSnapshot, type FirestoreClient, type FirestoreTransaction, type FsData, type FsValue, type Precondition, type QuerySpec, type Where, type Write,
+  type DocSnapshot, type FirestoreClient, type FirestoreTransaction, type FsData, type Precondition, type QuerySpec, type Where, type Write,
 } from "./types";
 import type { TokenProvider } from "@/lib/google-auth";
 
@@ -31,8 +31,8 @@ const OP: Record<Exclude<Where["op"], "is-null" | "is-not-null">, string> = {
   in: "IN", "not-in": "NOT_IN", "array-contains": "ARRAY_CONTAINS", "array-contains-any": "ARRAY_CONTAINS_ANY",
 };
 
-function readPath(data: FsData, path: string): FsValue | undefined {
-  let current: FsValue | undefined = data;
+function readPath(data: FsData, path: string): unknown {
+  let current: unknown = data;
   for (const segment of path.split(".")) {
     if (current === null || typeof current !== "object" || Array.isArray(current) || current instanceof Date || current instanceof Uint8Array) return undefined;
     current = (current as FsData)[segment];
@@ -115,7 +115,7 @@ export class RestFirestore implements FirestoreClient {
     const wide = where.findIndex((item) => "value" in item && (item.op === "in" || item.op === "array-contains-any") && Array.isArray(item.value) && item.value.length > IN_CHUNK);
     if (wide >= 0) {
       // Firestore caps IN lists; run chunks and merge with the same ordering.
-      const target = where[wide] as { field: string; op: "in" | "array-contains-any"; value: FsValue[] };
+      const target = where[wide] as { field: string; op: "in" | "array-contains-any"; value: unknown[] };
       const seen = new Map<string, DocSnapshot<T>>();
       for (let index = 0; index < target.value.length; index += IN_CHUNK) {
         const chunk = { ...spec, where: where.map((item, position) => (position === wide ? { ...target, value: target.value.slice(index, index + IN_CHUNK) } : item)) };

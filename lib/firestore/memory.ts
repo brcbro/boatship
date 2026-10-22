@@ -1,7 +1,7 @@
 import { compareValues, valuesEqual } from "./codec";
 import {
   assertDocumentId, FirestoreError,
-  type DocSnapshot, type FirestoreClient, type FirestoreTransaction, type FsData, type FsValue, type QuerySpec, type Where, type Write,
+  type DocSnapshot, type FirestoreClient, type FirestoreTransaction, type FsData, type QuerySpec, type Where, type Write,
 } from "./types";
 
 type Stored = { data: FsData; updateTime: string };
@@ -16,8 +16,8 @@ function clone<T>(value: T): T {
   return out as T;
 }
 
-function readPath(data: FsData, path: string): FsValue | undefined {
-  let current: FsValue | undefined = data;
+function readPath(data: FsData, path: string): unknown {
+  let current: unknown = data;
   for (const segment of path.split(".")) {
     if (current === null || typeof current !== "object" || Array.isArray(current) || current instanceof Date || current instanceof Uint8Array) return undefined;
     current = (current as FsData)[segment];
@@ -41,10 +41,10 @@ function matches(data: FsData, where: Where): boolean {
       const result = compareValues(actual, value);
       return op === "<" ? result < 0 : op === "<=" ? result <= 0 : op === ">" ? result > 0 : result >= 0;
     }
-    case "in": return (value as FsValue[]).some((item) => valuesEqual(actual, item));
-    case "not-in": return actual !== null && !(value as FsValue[]).some((item) => valuesEqual(actual, item));
+    case "in": return (value as unknown[]).some((item) => valuesEqual(actual, item));
+    case "not-in": return actual !== null && !(value as unknown[]).some((item) => valuesEqual(actual, item));
     case "array-contains": return Array.isArray(actual) && actual.some((item) => valuesEqual(item, value));
-    case "array-contains-any": return Array.isArray(actual) && (value as FsValue[]).some((needle) => actual.some((item) => valuesEqual(item, needle)));
+    case "array-contains-any": return Array.isArray(actual) && (value as unknown[]).some((needle) => actual.some((item) => valuesEqual(item, needle)));
     default: return false;
   }
 }
@@ -154,8 +154,11 @@ export class MemoryFirestore implements FirestoreClient {
         const [collection, id] = path.split("/");
         if ((this.col(collection).get(id)?.updateTime ?? null) !== updateTime) aborted = true;
       }
+      // Validation and apply run synchronously so no other transaction can
+      // commit between the check and the write (the serialization point).
       for (const [spec, before] of queried) {
-        const now = await this.query(JSON.parse(spec));
+        const parsed = JSON.parse(spec) as QuerySpec;
+        const now = evaluateQuery(this.col(parsed.collection), parsed);
         if (JSON.stringify(now.map((doc) => [doc.id, doc.updateTime])) !== before) aborted = true;
       }
       if (aborted) {

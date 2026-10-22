@@ -41,10 +41,9 @@ export async function PATCH(req: Request, { params }: Params) {
       patch.role = body.role as ClientContactRole;
     }
     if (!Object.keys(patch).length) throw jsonError("No changes provided", 400);
-    let contact;
     const updatedAt = nowIso();
     await CLIENT_CONTACTS.update(contactId, { ...patch, updatedAt });
-    contact = { ...existing, ...patch, updatedAt };
+    const contact = { ...existing, ...patch, updatedAt };
     return { contact };
   });
 }

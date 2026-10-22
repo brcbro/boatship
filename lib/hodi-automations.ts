@@ -1,6 +1,5 @@
 import { randomUUID } from "crypto";
-import { Prisma } from "@/generated/prisma/client";
-import { getPrisma } from "@/lib/prisma";
+import { Collection, nowIso } from "@/lib/firestore";
 import type { AuthSession } from "@/types";
 
 export const hodiAuthorityLevels = ["Observe", "Draft", "Internal autopilot", "External approved"] as const;
@@ -18,7 +17,7 @@ export const hodiAutomationRules: readonly HodiAutomationRule[] = [
   { id: "weekly-client-status-draft", name: "Weekly client status draft", authority: "Draft", schedule: "Every Friday at 3:00 PM", description: "Prepares a clear update covering completed work, current focus, decisions needed, and next milestones.", output: "A reviewable client email draft. It is never sent automatically.", requiresReview: true },
 ];
 
-const json = (value: unknown) => value as Prisma.InputJsonValue;
+const json = (value: unknown) => value;
 export function getHodiAutomationRule(id: string) { return hodiAutomationRules.find((rule) => rule.id === id); }
 
 export function generateHodiAutomationReview(rule: HodiAutomationRule, clientName = "this client"): HodiAutomationReview {
@@ -33,35 +32,44 @@ export function generateHodiAutomationReview(rule: HodiAutomationRule, clientNam
   return { ruleId: rule.id, clientName, generatedAt: new Date().toISOString(), externalAction: false, ...reviews[rule.id] };
 }
 
+type RuleStateDoc = { id: string; ruleId: string; enabled: boolean; config: unknown; updatedBy: string; createdAt: string; updatedAt: string };
+type RunDoc = { id: string; ruleId: string; clientName: string; triggeredBy: string; trigger: string; status: string; review: unknown; externalAction: boolean; createdAt: string; updatedAt: string };
+const RULE_STATES = new Collection<RuleStateDoc>("HodiAutomationRuleState");
+const RUNS = new Collection<RunDoc>("HodiAutomationRun");
+
 export async function listHodiAutomationRules(): Promise<HodiAutomationRuleWithState[]> {
-  const states = await getPrisma().hodiAutomationRuleState.findMany();
+  const states = await RULE_STATES.find([]);
   const byRule = new Map(states.map((state) => [state.ruleId, state]));
   return hodiAutomationRules.map((rule) => {
     const state = byRule.get(rule.id);
-    return { ...rule, enabled: state?.enabled || false, updatedAt: state?.updatedAt.toISOString() || null, updatedBy: state?.updatedBy || null };
+    return { ...rule, enabled: state?.enabled || false, updatedAt: state?.updatedAt || null, updatedBy: state?.updatedBy || null };
   });
 }
 
 export async function setHodiAutomationRuleEnabled(ruleId: string, enabled: boolean, session: AuthSession) {
   if (session.role !== "admin") throw new Error("Only administrators can change automation rule state");
   if (!getHodiAutomationRule(ruleId)) throw new Error("Unknown automation rule");
-  const state = await getPrisma().hodiAutomationRuleState.upsert({
-    where: { ruleId }, create: { id: randomUUID(), ruleId, enabled, updatedBy: session.uid }, update: { enabled, updatedBy: session.uid },
-  });
-  return { ruleId: state.ruleId, enabled: state.enabled, updatedAt: state.updatedAt.toISOString(), updatedBy: state.updatedBy };
+  const existing = await RULE_STATES.get(ruleId);
+  const now = nowIso();
+  const state: RuleStateDoc = { id: existing?.id || randomUUID(), ruleId, enabled, config: existing?.config ?? null, updatedBy: session.uid, createdAt: existing?.createdAt || now, updatedAt: now };
+  await RULE_STATES.set(ruleId, state);
+  return { ruleId: state.ruleId, enabled: state.enabled, updatedAt: state.updatedAt, updatedBy: state.updatedBy };
 }
 
 export async function runHodiAutomationReview(ruleId: string, clientName: string, session: AuthSession) {
   const rule = getHodiAutomationRule(ruleId);
   if (!rule) throw new Error("Unknown automation rule");
   const review = generateHodiAutomationReview(rule, clientName);
-  const run = await getPrisma().hodiAutomationRun.create({ data: {
-    id: randomUUID(), ruleId, clientName, triggeredBy: session.uid, trigger: "manual", status: review.status, review: json(review), externalAction: false,
-  } });
+  const now = nowIso();
+  const run: RunDoc = { id: randomUUID(), ruleId, clientName, triggeredBy: session.uid, trigger: "manual", status: review.status, review: json(review), externalAction: false, createdAt: now, updatedAt: now };
+  await RUNS.create(run.id, run);
   return { runId: run.id, review, note: "This is a persisted review result only. No email, message, calendar event, or external action has been sent." };
 }
 
 export async function listHodiAutomationRuns(session: AuthSession, ruleId?: string) {
-  const runs = await getPrisma().hodiAutomationRun.findMany({ where: { ...(ruleId ? { ruleId } : {}), ...(session.role === "admin" ? {} : { triggeredBy: session.uid }) }, orderBy: { createdAt: "desc" }, take: 100 });
-  return runs.map((run) => ({ id: run.id, ruleId: run.ruleId, clientName: run.clientName, trigger: run.trigger, status: run.status, review: run.review as unknown as HodiAutomationReview, externalAction: run.externalAction, createdAt: run.createdAt.toISOString() }));
+  const runs = (await RUNS.find([
+    ...(ruleId ? [{ field: "ruleId", op: "==" as const, value: ruleId }] : []),
+    ...(session.role === "admin" ? [] : [{ field: "triggeredBy", op: "==" as const, value: session.uid }]),
+  ])).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 100);
+  return runs.map((run) => ({ id: run.id, ruleId: run.ruleId, clientName: run.clientName, trigger: run.trigger, status: run.status, review: run.review as unknown as HodiAutomationReview, externalAction: run.externalAction, createdAt: run.createdAt }));
 }

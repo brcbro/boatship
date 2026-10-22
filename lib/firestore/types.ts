@@ -4,7 +4,8 @@
  */
 export type FsPrimitive = string | number | boolean | null;
 export type FsValue = FsPrimitive | Date | Uint8Array | FsValue[] | FsData;
-export type FsData = { [key: string]: FsValue | undefined };
+/** Application documents are plain objects; values are validated by the codec at write time. */
+export type FsData = Record<string, unknown>;
 
 export type DocSnapshot<T = FsData> = { id: string; data: T; updateTime: string | null };
 
@@ -13,7 +14,7 @@ export type Precondition = { exists: boolean } | { updateTime: string };
 
 export type WhereOp = "==" | "!=" | "<" | "<=" | ">" | ">=" | "in" | "not-in" | "array-contains" | "array-contains-any";
 export type Where =
-  | { field: string; op: WhereOp; value: FsValue }
+  | { field: string; op: WhereOp; value: unknown }
   | { field: string; op: "is-null" | "is-not-null" };
 export type OrderBy = { field: string; direction?: "asc" | "desc" };
 export type QuerySpec = { collection: string; where?: Where[]; orderBy?: OrderBy[]; limit?: number };

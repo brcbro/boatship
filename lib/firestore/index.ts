@@ -49,7 +49,7 @@ export const nowIso = () => new Date().toISOString();
  * Typed collection helper. Documents keep ISO-8601 strings for timestamps so
  * range filters and ordering behave like the former SQL columns.
  */
-export class Collection<T extends FsData> {
+export class Collection<T extends object> {
   constructor(readonly name: string, private readonly client: () => FirestoreClient = getFirestore) {}
 
   async get(id: string): Promise<(T & { id: string }) | null> {
@@ -77,7 +77,7 @@ export class Collection<T extends FsData> {
   }
 
   async set(id: string, data: T, precondition?: Precondition): Promise<void> {
-    await this.client().commit([{ set: { collection: this.name, id, data: stripId(data), precondition } }]);
+    await this.client().commit([{ set: { collection: this.name, id, data: stripId(data) as unknown as FsData, precondition } }]);
   }
 
   async create(id: string, data: T): Promise<void> {
@@ -102,7 +102,7 @@ export class Collection<T extends FsData> {
   }
 }
 
-function stripId<T extends FsData>(data: T): T {
+function stripId<T extends object>(data: T): T {
   if (!("id" in data)) return data;
   const copy = { ...data } as FsData;
   // The document id is the key; keeping a duplicate field is harmless but we

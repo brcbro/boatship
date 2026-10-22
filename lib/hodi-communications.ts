@@ -1,9 +1,8 @@
 import { createHash, randomUUID } from "crypto";
-import { Prisma } from "@/generated/prisma/client";
 import type { AuthSession } from "@/types";
 import { hasPermission } from "@/lib/rbac";
 import { requireClientAccess } from "@/lib/client-access";
-import { getPrisma } from "@/lib/prisma";
+import { Collection, getFirestore, nowIso } from "@/lib/firestore";
 import { getStore } from "@/lib/store";
 
 export const HODI_COMMUNICATION_TYPES = ["missing_assets", "missing_access", "approval_request", "kickoff_scheduling", "overdue_escalation", "weekly_progress_update"] as const;
@@ -32,7 +31,7 @@ export type HodiCommunicationPlan = {
 };
 
 const PROPOSAL_TTL_MS = 15 * 60 * 1000;
-const json = (value: unknown) => value as Prisma.InputJsonValue;
+const json = (value: unknown) => value;
 const text = (value: unknown) => typeof value === "string" ? value.trim() : "";
 const textList = (value: unknown) => Array.isArray(value) ? value.map(text).filter(Boolean) : [];
 
@@ -111,12 +110,19 @@ async function buildPlan(type: HodiCommunicationType, payload: HodiCommunication
   };
 }
 
-function planFromRecord(record: { plan: unknown; approvalToken: string; expiresAt: Date; status: string }): HodiCommunicationPlan {
+export type HodiCommunicationProposalDoc = {
+  id: string; approvalToken: string; type: string; channel: string; recipient: string; subject: string | null; body: string;
+  payload: unknown; payloadHash: string; plan: unknown; userId: string; status: string; expiresAt: string;
+  approvedBy: string | null; approvedAt: string | null; handoffReadyAt: string | null; rejectedReason: string | null; createdAt: string; updatedAt: string;
+};
+export const HODI_COMMUNICATION_PROPOSALS = new Collection<HodiCommunicationProposalDoc>("HodiCommunicationProposal");
+
+function planFromRecord(record: { plan: unknown; approvalToken: string; expiresAt: string; status: string }): HodiCommunicationPlan {
   const plan = record.plan as unknown as HodiCommunicationPlan;
   return {
     ...plan,
     approval: record.status === "pending"
-      ? { required: true, state: "awaiting_approval", token: record.approvalToken, expiresAt: record.expiresAt.toISOString() }
+      ? { required: true, state: "awaiting_approval", token: record.approvalToken, expiresAt: record.expiresAt }
       : { required: true, state: "approved" },
   };
 }
@@ -126,10 +132,13 @@ export async function proposeHodiCommunication(type: HodiCommunicationType, payl
   const plan = await buildPlan(type, payload, session);
   const approvalToken = randomUUID();
   const expiresAt = new Date(Date.now() + PROPOSAL_TTL_MS);
-  const record = await getPrisma().hodiCommunicationProposal.create({ data: {
-    id: randomUUID(), approvalToken, type, channel: plan.channel, recipient: plan.recipient, subject: plan.subject, body: plan.body,
-    payload: json(payload), payloadHash: payloadHash(type, payload), plan: json(plan), userId: session.uid, expiresAt,
-  } });
+  const now = nowIso();
+  const record: HodiCommunicationProposalDoc = {
+    id: randomUUID(), approvalToken, type, channel: plan.channel, recipient: plan.recipient, subject: plan.subject ?? null, body: plan.body,
+    payload: json(payload), payloadHash: payloadHash(type, payload), plan: json(plan), userId: session.uid, status: "pending", expiresAt: expiresAt.toISOString(),
+    approvedBy: null, approvedAt: null, handoffReadyAt: null, rejectedReason: null, createdAt: now, updatedAt: now,
+  };
+  await HODI_COMMUNICATION_PROPOSALS.create(record.id, record);
   return { proposalId: record.id, plan: planFromRecord(record), outcome: "awaiting_approval" as const };
 }
 
@@ -137,16 +146,20 @@ export async function approveHodiCommunication(type: HodiCommunicationType, payl
   assertType(type);
   assertCanCommunicate(session);
   await requireClientAccess(session, text(payload.clientId));
-  const db = getPrisma();
-  const proposal = await db.hodiCommunicationProposal.findUnique({ where: { approvalToken } });
-  if (!proposal || proposal.userId !== session.uid || proposal.type !== type || proposal.payloadHash !== payloadHash(type, payload)) throw new Error("Approval token is missing or does not match this communication draft");
-  if (proposal.expiresAt.getTime() <= Date.now()) {
-    await db.$executeRaw`UPDATE "HodiCommunicationProposal" SET "status" = 'expired', "updatedAt" = NOW() WHERE "id" = ${proposal.id} AND "status" = 'pending'`;
-    throw new Error("Approval token has expired. Create a new draft to review it again.");
-  }
-  const approved = await db.$executeRaw`UPDATE "HodiCommunicationProposal" SET "status" = 'approved_ready_for_handoff', "approvedBy" = ${session.uid}, "approvedAt" = NOW(), "handoffReadyAt" = NOW(), "updatedAt" = NOW() WHERE "id" = ${proposal.id} AND "status" = 'pending' AND "expiresAt" > NOW()`;
-  if (approved !== 1) throw new Error("This communication has already been reviewed");
-  const stored = await db.hodiCommunicationProposal.findUniqueOrThrow({ where: { id: proposal.id } });
+  const stored = await getFirestore().runTransaction(async (tx) => {
+    const [found] = await tx.query<HodiCommunicationProposalDoc>(HODI_COMMUNICATION_PROPOSALS.spec([{ field: "approvalToken", op: "==", value: approvalToken }], { limit: 1 }));
+    const proposal = found ? { ...found.data, id: found.id } : null;
+    if (!proposal || proposal.userId !== session.uid || proposal.type !== type || proposal.payloadHash !== payloadHash(type, payload)) throw new Error("Approval token is missing or does not match this communication draft");
+    const now = nowIso();
+    if (Date.parse(proposal.expiresAt) <= Date.now()) {
+      if (proposal.status === "pending") tx.write({ update: { collection: HODI_COMMUNICATION_PROPOSALS.name, id: proposal.id, data: { status: "expired", updatedAt: now } } });
+      throw new Error("Approval token has expired. Create a new draft to review it again.");
+    }
+    if (proposal.status !== "pending") throw new Error("This communication has already been reviewed");
+    const patch = { status: "approved_ready_for_handoff", approvedBy: session.uid, approvedAt: now, handoffReadyAt: now, updatedAt: now };
+    tx.write({ update: { collection: HODI_COMMUNICATION_PROPOSALS.name, id: proposal.id, data: patch } });
+    return { ...proposal, ...patch };
+  });
   return {
     proposalId: stored.id,
     plan: { ...planFromRecord(stored), sendEligibility: { eligible: false, reason: "Approved for handoff only. Boatship has not sent this communication." } },
@@ -156,13 +169,16 @@ export async function approveHodiCommunication(type: HodiCommunicationType, payl
 
 export async function listHodiCommunicationProposals(session: AuthSession, status?: HodiCommunicationStatus) {
   assertCanCommunicate(session);
-  const where = { ...(session.role === "admin" ? {} : { userId: session.uid }), ...(status ? { status } : {}) };
-  const records = await getPrisma().hodiCommunicationProposal.findMany({ where, orderBy: { createdAt: "desc" }, take: 100 });
+  const where = [
+    ...(session.role === "admin" ? [] : [{ field: "userId", op: "==" as const, value: session.uid }]),
+    ...(status ? [{ field: "status", op: "==" as const, value: status }] : []),
+  ];
+  const records = (await HODI_COMMUNICATION_PROPOSALS.find(where)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 100);
   return records.map((record) => ({
     id: record.id, type: record.type as HodiCommunicationType, channel: record.channel as HodiCommunicationChannel,
     recipient: record.recipient, subject: record.subject, body: record.body, status: record.status as HodiCommunicationStatus,
-    userId: record.userId, createdAt: record.createdAt.toISOString(), expiresAt: record.expiresAt.toISOString(),
-    approvedBy: record.approvedBy, approvedAt: record.approvedAt?.toISOString() || null,
-    handoffReadyAt: record.handoffReadyAt?.toISOString() || null,
+    userId: record.userId, createdAt: record.createdAt, expiresAt: record.expiresAt,
+    approvedBy: record.approvedBy, approvedAt: record.approvedAt || null,
+    handoffReadyAt: record.handoffReadyAt || null,
   }));
 }
