@@ -1,7 +1,6 @@
 import { handleApi, jsonError } from "@/lib/api";
-import { requireSession, SESSION_COOKIE } from "@/lib/auth";
+import { requireSession, SESSION_COOKIE, revokeOtherDatabaseSessions } from "@/lib/auth";
 import { hashPassword, sha256Hex, verifyPassword } from "@/lib/password";
-import { getPrisma } from "@/lib/prisma";
 import { getStore } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -50,7 +49,7 @@ export async function POST(req: Request) {
 
     const token = currentToken(req);
     if (token) {
-      await getPrisma().$executeRaw`DELETE FROM "AuthSession" WHERE "userId" = ${user.uid} AND "tokenHash" <> ${sha256Hex(token)}`;
+      await revokeOtherDatabaseSessions(user.uid, sha256Hex(token));
     }
     return { ok: true };
   });

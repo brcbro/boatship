@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { createHash, randomBytes } from "crypto";
 import type { AuthSession, UserRole } from "@/types";
 import { getStore } from "@/lib/store";
-import { getPrisma } from "@/lib/prisma";
+import { Collection, nowIso } from "@/lib/firestore";
 import { isUnsafeDemoUser } from "@/lib/demo-users";
 import { requireStaffRequestPermissions } from "@/lib/rbac";
 import {
@@ -14,31 +14,44 @@ export { SESSION_COOKIE, encodeLocalSession };
 
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 14;
 
+/** Keyed by the SHA-256 of the bearer token; never stores the token itself. */
+export type AuthSessionDoc = { tokenHash: string; userId: string; expiresAt: string; createdAt: string };
+export const AUTH_SESSIONS = new Collection<AuthSessionDoc>("AuthSession");
+
 function tokenHash(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
 
 export async function createDatabaseSession(session: AuthSession) {
   const token = `${encodeLocalSession(session)}.${randomBytes(32).toString("base64url")}`;
-  await getPrisma().authSession.create({
-    data: {
-      tokenHash: tokenHash(token),
-      userId: session.uid,
-      expiresAt: new Date(Date.now() + SESSION_TTL_MS),
-    },
-  });
+  const hash = tokenHash(token);
+  await AUTH_SESSIONS.create(hash, { tokenHash: hash, userId: session.uid, expiresAt: new Date(Date.now() + SESSION_TTL_MS).toISOString(), createdAt: nowIso() });
   return token;
 }
 
 export async function revokeDatabaseSession(token: string | null | undefined) {
   if (!token) return;
-  await getPrisma().$executeRaw`DELETE FROM "AuthSession" WHERE "tokenHash" = ${tokenHash(token)}`;
+  await AUTH_SESSIONS.delete(tokenHash(token));
+}
+
+/** Active sessions for a user, newest first. */
+export async function listDatabaseSessions(userId: string) {
+  const records = await AUTH_SESSIONS.find([{ field: "userId", op: "==", value: userId }, { field: "expiresAt", op: ">", value: nowIso() }]);
+  return records.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+/** Revokes every session of a user except the one whose token hash is given; returns the count. */
+export async function revokeOtherDatabaseSessions(userId: string, keepTokenHash?: string | null) {
+  const records = await AUTH_SESSIONS.find([{ field: "userId", op: "==", value: userId }]);
+  const targets = records.filter((record) => record.tokenHash !== keepTokenHash);
+  for (const record of targets) await AUTH_SESSIONS.delete(record.tokenHash);
+  return targets.length;
 }
 
 async function getDatabaseSession(token: string): Promise<AuthSession | null> {
-  const record = await getPrisma().authSession.findUnique({ where: { tokenHash: tokenHash(token) } });
+  const record = await AUTH_SESSIONS.get(tokenHash(token));
   if (!record) return null;
-  if (record.expiresAt.getTime() <= Date.now()) {
+  if (new Date(record.expiresAt).getTime() <= Date.now()) {
     await revokeDatabaseSession(token);
     return null;
   }

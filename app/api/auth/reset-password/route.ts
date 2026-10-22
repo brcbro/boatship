@@ -1,7 +1,7 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { hashPassword } from "@/lib/password";
 import { getStore } from "@/lib/store";
-import { getPrisma } from "@/lib/prisma";
+import { revokeOtherDatabaseSessions } from "@/lib/auth";
 import { consumeAccountAndIpLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -43,7 +43,7 @@ export async function POST(req: Request) {
       inviteTokenExpiresAt: null,
       mustResetPassword: false,
     });
-    await getPrisma().$executeRaw`DELETE FROM "AuthSession" WHERE "userId" = ${user.uid}`;
+    await revokeOtherDatabaseSessions(user.uid, null);
 
     return { ok: true, email: user.email };
   });

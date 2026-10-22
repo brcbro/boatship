@@ -1,5 +1,5 @@
 import { createHash } from "crypto";
-import { getPrisma } from "@/lib/prisma";
+import { getFirestore, isLocalDemoStore } from "@/lib/firestore";
 
 type RateLimit = {
   scope: string;
@@ -8,9 +8,12 @@ type RateLimit = {
   windowSeconds: number;
 };
 
+const BUCKETS = "RateLimitBucket";
+type BucketDoc = { count: number; expiresAt: string };
+
 const localBuckets = new Map<string, { count: number; expiresAt: number }>();
 
-/** Atomic, shared limit across Worker isolates. Apply the migration before deployment. */
+/** Atomic, shared limit across Worker isolates: one transaction per request on a hashed key. */
 export async function consumeRateLimit({ scope, identity, max, windowSeconds }: RateLimit): Promise<boolean> {
   if (!Number.isSafeInteger(max) || max < 1 || !Number.isSafeInteger(windowSeconds) || windowSeconds < 1) {
     throw new Error(`Invalid rate limit configuration for ${scope}`);
@@ -18,7 +21,7 @@ export async function consumeRateLimit({ scope, identity, max, windowSeconds }: 
 
   // Never put email addresses, tokens, or client IPs in database keys.
   const key = createHash("sha256").update(`${scope}\0${identity.trim().toLowerCase()}`).digest("hex");
-  if (!process.env.DATABASE_URL && process.env.ALLOW_LOCAL_STORE === "1" && process.env.NODE_ENV !== "production") {
+  if (isLocalDemoStore() && process.env.NODE_ENV !== "production") {
     const now = Date.now();
     const existing = localBuckets.get(key);
     const next = existing && existing.expiresAt > now
@@ -27,30 +30,28 @@ export async function consumeRateLimit({ scope, identity, max, windowSeconds }: 
     localBuckets.set(key, next);
     return next.count <= max;
   }
-  const rows = await getPrisma().$queryRaw<Array<{ count: number }>>`
-    INSERT INTO "RateLimitBucket" ("key", "count", "expiresAt")
-    VALUES (${key}, 1, CURRENT_TIMESTAMP + (${windowSeconds} * INTERVAL '1 second'))
-    ON CONFLICT ("key") DO UPDATE SET
-      "count" = CASE WHEN "RateLimitBucket"."expiresAt" <= CURRENT_TIMESTAMP
-        THEN 1 ELSE "RateLimitBucket"."count" + 1 END,
-      "expiresAt" = CASE WHEN "RateLimitBucket"."expiresAt" <= CURRENT_TIMESTAMP
-        THEN CURRENT_TIMESTAMP + (${windowSeconds} * INTERVAL '1 second')
-        ELSE "RateLimitBucket"."expiresAt" END
-    RETURNING "count"
-  `;
+  const firestore = getFirestore();
+  const count = await firestore.runTransaction(async (tx) => {
+    const now = Date.now();
+    const bucket = await tx.get<BucketDoc>(BUCKETS, key);
+    const expired = !bucket || new Date(bucket.data.expiresAt).getTime() <= now;
+    const next: BucketDoc = expired
+      ? { count: 1, expiresAt: new Date(now + windowSeconds * 1000).toISOString() }
+      : { count: bucket.data.count + 1, expiresAt: bucket.data.expiresAt };
+    tx.write({ set: { collection: BUCKETS, id: key, data: next } });
+    return next.count;
+  }, { attempts: 8 });
   // Opportunistically remove cold identities without adding a scheduled job.
   // This only deletes buckets that expired at least a day ago.
   if (Math.random() < 0.002) {
     try {
-      await getPrisma().$executeRaw`
-        DELETE FROM "RateLimitBucket"
-        WHERE "expiresAt" < CURRENT_TIMESTAMP - INTERVAL '1 day'
-      `;
+      const stale = await firestore.query({ collection: BUCKETS, where: [{ field: "expiresAt", op: "<", value: new Date(Date.now() - 86_400_000).toISOString() }], limit: 200 });
+      if (stale.length) await firestore.commit(stale.map((doc) => ({ delete: { collection: BUCKETS, id: doc.id } })));
     } catch (error) {
       console.error("Expired rate-limit bucket cleanup failed", error);
     }
   }
-  return rows[0].count <= max;
+  return count <= max;
 }
 
 export function requestIp(req: Request): string {

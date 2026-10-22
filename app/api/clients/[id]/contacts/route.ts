@@ -4,7 +4,8 @@ import { requireRoles, requireSession } from "@/lib/auth";
 import { canAccessClient } from "@/lib/client-access";
 import { ensurePrimaryContact } from "@/lib/client-contacts";
 import { localClientDemo } from "@/lib/engagements";
-import { getPrisma } from "@/lib/prisma";
+import { CLIENT_CONTACTS, findClientContactByEmail, type ClientContactDoc } from "@/lib/client-contacts";
+import { nowIso } from "@/lib/firestore";
 import { getStore } from "@/lib/store";
 import type { ClientContactRole } from "@/types";
 
@@ -24,7 +25,7 @@ export async function GET(req: Request, { params }: Params) {
       id: `primary_${id}`, clientId: id, name: client.name, email: client.primaryContactEmail,
       role: "account_admin", createdAt: client.createdAt, updatedAt: client.updatedAt,
     }] : [] };
-    const contacts = await getPrisma().clientContact.findMany({ where: { clientId: id }, orderBy: { createdAt: "asc" } });
+    const contacts = (await CLIENT_CONTACTS.find([{ field: "clientId", op: "==", value: id }])).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     return { contacts };
   });
 }
@@ -43,17 +44,11 @@ export async function POST(req: Request, { params }: Params) {
     if (!name || name.length > 160 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) throw jsonError("Invalid contact", 400);
     if (!ROLES.includes(body.role as ClientContactRole)) throw jsonError("Invalid role", 400);
     await ensurePrimaryContact(client);
-    const existing = await getPrisma().clientContact.findUnique({ where: { clientId_email: { clientId: id, email } } });
+    const existing = await findClientContactByEmail(id, email);
     if (existing) throw jsonError("Contact email already exists", 409);
-    let contact;
-    try {
-      contact = await getPrisma().clientContact.create({ data: {
-        id: randomUUID(), clientId: id, name, email, role: body.role as ClientContactRole,
-      } });
-    } catch (error) {
-      if (error && typeof error === "object" && "code" in error && error.code === "P2002") throw jsonError("Contact email already exists", 409);
-      throw error;
-    }
+    const stamp = nowIso();
+    const contact: ClientContactDoc = { id: randomUUID(), clientId: id, name, email, role: body.role as ClientContactRole, createdAt: stamp, updatedAt: stamp };
+    await CLIENT_CONTACTS.create(contact.id, contact);
     return { contact };
   });
 }

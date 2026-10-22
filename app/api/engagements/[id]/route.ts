@@ -1,8 +1,8 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles, requireSession } from "@/lib/auth";
 import { canAccessClient } from "@/lib/client-access";
-import { engagementWithProgress, legacyEngagementId, ensureLegacyEngagement, localClientDemo } from "@/lib/engagements";
-import { getPrisma } from "@/lib/prisma";
+import { ENGAGEMENTS, engagementWithProgress, legacyEngagementId, ensureLegacyEngagement, localClientDemo } from "@/lib/engagements";
+import { nowIso } from "@/lib/firestore";
 import { getStore } from "@/lib/store";
 import type { EngagementStatus } from "@/types";
 
@@ -27,7 +27,7 @@ async function accessible(id: string, session: Awaited<ReturnType<typeof require
     if (!client) throw jsonError("Engagement not found", 404);
     return ensureLegacyEngagement(client);
   }
-  const row = await getPrisma().engagement.findUnique({ where: { id } });
+  const row = await ENGAGEMENTS.get(id);
   if (!row) throw jsonError("Engagement not found", 404);
   if (!await canAccessClient(session, row.clientId)) throw jsonError("Forbidden", 403);
   return row;
@@ -48,7 +48,7 @@ export async function PATCH(req: Request, { params }: Params) {
     const row = await accessible((await params).id, session);
     if (localClientDemo()) throw jsonError("Updating engagements requires a configured database", 501);
     const body = await req.json().catch(() => ({})) as Record<string, unknown>;
-    const patch: { name?: string; status?: EngagementStatus; ownerId?: string | null; startDate?: Date | null; targetDate?: Date | null; completedAt?: Date | null } = {};
+    const patch: { name?: string; status?: EngagementStatus; ownerId?: string | null; startDate?: string | null; targetDate?: string | null; completedAt?: string | null } = {};
     if (body.name !== undefined) {
       if (typeof body.name !== "string" || !body.name.trim() || body.name.trim().length > 160) throw jsonError("Invalid name", 400);
       patch.name = body.name.trim();
@@ -57,7 +57,7 @@ export async function PATCH(req: Request, { params }: Params) {
       if (row.id === legacyEngagementId(row.clientId)) throw jsonError("Update onboarding status through the client", 400);
       if (!STATUSES.includes(body.status as EngagementStatus)) throw jsonError("Invalid status", 400);
       patch.status = body.status as EngagementStatus;
-      patch.completedAt = body.status === "completed" ? row.completedAt || new Date() : null;
+      patch.completedAt = body.status === "completed" ? row.completedAt || nowIso() : null;
     }
     if (body.ownerId !== undefined) {
       if (row.id === legacyEngagementId(row.clientId)) throw jsonError("Update onboarding owner through the client", 400);
@@ -70,13 +70,14 @@ export async function PATCH(req: Request, { params }: Params) {
       }
       patch.ownerId = body.ownerId as string | null;
     }
-    if (body.startDate !== undefined) patch.startDate = parseDate(body.startDate, "startDate");
-    if (body.targetDate !== undefined) patch.targetDate = parseDate(body.targetDate, "targetDate");
+    if (body.startDate !== undefined) patch.startDate = parseDate(body.startDate, "startDate")?.toISOString() ?? null;
+    if (body.targetDate !== undefined) patch.targetDate = parseDate(body.targetDate, "targetDate")?.toISOString() ?? null;
     const startDate = patch.startDate === undefined ? row.startDate : patch.startDate;
     const targetDate = patch.targetDate === undefined ? row.targetDate : patch.targetDate;
     if (startDate && targetDate && targetDate < startDate) throw jsonError("targetDate precedes startDate", 400);
     if (!Object.keys(patch).length) throw jsonError("No changes provided", 400);
-    const updated = await getPrisma().engagement.update({ where: { id: row.id }, data: patch });
+    const updated = { ...row, ...patch, updatedAt: nowIso() };
+    await ENGAGEMENTS.update(row.id, { ...patch, updatedAt: updated.updatedAt });
     const tasks = await (await getStore()).listTasks(row.clientId);
     return { engagement: engagementWithProgress(updated, tasks) };
   });

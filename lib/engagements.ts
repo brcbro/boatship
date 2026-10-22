@@ -1,13 +1,20 @@
 import type { Client, Engagement, EngagementStatus, Task } from "@/types";
-import { getPrisma } from "@/lib/prisma";
+import { Collection, getFirestore, isLocalDemoStore, nowIso } from "@/lib/firestore";
 import { legacyEngagementId, taskEngagementId } from "@/lib/engagement-scope";
 
 export { legacyEngagementId, taskEngagementId };
-export const localClientDemo = () => !process.env.DATABASE_URL?.trim() && process.env.ALLOW_LOCAL_STORE === "1";
+export const localClientDemo = () => isLocalDemoStore();
+
+/** Firestore document for an engagement; timestamps are ISO-8601 strings. */
+export type EngagementDoc = {
+  id: string; clientId: string; name: string; type: string; status: string; ownerId: string | null;
+  startDate: string | null; targetDate: string | null; completedAt: string | null; createdAt: string; updatedAt: string;
+};
+export const ENGAGEMENTS = new Collection<EngagementDoc>("Engagement");
 
 export async function taskEngagementClosed(task: Task): Promise<boolean> {
   if (localClientDemo()) return false;
-  const engagement = await getPrisma().engagement.findUnique({ where: { id: taskEngagementId(task) }, select: { status: true } });
+  const engagement = await ENGAGEMENTS.get(taskEngagementId(task));
   return engagement?.status === "completed" || engagement?.status === "cancelled";
 }
 
@@ -18,52 +25,45 @@ function legacyStatus(status: Client["status"]): EngagementStatus {
   return "planned";
 }
 
-export async function ensureLegacyEngagement(client: Client) {
-  if (localClientDemo()) return {
-    id: legacyEngagementId(client.id), clientId: client.id, name: "Onboarding", type: "onboarding",
-    status: legacyStatus(client.status), ownerId: client.assignedTeamMemberId,
-    startDate: null, targetDate: null,
-    completedAt: client.status === "completed" ? new Date(client.updatedAt) : null,
-    createdAt: new Date(client.createdAt), updatedAt: new Date(client.updatedAt),
-  };
-  const prisma = getPrisma();
+export async function ensureLegacyEngagement(client: Client): Promise<EngagementDoc> {
   const id = legacyEngagementId(client.id);
   const status = legacyStatus(client.status);
-  const current = await prisma.engagement.findUnique({ where: { id } });
-  const completedAt = status === "completed" ? current?.completedAt || new Date(client.updatedAt) : null;
-  if (current) {
-    if (current.status === status && current.ownerId === client.assignedTeamMemberId && current.completedAt?.getTime() === completedAt?.getTime()) return current;
-    return prisma.engagement.update({ where: { id }, data: { status, ownerId: client.assignedTeamMemberId, completedAt } });
-  }
-  try {
-    return await prisma.engagement.create({ data: {
-      id, clientId: client.id, name: "Onboarding", type: "onboarding", status,
-      ownerId: client.assignedTeamMemberId, completedAt,
-      createdAt: new Date(client.createdAt),
-    } });
-  } catch (error) {
-    if (error && typeof error === "object" && "code" in error && error.code === "P2002") {
-      return prisma.engagement.findUniqueOrThrow({ where: { id } });
+  if (localClientDemo()) return {
+    id, clientId: client.id, name: "Onboarding", type: "onboarding",
+    status, ownerId: client.assignedTeamMemberId,
+    startDate: null, targetDate: null,
+    completedAt: client.status === "completed" ? new Date(client.updatedAt).toISOString() : null,
+    createdAt: new Date(client.createdAt).toISOString(), updatedAt: new Date(client.updatedAt).toISOString(),
+  };
+  return getFirestore().runTransaction(async (tx) => {
+    const current = await tx.get<EngagementDoc>(ENGAGEMENTS.name, id);
+    const completedAt = status === "completed" ? current?.data.completedAt || new Date(client.updatedAt).toISOString() : null;
+    if (current) {
+      if (current.data.status === status && current.data.ownerId === client.assignedTeamMemberId && current.data.completedAt === completedAt) return { ...current.data, id };
+      const patch = { status, ownerId: client.assignedTeamMemberId, completedAt, updatedAt: nowIso() };
+      tx.write({ update: { collection: ENGAGEMENTS.name, id, data: patch } });
+      return { ...current.data, ...patch, id };
     }
-    throw error;
-  }
+    const created: EngagementDoc = {
+      id, clientId: client.id, name: "Onboarding", type: "onboarding", status,
+      ownerId: client.assignedTeamMemberId, startDate: null, targetDate: null, completedAt,
+      createdAt: new Date(client.createdAt).toISOString(), updatedAt: nowIso(),
+    };
+    tx.write({ set: { collection: ENGAGEMENTS.name, id, data: created, precondition: { exists: false } } });
+    return created;
+  });
 }
 
-export function engagementWithProgress(
-  row: { id: string; clientId: string; name: string; type: string; status: string; ownerId: string | null; startDate: Date | null; targetDate: Date | null; completedAt: Date | null; createdAt: Date; updatedAt: Date },
-  tasks: Task[],
-): Engagement {
+export function engagementWithProgress(row: EngagementDoc, tasks: Task[]): Engagement {
   const scoped = tasks.filter((task) => taskEngagementId(task) === row.id);
   const completedTaskCount = scoped.filter((task) => task.status === "completed").length;
   return {
     ...row,
     type: row.type as Engagement["type"],
     status: row.status as EngagementStatus,
-    startDate: row.startDate?.toISOString() ?? null,
-    targetDate: row.targetDate?.toISOString() ?? null,
-    completedAt: row.completedAt?.toISOString() ?? null,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
+    startDate: row.startDate ?? null,
+    targetDate: row.targetDate ?? null,
+    completedAt: row.completedAt ?? null,
     taskCount: scoped.length,
     completedTaskCount,
     progress: scoped.length ? Math.round(100 * completedTaskCount / scoped.length) : 0,

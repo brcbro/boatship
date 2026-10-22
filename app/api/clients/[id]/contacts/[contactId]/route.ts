@@ -1,7 +1,8 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
 import { canAccessClient } from "@/lib/client-access";
-import { getPrisma } from "@/lib/prisma";
+import { CLIENT_CONTACTS, findClientContactByEmail } from "@/lib/client-contacts";
+import { nowIso } from "@/lib/firestore";
 import { getStore } from "@/lib/store";
 import type { ClientContactRole } from "@/types";
 import { localClientDemo } from "@/lib/engagements";
@@ -17,7 +18,7 @@ export async function PATCH(req: Request, { params }: Params) {
     const { id, contactId } = await params;
     if (!await canAccessClient(session, id)) throw jsonError("Forbidden", 403);
     if (localClientDemo()) throw jsonError("Updating contacts requires a configured database", 501);
-    const existing = await getPrisma().clientContact.findUnique({ where: { id: contactId } });
+    const existing = await CLIENT_CONTACTS.get(contactId);
     if (!existing || existing.clientId !== id) throw jsonError("Contact not found", 404);
     const body = await req.json().catch(() => ({})) as Record<string, unknown>;
     const patch: { name?: string; email?: string; role?: ClientContactRole } = {};
@@ -32,7 +33,7 @@ export async function PATCH(req: Request, { params }: Params) {
       if (isCurrentPrimaryContact(existing.email, client?.primaryContactEmail) && patch.email !== existing.email) {
         throw jsonError("Update the primary email on the client account", 409);
       }
-      const duplicate = await getPrisma().clientContact.findUnique({ where: { clientId_email: { clientId: id, email: patch.email } } });
+      const duplicate = await findClientContactByEmail(id, patch.email);
       if (duplicate && duplicate.id !== contactId) throw jsonError("Contact email already exists", 409);
     }
     if (body.role !== undefined) {
@@ -41,12 +42,9 @@ export async function PATCH(req: Request, { params }: Params) {
     }
     if (!Object.keys(patch).length) throw jsonError("No changes provided", 400);
     let contact;
-    try {
-      contact = await getPrisma().clientContact.update({ where: { id: contactId }, data: patch });
-    } catch (error) {
-      if (error && typeof error === "object" && "code" in error && error.code === "P2002") throw jsonError("Contact email already exists", 409);
-      throw error;
-    }
+    const updatedAt = nowIso();
+    await CLIENT_CONTACTS.update(contactId, { ...patch, updatedAt });
+    contact = { ...existing, ...patch, updatedAt };
     return { contact };
   });
 }
@@ -57,11 +55,11 @@ export async function DELETE(req: Request, { params }: Params) {
     const { id, contactId } = await params;
     if (!await canAccessClient(session, id)) throw jsonError("Forbidden", 403);
     if (localClientDemo()) throw jsonError("Removing contacts requires a configured database", 501);
-    const existing = await getPrisma().clientContact.findUnique({ where: { id: contactId } });
+    const existing = await CLIENT_CONTACTS.get(contactId);
     if (!existing || existing.clientId !== id) throw jsonError("Contact not found", 404);
     const client = await (await getStore()).getClient(id);
     if (isCurrentPrimaryContact(existing.email, client?.primaryContactEmail)) throw jsonError("Current primary contact cannot be removed", 409);
-    await getPrisma().clientContact.delete({ where: { id: contactId } });
+    await CLIENT_CONTACTS.delete(contactId);
     return { deleted: true };
   });
 }

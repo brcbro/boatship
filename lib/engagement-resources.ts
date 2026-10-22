@@ -1,7 +1,6 @@
 import { getStore } from "@/lib/store";
-import { getPrisma } from "@/lib/prisma";
 import { jsonError } from "@/lib/api";
-import { legacyEngagementId, localClientDemo } from "@/lib/engagements";
+import { ENGAGEMENTS, legacyEngagementId, localClientDemo } from "@/lib/engagements";
 export { resourceEngagementId, resourceInEngagement } from "@/lib/resource-engagement-scope";
 
 export async function validateResourceEngagement(clientId: string, requested: unknown, taskId?: unknown, allowClosed = false): Promise<string | null> {
@@ -17,7 +16,7 @@ export async function validateResourceEngagement(clientId: string, requested: un
     if (id !== legacyEngagementId(clientId)) throw jsonError("This engagement requires a configured database.", 501);
     return id;
   }
-  const engagement = await getPrisma().engagement.findUnique({ where: { id }, select: { clientId: true, status: true } });
+  const engagement = await ENGAGEMENTS.get(id);
   if (!engagement || engagement.clientId !== clientId) throw jsonError("The engagement must belong to this client.", 400);
   if (!allowClosed && (engagement.status === "completed" || engagement.status === "cancelled")) throw jsonError("This engagement is closed. Choose an active engagement.", 409);
   return id;

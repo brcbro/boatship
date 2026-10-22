@@ -6,7 +6,7 @@ import type { AssignedRole, TaskStatus, TaskType } from "@/types";
 import { appBaseUrl, syncClientStatusFromTasks } from "@/lib/client-status";
 import { sendEmail, taskAssignedEmailHtml, taskAssignedSubject } from "@/lib/email";
 import { ensureLegacyEngagement, taskEngagementId, localClientDemo, legacyEngagementId } from "@/lib/engagements";
-import { getPrisma } from "@/lib/prisma";
+import { ENGAGEMENTS } from "@/lib/engagements";
 
 export const runtime = "nodejs";
 
@@ -28,7 +28,7 @@ export async function GET(req: Request) {
       if (localClientDemo()) {
         if (engagementId !== legacyEngagementId(clientId)) throw jsonError("Engagement not found", 404);
       } else {
-        const engagement = await getPrisma().engagement.findUnique({ where: { id: engagementId } });
+        const engagement = await ENGAGEMENTS.get(engagementId);
         if (!engagement || engagement.clientId !== clientId) throw jsonError("Engagement not found", 404);
       }
       tasks = tasks.filter((task) => taskEngagementId(task) === engagementId);
@@ -78,7 +78,7 @@ export async function POST(req: Request) {
       if (localClientDemo()) {
         if (body.engagementId !== legacyEngagementId(body.clientId)) throw jsonError("Engagement not found", 404);
       } else {
-        const engagement = await getPrisma().engagement.findUnique({ where: { id: body.engagementId } });
+        const engagement = await ENGAGEMENTS.get(body.engagementId);
         if (!engagement || engagement.clientId !== body.clientId) throw jsonError("Engagement not found", 404);
         if (engagement.status === "completed" || engagement.status === "cancelled") throw jsonError("Engagement is closed", 400);
         engagementContext = { type: engagement.type, name: engagement.name };

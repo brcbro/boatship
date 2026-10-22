@@ -2,8 +2,8 @@ import { randomUUID } from "crypto";
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles, requireSession } from "@/lib/auth";
 import { canAccessClient } from "@/lib/client-access";
-import { ensureLegacyEngagement, engagementWithProgress, localClientDemo } from "@/lib/engagements";
-import { getPrisma } from "@/lib/prisma";
+import { ENGAGEMENTS, ensureLegacyEngagement, engagementWithProgress, localClientDemo, type EngagementDoc } from "@/lib/engagements";
+import { nowIso } from "@/lib/firestore";
 import { getStore } from "@/lib/store";
 import type { EngagementType } from "@/types";
 
@@ -33,7 +33,7 @@ export async function GET(req: Request, { params }: Params) {
       return { engagements: [engagementWithProgress(legacy, session.role === "client" ? tasks.filter((task) => task.type === "client_facing") : tasks)] };
     }
     const [rows, tasks] = await Promise.all([
-      getPrisma().engagement.findMany({ where: { clientId: id }, orderBy: { createdAt: "asc" } }),
+      ENGAGEMENTS.find([{ field: "clientId", op: "==", value: id }]).then((rows) => rows.sort((a, b) => a.createdAt.localeCompare(b.createdAt))),
       store.listTasks(id),
     ]);
     const visibleTasks = session.role === "client" ? tasks.filter((task) => task.type === "client_facing") : tasks;
@@ -66,10 +66,13 @@ export async function POST(req: Request, { params }: Params) {
     const targetDate = dateOrNull(body.targetDate, "targetDate");
     if (startDate && targetDate && targetDate < startDate) throw jsonError("targetDate precedes startDate", 400);
     await ensureLegacyEngagement(client);
-    const row = await getPrisma().engagement.create({ data: {
+    const stamp = nowIso();
+    const row: EngagementDoc = {
       id: randomUUID(), clientId: id, name, type: body.type as EngagementType,
-      status: "planned", ownerId, startDate, targetDate,
-    } });
+      status: "planned", ownerId, startDate: startDate?.toISOString() ?? null, targetDate: targetDate?.toISOString() ?? null,
+      completedAt: null, createdAt: stamp, updatedAt: stamp,
+    };
+    await ENGAGEMENTS.create(row.id, row);
     return { engagement: engagementWithProgress(row, []) };
   });
 }

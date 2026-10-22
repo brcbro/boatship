@@ -5,9 +5,8 @@ import { syncClientStatusFromTasks } from "@/lib/client-status";
 import { normalizeFormFields } from "@/lib/form-fields";
 import { hasPermission } from "@/lib/rbac";
 import { getStore } from "@/lib/store";
-import { legacyEngagementId, localClientDemo } from "@/lib/engagements";
+import { legacyEngagementId, localClientDemo, ENGAGEMENTS } from "@/lib/engagements";
 import { validateResourceEngagement } from "@/lib/engagement-resources";
-import { getPrisma } from "@/lib/prisma";
 
 export type HodiCreateFormsAction =
   | "create_form_template"
@@ -125,7 +124,7 @@ async function validate(action: HodiCreateFormsAction, payload: Payload, session
   if (!template) throw new Error("Form template not found");
   const engagementId = await validateResourceEngagement(clientId, payload.engagementId ?? legacyEngagementId(clientId));
   const engagementName = engagementId && !localClientDemo()
-    ? (await getPrisma().engagement.findUnique({ where: { id: engagementId }, select: { name: true } }))?.name || "Selected engagement"
+    ? (await ENGAGEMENTS.get(engagementId))?.name || "Selected engagement"
     : engagementId ? "Onboarding" : "Account-wide";
   const dueDate = asText(payload.dueDate) || null;
   if (dueDate && Number.isNaN(Date.parse(dueDate))) throw new Error("dueDate must be a valid date");

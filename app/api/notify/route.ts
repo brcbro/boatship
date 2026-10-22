@@ -14,7 +14,7 @@ import {
   taskAssignedSubject,
 } from "@/lib/email";
 import { localClientDemo, taskEngagementId } from "@/lib/engagements";
-import { getPrisma } from "@/lib/prisma";
+import { ENGAGEMENTS } from "@/lib/engagements";
 import { getStore } from "@/lib/store";
 import { filterAssignedClients, requireClientAccess } from "@/lib/client-access";
 import { consumeRateLimit } from "@/lib/rate-limit";
@@ -147,10 +147,7 @@ export async function POST(req: Request) {
       if (!client || !task || task.clientId !== client.id) throw jsonError("Client or task not found", 404);
       const engagement = localClientDemo()
         ? { type: "onboarding", name: "Onboarding" }
-        : await getPrisma().engagement.findUnique({
-            where: { id: taskEngagementId(task) },
-            select: { type: true, name: true },
-          });
+        : await ENGAGEMENTS.get(taskEngagementId(task));
       const to = body.to || client.primaryContactEmail;
       await sendEmail({
         to,

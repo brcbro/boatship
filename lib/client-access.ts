@@ -1,17 +1,15 @@
 import type { AuthSession } from "@/types";
-import { getStore } from "@/lib/store";
-import { getPrisma } from "@/lib/prisma";
+import { getStore, readSnapshotSlice } from "@/lib/store";
+import { isHostedStore } from "@/lib/firestore";
 import { hasClientAssignment } from "@/lib/client-access-policy";
 
 type ClientAssignment = { id: string; assignedTeamMemberId?: string | null };
 
 async function currentAssignments(): Promise<ClientAssignment[]> {
-  if (process.env.DATABASE_URL?.trim()) {
-    // The process-local DataStore cache can outlive an assignment change in
-    // another Worker. Authorization reads the current committed snapshot.
-    const snapshot = await getPrisma().storeSnapshot.findUnique({ where: { id: "main" }, select: { data: true } });
-    const data = snapshot?.data as { clients?: ClientAssignment[] } | null;
-    return data?.clients || [];
+  if (isHostedStore()) {
+    // The request-scoped DataStore cache can outlive an assignment change in
+    // another Worker. Authorization reads the current committed clients slice.
+    return (await readSnapshotSlice("clients")).map(({ id, assignedTeamMemberId }) => ({ id, assignedTeamMemberId }));
   }
   return (await (await getStore()).listClients()).map(({ id, assignedTeamMemberId }) => ({ id, assignedTeamMemberId }));
 }

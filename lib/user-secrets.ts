@@ -1,6 +1,6 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "crypto";
 import { randomUUID } from "crypto";
-import { getPrisma } from "@/lib/prisma";
+import { Collection, nowIso } from "@/lib/firestore";
 
 export const USER_SECRET_PROVIDERS = ["composio", "openrouter"] as const;
 export type UserSecretProvider = (typeof USER_SECRET_PROVIDERS)[number];
@@ -42,23 +42,25 @@ function last4(value: string) {
 export function userSecretMetadata(record: {
   provider: string;
   last4: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: Date | string;
+  updatedAt: Date | string;
 }): SecretMetadata {
   return {
     provider: providerOrThrow(record.provider),
     configured: true,
     last4: record.last4,
-    createdAt: record.createdAt,
-    updatedAt: record.updatedAt,
+    createdAt: new Date(record.createdAt),
+    updatedAt: new Date(record.updatedAt),
   };
 }
 
+export type UserProviderSecretDoc = { id: string; userId: string; provider: string; ciphertext: string; iv: string; authTag: string; keyVersion: number; last4: string; createdAt: string; updatedAt: string };
+export const USER_PROVIDER_SECRETS = new Collection<UserProviderSecretDoc>("UserProviderSecret");
+const secretId = (userId: string, provider: string) => `${userId}__${provider}`;
+
 export async function listUserSecretMetadata(userId: string): Promise<SecretMetadata[]> {
-  const records = await getPrisma().userProviderSecret.findMany({
-    where: { userId: { in: [WORKSPACE_SECRET_USER_ID, userId] } },
-    orderBy: { provider: "asc" },
-  });
+  const records = (await USER_PROVIDER_SECRETS.find([{ field: "userId", op: "in", value: [WORKSPACE_SECRET_USER_ID, userId] }]))
+    .sort((a, b) => a.provider.localeCompare(b.provider));
   const byProvider = new Map<string, (typeof records)[number]>();
   // Workspace values win, while legacy per-user values remain readable until
   // the workspace credential is saved once.
@@ -83,13 +85,8 @@ export async function listUserSecretMetadata(userId: string): Promise<SecretMeta
 
 export async function getUserSecret(userId: string, providerInput: string): Promise<string | null> {
   const provider = providerOrThrow(providerInput);
-  const prisma = getPrisma();
-  const workspaceRecord = await prisma.userProviderSecret.findUnique({
-    where: { userId_provider: { userId: WORKSPACE_SECRET_USER_ID, provider } },
-  });
-  const record = workspaceRecord || await prisma.userProviderSecret.findUnique({
-    where: { userId_provider: { userId, provider } },
-  });
+  const workspaceRecord = await USER_PROVIDER_SECRETS.get(secretId(WORKSPACE_SECRET_USER_ID, provider));
+  const record = workspaceRecord || await USER_PROVIDER_SECRETS.get(secretId(userId, provider));
   if (!record) return null;
 
   const decipher = createDecipheriv("aes-256-gcm", masterKey(), Buffer.from(record.iv, "base64"));
@@ -109,31 +106,28 @@ export async function upsertUserSecret(userId: string, providerInput: string, va
   const cipher = createCipheriv("aes-256-gcm", key, iv);
   const ciphertext = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
   const authTag = cipher.getAuthTag();
-  const record = await getPrisma().userProviderSecret.upsert({
-    where: { userId_provider: { userId, provider } },
-    create: {
-      id: randomUUID(),
-      userId,
-      provider,
-      ciphertext: ciphertext.toString("base64"),
-      iv: iv.toString("base64"),
-      authTag: authTag.toString("base64"),
-      last4: last4(value),
-    },
-    update: {
-      ciphertext: ciphertext.toString("base64"),
-      iv: iv.toString("base64"),
-      authTag: authTag.toString("base64"),
-      last4: last4(value),
-      keyVersion: 1,
-    },
-  });
+  const docId = secretId(userId, provider);
+  const existing = await USER_PROVIDER_SECRETS.get(docId);
+  const stamp = nowIso();
+  const record: UserProviderSecretDoc = {
+    id: existing?.id || randomUUID(),
+    userId,
+    provider,
+    ciphertext: ciphertext.toString("base64"),
+    iv: iv.toString("base64"),
+    authTag: authTag.toString("base64"),
+    keyVersion: 1,
+    last4: last4(value),
+    createdAt: existing?.createdAt || stamp,
+    updatedAt: stamp,
+  };
+  await USER_PROVIDER_SECRETS.set(docId, record);
   return userSecretMetadata(record);
 }
 
 export async function deleteUserSecret(userId: string, providerInput: string) {
   const provider = providerOrThrow(providerInput);
-  await getPrisma().$executeRaw`DELETE FROM "UserProviderSecret" WHERE "userId" = ${userId} AND "provider" = ${provider}`;
+  await USER_PROVIDER_SECRETS.delete(secretId(userId, provider));
 }
 
 export async function resolveUserSecret(userId: string | undefined, provider: UserSecretProvider) {

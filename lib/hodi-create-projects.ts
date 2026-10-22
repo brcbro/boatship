@@ -15,7 +15,7 @@ import {
 import { hasPermission } from "@/lib/rbac";
 import { getStore } from "@/lib/store";
 import { validateResourceEngagement } from "@/lib/engagement-resources";
-import { localClientDemo } from "@/lib/engagements";
+import { ENGAGEMENTS, localClientDemo } from "@/lib/engagements";
 import { projectApprovalSchema, projectMilestoneSchema, ProjectContextError, resolveHodiProjectContext } from "@/lib/hodi-project-context";
 
 export const hodiProjectCreationActions = [
@@ -70,7 +70,7 @@ async function validateProjectApproval(payload: Payload, session: AuthSession) {
 async function engagementName(engagementId: string | null) {
   if (!engagementId) return "Account-wide";
   if (localClientDemo()) return "Onboarding";
-  return (await getPrisma().engagement.findUnique({ where: { id: engagementId }, select: { name: true } }))?.name || "Selected engagement";
+  return (await ENGAGEMENTS.get(engagementId))?.name || "Selected engagement";
 }
 
 async function validateProduct(action: HodiProjectCreationAction, payload: Payload, session: AuthSession) {

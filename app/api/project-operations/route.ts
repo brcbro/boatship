@@ -2,7 +2,7 @@ import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles, requireSession } from "@/lib/auth";
 import { canAccessClient, filterAssignedClients } from "@/lib/client-access";
 import { getStore } from "@/lib/store";
-import { getPrisma } from "@/lib/prisma";
+import { ENGAGEMENTS } from "@/lib/engagements";
 import { validateResourceEngagement, resourceInEngagement } from "@/lib/engagement-resources";
 import { requireStaffPermission } from "@/lib/rbac";
 import { createApproval, createMilestone, executeProjectIntegration, listProjectOps, updateApproval, weeklyEvidenceReport } from "@/lib/project-operations";
@@ -19,7 +19,7 @@ export async function GET(req: Request) {
     if (clientId && !await canAccessClient(session, clientId)) throw jsonError("Forbidden", 403);
     const selected = url.searchParams.get("engagementId");
     if (selected && selected !== "account") {
-      const owner = clientId || (await getPrisma().engagement.findUnique({ where: { id: selected }, select: { clientId: true } }))?.clientId;
+      const owner = clientId || (await ENGAGEMENTS.get(selected))?.clientId;
       if (!owner || !await canAccessClient(session, owner)) throw jsonError("Forbidden", 403);
       await validateResourceEngagement(owner, selected, undefined, true);
     }

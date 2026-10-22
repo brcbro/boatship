@@ -1,7 +1,6 @@
 import { handleApi, jsonError } from "@/lib/api";
-import { requireSession, SESSION_COOKIE } from "@/lib/auth";
+import { listDatabaseSessions, requireSession, revokeOtherDatabaseSessions, SESSION_COOKIE } from "@/lib/auth";
 import { sha256Hex } from "@/lib/password";
-import { getPrisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 
@@ -18,15 +17,12 @@ export async function GET(req: Request) {
     const token = currentToken(req);
     if (!token) throw jsonError("Unauthorized", 401);
     const currentHash = sha256Hex(token);
-    const records = await getPrisma().authSession.findMany({
-      where: { userId: session.uid, expiresAt: { gt: new Date() } },
-      orderBy: { createdAt: "desc" },
-    });
+    const records = await listDatabaseSessions(session.uid);
     return {
       sessions: records.map((record) => ({
         id: record.tokenHash,
-        createdAt: record.createdAt.toISOString(),
-        expiresAt: record.expiresAt.toISOString(),
+        createdAt: record.createdAt,
+        expiresAt: record.expiresAt,
         current: record.tokenHash === currentHash,
       })),
     };
@@ -38,7 +34,7 @@ export async function DELETE(req: Request) {
     const session = await requireSession(req);
     const token = currentToken(req);
     if (!token) throw jsonError("Unauthorized", 401);
-    const revoked = await getPrisma().$executeRaw`DELETE FROM "AuthSession" WHERE "userId" = ${session.uid} AND "tokenHash" <> ${sha256Hex(token)}`;
+    const revoked = await revokeOtherDatabaseSessions(session.uid, sha256Hex(token));
     return { ok: true, revoked };
   });
 }

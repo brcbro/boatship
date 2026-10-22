@@ -4,7 +4,8 @@ import { evaluateOnboardingHealth } from "@/lib/onboarding-health";
 import { getStore } from "@/lib/store";
 import { filterAssignedClients } from "@/lib/client-access";
 import { calcProgress } from "@/lib/utils";
-import { getPrisma } from "@/lib/prisma";
+import { ENGAGEMENTS } from "@/lib/engagements";
+import { isLocalDemoStore } from "@/lib/firestore";
 import type { ClientStatus, ClientWithProgress } from "@/types";
 
 export const runtime = "nodejs";
@@ -24,8 +25,8 @@ export async function GET(req: Request) {
     // Concurrent cold reads could otherwise each fetch the same JSON document.
     const allClients = await filterAssignedClients(session, await store.listClients());
     const visibleIds = new Set(allClients.map((client) => client.id));
-    const engagementRows = allClients.length && !(process.env.ALLOW_LOCAL_STORE === "1" && !process.env.DATABASE_URL)
-      ? await getPrisma().engagement.findMany({ where: { clientId: { in: [...visibleIds] } } })
+    const engagementRows = allClients.length && !isLocalDemoStore()
+      ? await ENGAGEMENTS.find([{ field: "clientId", op: "in", value: [...visibleIds] }])
       : [];
     const [users, allTasks, allForms, allDocuments] = await Promise.all([
       store.listUsers(),
@@ -94,7 +95,7 @@ export async function GET(req: Request) {
     const completedOnboarding = engagementRows.filter((item) => item.type === "onboarding" && item.status === "completed" && item.completedAt);
     const completedClients = allClients.filter((client) => client.status === "completed");
     const avgOnboardingDays = completedOnboarding.length
-      ? Math.round(completedOnboarding.reduce((sum, item) => sum + (item.completedAt!.getTime() - (item.startDate || item.createdAt).getTime()), 0) / completedOnboarding.length / 8640000 * 10) / 10
+      ? Math.round(completedOnboarding.reduce((sum, item) => sum + (new Date(item.completedAt!).getTime() - new Date(item.startDate || item.createdAt).getTime()), 0) / completedOnboarding.length / 8640000 * 10) / 10
       : completedClients.length
       ? Math.round(
           (completedClients.reduce(

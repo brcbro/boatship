@@ -1,5 +1,4 @@
 import { randomUUID } from "crypto";
-import { Prisma } from "@/generated/prisma/client";
 import { promises as fs } from "fs";
 import path from "path";
 import type {
@@ -31,7 +30,8 @@ import type {
 } from "@/types";
 import { calcProgress } from "@/lib/utils";
 import { SEED_FORM_TEMPLATES, SEED_ONBOARDING_TEMPLATES } from "@/lib/seed-templates";
-import { getPrisma } from "@/lib/prisma";
+import { Collection, getFirestore, isFirestoreStatus, isHostedStore, type DocSnapshot, type FirestoreReader, type Where, type Write } from "@/lib/firestore";
+import { deleteWhere, updateWhere } from "@/lib/firestore/bulk";
 import { deleteDocumentObjects, listClientDocumentObjectKeys } from "@/lib/document-content";
 import { ensureLegacyEngagement } from "@/lib/engagements";
 import { ensurePrimaryContact } from "@/lib/client-contacts";
@@ -42,10 +42,6 @@ import { DEFAULT_TEAM_PERMISSIONS } from "@/lib/rbac";
 import { getRequestStoreScope } from "@/lib/store-context";
 import { applyFormSubmission, type FormSubmissionInput } from "@/lib/form-submission";
 import { applyDocumentUpload } from "@/lib/document-upload";
-import type {
-  NotificationRecord as PrismaNotificationRecord,
-  UserProfile as PrismaUserProfile,
-} from "@/generated/prisma/client";
 
 const DATA_DIR = path.join(process.cwd(), ".data");
 const DATA_FILE = path.join(DATA_DIR, "store.json");
@@ -77,71 +73,69 @@ function now() {
   return new Date().toISOString();
 }
 
-function relationalStoreUnavailable(error: unknown) {
-  if (!error || typeof error !== "object") return false;
-  // P2021/P2022 let application code and the schema migration be deployed in
-  // either order. Other database failures must surface instead of silently
-  // falling back to a large snapshot read.
-  const code = (error as { code?: unknown }).code;
-  if (code === "P2021" || code === "P2022" || code === "42P01" || code === "42703") {
-    return true;
-  }
+type UserProfileDoc = {
+  uid: string; email: string; name: string; role: string; clientId: string | null; createdAt: string;
+  inviteToken: string | null; inviteTokenExpiresAt: string | null; mustResetPassword: boolean;
+  password: string | null; passwordHash: string | null; permissions: string[]; digestEnabled: boolean; lastDigestAt: string | null;
+};
 
-  // Driver-adapter errors do not always preserve Prisma/Postgres' code on the
-  // outer error. Restrict the message fallback to the two normalized tables so
-  // unrelated query errors still surface normally.
-  const message = error instanceof Error ? error.message : String(error);
-  return (
-    /(?:relation|table).*(?:UserProfile|NotificationRecord).*(?:does not exist|missing)/i.test(
-      message
-    ) ||
-    /(?:UserProfile|NotificationRecord).*(?:relation|table).*(?:does not exist|missing)/i.test(
-      message
-    )
-  );
-}
+type NotificationDoc = {
+  id: string; userId: string; kind: string; title: string; body: string; href: string | null; clientId: string | null; readAt: string | null; createdAt: string;
+};
 
-function userProfileData(user: AppUser) {
+function userProfileData(user: AppUser): UserProfileDoc {
   return {
     uid: user.uid,
     email: user.email.trim().toLowerCase(),
     name: user.name,
     role: user.role,
-    clientId: user.clientId,
-    createdAt: new Date(user.createdAt),
+    clientId: user.clientId ?? null,
+    createdAt: new Date(user.createdAt).toISOString(),
     inviteToken: user.inviteToken ?? null,
-    inviteTokenExpiresAt: user.inviteTokenExpiresAt
-      ? new Date(user.inviteTokenExpiresAt)
-      : null,
+    inviteTokenExpiresAt: user.inviteTokenExpiresAt ? new Date(user.inviteTokenExpiresAt).toISOString() : null,
     mustResetPassword: user.mustResetPassword ?? false,
     password: user.password ?? null,
     passwordHash: user.passwordHash ?? null,
     permissions: user.permissions ?? (user.role === "team" ? [...DEFAULT_TEAM_PERMISSIONS] : []),
     digestEnabled: user.digestEnabled ?? false,
-    lastDigestAt: user.lastDigestAt ? new Date(user.lastDigestAt) : null,
+    lastDigestAt: user.lastDigestAt ? new Date(user.lastDigestAt).toISOString() : null,
   };
 }
 
-function appUserFromProfile(user: PrismaUserProfile): AppUser {
+function appUserFromProfile(user: UserProfileDoc): AppUser {
   return {
     uid: user.uid,
     email: user.email,
     name: user.name,
     role: user.role as AppUser["role"],
     clientId: user.clientId,
-    createdAt: user.createdAt.toISOString(),
+    createdAt: user.createdAt,
     inviteToken: user.inviteToken,
-    inviteTokenExpiresAt: user.inviteTokenExpiresAt?.toISOString() ?? null,
+    inviteTokenExpiresAt: user.inviteTokenExpiresAt ?? null,
     mustResetPassword: user.mustResetPassword,
     password: user.password,
     passwordHash: user.passwordHash,
     permissions: user.permissions as NonNullable<AppUser["permissions"]>,
     digestEnabled: user.digestEnabled,
-    lastDigestAt: user.lastDigestAt?.toISOString() ?? null,
+    lastDigestAt: user.lastDigestAt ?? null,
   };
 }
 
-function appNotificationFromRecord(notification: PrismaNotificationRecord): AppNotification {
+function notificationData(notification: AppNotification): NotificationDoc {
+  return {
+    id: notification.id,
+    userId: notification.userId,
+    kind: notification.kind,
+    title: notification.title,
+    body: notification.body,
+    href: notification.href ?? null,
+    clientId: notification.clientId ?? null,
+    readAt: notification.readAt ?? null,
+    createdAt: notification.createdAt,
+  };
+}
+
+function appNotificationFromRecord(notification: NotificationDoc): AppNotification {
   return {
     id: notification.id,
     userId: notification.userId,
@@ -150,8 +144,8 @@ function appNotificationFromRecord(notification: PrismaNotificationRecord): AppN
     body: notification.body,
     href: notification.href,
     clientId: notification.clientId,
-    readAt: notification.readAt?.toISOString() ?? null,
-    createdAt: notification.createdAt.toISOString(),
+    readAt: notification.readAt ?? null,
+    createdAt: notification.createdAt,
   };
 }
 
@@ -1505,7 +1499,48 @@ class LocalStore implements DataStore {
   }
 }
 
-class PrismaStore extends LocalStore {
+/** Firestore layout of the delivery store: one document per slice plus a meta document. */
+const SNAPSHOT_COLLECTION = "StoreSnapshot";
+const SNAPSHOT_META_ID = "main";
+const SNAPSHOT_SLICE_PREFIX = "main:";
+const SNAPSHOT_SLICE_LIMIT = 900_000; // bytes of JSON; Firestore caps a document at 1 MiB
+const SLICE_KEYS = Object.keys(emptyStore()) as Array<keyof StoreData>;
+
+type SliceDoc = { json: string; version: number };
+type MetaDoc = { version: number; updatedAt: string };
+
+const USER_PROFILES = new Collection<UserProfileDoc>("UserProfile");
+const NOTIFICATIONS = new Collection<NotificationDoc>("NotificationRecord");
+
+function sliceId(key: string) {
+  return `${SNAPSHOT_SLICE_PREFIX}${key}`;
+}
+
+function parseSlices(docs: Map<string, DocSnapshot<SliceDoc>>): StoreData {
+  const data = emptyStore();
+  for (const key of SLICE_KEYS) {
+    const doc = docs.get(sliceId(key));
+    if (!doc) continue;
+    try { (data as Record<string, unknown>)[key] = JSON.parse(doc.data.json); }
+    catch (error) { throw new Error(`Store slice ${key} is corrupt: ${error instanceof Error ? error.message : "unparseable"}`); }
+  }
+  return data;
+}
+
+function serializeSlice(key: keyof StoreData, value: unknown): string {
+  const json = JSON.stringify(value ?? (key === "projectOps" ? {} : []));
+  if (json.length > SNAPSHOT_SLICE_LIMIT) throw new Error(`Store slice ${key} exceeds the ${SNAPSHOT_SLICE_LIMIT} byte Firestore document limit; archive old records before writing more`);
+  return json;
+}
+
+/** Reads one slice without loading the whole store (authorization hot path). */
+export async function readSnapshotSlice<K extends keyof StoreData>(key: K): Promise<StoreData[K]> {
+  const doc = await getFirestore().get<SliceDoc>(SNAPSHOT_COLLECTION, sliceId(key));
+  if (!doc) return emptyStore()[key];
+  return JSON.parse(doc.data.json) as StoreData[K];
+}
+
+class FirestoreStore extends LocalStore {
   override async createClient(input: Parameters<LocalStore["createClient"]>[0]) {
     const client = await super.createClient(input);
     await Promise.allSettled([ensureLegacyEngagement(client), ensurePrimaryContact(client)]).then((results) => {
@@ -1528,229 +1563,118 @@ class PrismaStore extends LocalStore {
     return clients;
   }
 
-  private async upsertRelationalUser(user: AppUser) {
-    const data = userProfileData(user);
-    await getPrisma().userProfile.upsert({
-      where: { uid: user.uid },
-      create: data,
-      update: data,
-    });
+  private async upsertProfile(user: AppUser) {
+    await USER_PROFILES.set(user.uid, userProfileData(user));
   }
 
   private async syncLegacySnapshot(operation: () => Promise<unknown>) {
     try {
       await operation();
     } catch (error) {
-      // The relational write is authoritative for these normalized slices.
-      // Keeping snapshot sync best-effort preserves rollback compatibility
-      // without turning a successful hot-table write into a failed request.
-      console.error("Legacy StoreSnapshot sync failed", error);
+      // The profile/notification collections are authoritative for these
+      // slices; the snapshot copy is best-effort for older readers.
+      console.error("Legacy snapshot sync failed", error);
     }
   }
 
   override async getUser(uid: string) {
-    try {
-      const prisma = getPrisma();
-      const user = await prisma.userProfile.findUnique({ where: { uid } });
-      if (user) return appUserFromProfile(user);
-
-      // Handles a freshly-created/local database whose seed snapshot predates
-      // the relational migration. Once any relational user exists, a missing
-      // row is authoritative and must never be resurrected from stale JSON.
-      if ((await prisma.userProfile.count()) > 0) return null;
-      const legacy = await super.getUser(uid);
-      if (legacy) await this.upsertRelationalUser(legacy);
-      return legacy;
-    } catch (error) {
-      if (relationalStoreUnavailable(error)) return super.getUser(uid);
-      throw error;
-    }
+    const profile = await USER_PROFILES.get(uid);
+    if (profile) return appUserFromProfile(profile);
+    // A fresh database whose seed snapshot predates the profile collection.
+    // Once any profile exists, a missing document is authoritative.
+    if ((await USER_PROFILES.count()) > 0) return null;
+    const legacy = await super.getUser(uid);
+    if (legacy) await this.upsertProfile(legacy);
+    return legacy;
   }
 
   override async getUserByEmail(email: string) {
     const normalizedEmail = email.trim().toLowerCase();
-    try {
-      const prisma = getPrisma();
-      const user = await prisma.userProfile.findFirst({
-        where: { email: normalizedEmail },
-      });
-      if (user) return appUserFromProfile(user);
-
-      if ((await prisma.userProfile.count()) > 0) return null;
-      const legacy = await super.getUserByEmail(normalizedEmail);
-      if (legacy) await this.upsertRelationalUser(legacy);
-      return legacy;
-    } catch (error) {
-      if (relationalStoreUnavailable(error)) return super.getUserByEmail(normalizedEmail);
-      throw error;
-    }
+    const profile = await USER_PROFILES.findFirst([{ field: "email", op: "==", value: normalizedEmail }]);
+    if (profile) return appUserFromProfile(profile);
+    if ((await USER_PROFILES.count()) > 0) return null;
+    const legacy = await super.getUserByEmail(normalizedEmail);
+    if (legacy) await this.upsertProfile(legacy);
+    return legacy;
   }
 
   override async getUserByInviteToken(token: string) {
-    try {
-      const prisma = getPrisma();
-      const user = await prisma.userProfile.findFirst({ where: { inviteToken: token } });
-      if (user) {
-        if (user.inviteTokenExpiresAt && user.inviteTokenExpiresAt.getTime() < Date.now()) {
-          return null;
-        }
-        return appUserFromProfile(user);
-      }
-
-      if ((await prisma.userProfile.count()) > 0) return null;
-      const legacy = await super.getUserByInviteToken(token);
-      if (legacy) await this.upsertRelationalUser(legacy);
-      return legacy;
-    } catch (error) {
-      if (relationalStoreUnavailable(error)) return super.getUserByInviteToken(token);
-      throw error;
+    const profile = await USER_PROFILES.findFirst([{ field: "inviteToken", op: "==", value: token }]);
+    if (profile) {
+      if (profile.inviteTokenExpiresAt && new Date(profile.inviteTokenExpiresAt).getTime() < Date.now()) return null;
+      return appUserFromProfile(profile);
     }
+    if ((await USER_PROFILES.count()) > 0) return null;
+    const legacy = await super.getUserByInviteToken(token);
+    if (legacy) await this.upsertProfile(legacy);
+    return legacy;
   }
 
   override async listUsers() {
-    try {
-      const users = await getPrisma().userProfile.findMany({ orderBy: { name: "asc" } });
-      if (users.length > 0) return users.map(appUserFromProfile);
-
-      const legacy = await super.listUsers();
-      await Promise.all(legacy.map((user) => this.upsertRelationalUser(user)));
-      return legacy;
-    } catch (error) {
-      if (relationalStoreUnavailable(error)) return super.listUsers();
-      throw error;
-    }
+    const profiles = await USER_PROFILES.find([], { orderBy: [{ field: "name" }] });
+    if (profiles.length > 0) return profiles.map(appUserFromProfile);
+    const legacy = await super.listUsers();
+    await Promise.all(legacy.map((user) => this.upsertProfile(user)));
+    return legacy;
   }
 
   override async upsertUser(user: AppUser) {
-    try {
-      await this.upsertRelationalUser(user);
-    } catch (error) {
-      if (relationalStoreUnavailable(error)) return super.upsertUser(user);
-      throw error;
-    }
-
+    await this.upsertProfile(user);
     await this.syncLegacySnapshot(() => super.upsertUser(user));
     return user;
   }
 
   override async deleteUser(uid: string) {
-    try {
-      const prisma = getPrisma();
-      await prisma.$executeRaw`WITH notifications AS (DELETE FROM "NotificationRecord" WHERE "userId" = ${uid}) DELETE FROM "UserProfile" WHERE "uid" = ${uid}`;
-    } catch (error) {
-      if (relationalStoreUnavailable(error)) return super.deleteUser(uid);
-      throw error;
-    }
-
+    await deleteWhere(NOTIFICATIONS.name, [{ field: "userId", op: "==", value: uid }]);
+    await USER_PROFILES.delete(uid);
     await this.syncLegacySnapshot(() => super.deleteUser(uid));
   }
 
   override async listNotifications(userId: string) {
-    try {
-      const notifications = await getPrisma().notificationRecord.findMany({
-        where: { userId },
-        orderBy: { createdAt: "desc" },
-      });
-      return notifications.map(appNotificationFromRecord);
-    } catch (error) {
-      if (relationalStoreUnavailable(error)) return super.listNotifications(userId);
-      throw error;
-    }
+    const records = await NOTIFICATIONS.find([{ field: "userId", op: "==", value: userId }], { orderBy: [{ field: "createdAt", direction: "desc" }] });
+    return records.map(appNotificationFromRecord);
   }
 
   override async createNotification(
     input: Omit<AppNotification, "id" | "createdAt" | "readAt"> & { readAt?: string | null }
   ) {
-    const record: AppNotification = {
-      ...input,
-      id: randomUUID(),
-      readAt: input.readAt ?? null,
-      createdAt: now(),
-    };
-
-    try {
-      await getPrisma().notificationRecord.create({
-        data: {
-          ...record,
-          createdAt: new Date(record.createdAt),
-          readAt: record.readAt ? new Date(record.readAt) : null,
-        },
-      });
-    } catch (error) {
-      if (relationalStoreUnavailable(error)) return super.createNotification(input);
-      throw error;
-    }
-
-    await this.syncLegacySnapshot(() =>
-      this.mutate((data) => {
-        data.notifications.push(record);
-        return record;
-      })
-    );
+    const record: AppNotification = { ...input, id: randomUUID(), readAt: input.readAt ?? null, createdAt: now() };
+    await NOTIFICATIONS.create(record.id, notificationData(record));
+    await this.syncLegacySnapshot(() => this.mutate((data) => { data.notifications.push(record); return record; }));
     return record;
   }
 
   override async markNotificationRead(id: string, userId: string) {
-    try {
-      const existing = await getPrisma().notificationRecord.findFirst({
-        where: { id, userId },
-      });
-      if (!existing) {
-        const legacy = await super.markNotificationRead(id, userId);
-        await getPrisma().notificationRecord.upsert({
-          where: { id: legacy.id },
-          create: {
-            ...legacy,
-            createdAt: new Date(legacy.createdAt),
-            readAt: legacy.readAt ? new Date(legacy.readAt) : null,
-          },
-          update: { readAt: legacy.readAt ? new Date(legacy.readAt) : new Date() },
-        });
-        return legacy;
-      }
-
-      const notification = existing.readAt
-        ? existing
-        : await getPrisma().notificationRecord.update({
-            where: { id },
-            data: { readAt: new Date() },
-          });
-      const result = appNotificationFromRecord(notification);
-      await this.syncLegacySnapshot(() => super.markNotificationRead(id, userId));
-      return result;
-    } catch (error) {
-      if (relationalStoreUnavailable(error)) return super.markNotificationRead(id, userId);
-      throw error;
+    const existing = await NOTIFICATIONS.get(id);
+    if (!existing || existing.userId !== userId) {
+      const legacy = await super.markNotificationRead(id, userId);
+      await NOTIFICATIONS.set(legacy.id, notificationData({ ...legacy, readAt: legacy.readAt ?? now() }));
+      return legacy;
     }
+    const readAt = existing.readAt ?? now();
+    if (!existing.readAt) await NOTIFICATIONS.update(id, { readAt });
+    const result = appNotificationFromRecord({ ...existing, readAt });
+    await this.syncLegacySnapshot(() => super.markNotificationRead(id, userId));
+    return result;
   }
 
   override async markAllNotificationsRead(userId: string) {
-    try {
-      const count = await getPrisma().$executeRaw`UPDATE "NotificationRecord" SET "readAt" = ${new Date()} WHERE "userId" = ${userId} AND "readAt" IS NULL`;
-      await this.syncLegacySnapshot(() => super.markAllNotificationsRead(userId));
-      return count;
-    } catch (error) {
-      if (relationalStoreUnavailable(error)) return super.markAllNotificationsRead(userId);
-      throw error;
-    }
+    const count = await updateWhere(NOTIFICATIONS.name, [{ field: "userId", op: "==", value: userId }, { field: "readAt", op: "is-null" }], { readAt: now() });
+    await this.syncLegacySnapshot(() => super.markAllNotificationsRead(userId));
+    return count;
   }
 
   override async deleteClientCascade(id: string) {
     await super.deleteClientCascade(id);
-    try {
-      const prisma = getPrisma();
-      const objectKeys = await listClientDocumentObjectKeys(id);
-      await prisma.$executeRaw`WITH notifications AS (DELETE FROM "NotificationRecord" WHERE "clientId" = ${id}), engagements AS (DELETE FROM "Engagement" WHERE "clientId" = ${id}), contacts AS (DELETE FROM "ClientContact" WHERE "clientId" = ${id}), files AS (DELETE FROM "DocumentContent" WHERE "clientId" = ${id}), jobs AS (DELETE FROM "IntegrationJob" WHERE "clientId" = ${id}) DELETE FROM "UserProfile" WHERE "clientId" = ${id} AND "role" = 'client'`;
-      await deleteDocumentObjects(objectKeys);
-    } catch (error) {
-      if (!relationalStoreUnavailable(error)) throw error;
-    }
+    const objectKeys = await listClientDocumentObjectKeys(id);
+    const byClient: Where[] = [{ field: "clientId", op: "==", value: id }];
+    for (const collection of ["NotificationRecord", "Engagement", "ClientContact", "DocumentContent", "IntegrationJob"]) await deleteWhere(collection, byClient);
+    await deleteWhere(USER_PROFILES.name, [...byClient, { field: "role", op: "==", value: "client" }]);
+    await deleteDocumentObjects(objectKeys);
   }
 
   override async readProjectOps<T = Record<string, unknown>>() {
-    const snapshot = await getPrisma().storeSnapshot.findUnique({ where: { id: "main" } });
-    if (!snapshot) return super.readProjectOps<T>();
-    return ((snapshot.data as Partial<StoreData>).projectOps || {}) as T;
+    return (await readSnapshotSlice("projectOps")) as T;
   }
 
   override async mutateProjectOps<T = Record<string, unknown>>(
@@ -1759,111 +1683,86 @@ class PrismaStore extends LocalStore {
     return super.mutateProjectOps(fn);
   }
 
-  protected override async mutate<T>(fn: (data: StoreData) => T | Promise<T>): Promise<T> {
-    const prisma = getPrisma();
-    // The callback may be replayed after a conflicting write. Only publish its
-    // result and cache after the corresponding version has been committed.
-    for (let attempt = 0; attempt < 12; attempt += 1) {
-      let snapshot = await prisma.storeSnapshot.findUnique({ where: { id: "main" } });
-      if (!snapshot) {
-        // Initialization must never replace a snapshot created by another
-        // request while this one was building its initial data.
-        const initial = emptyStore();
-        await ensureSeed(initial);
-        try {
-          snapshot = await prisma.storeSnapshot.create({
-            data: { id: "main", data: initial as unknown as Prisma.InputJsonValue },
-          });
-        } catch (error) {
-          if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
-            throw error;
-          }
-          continue;
-        }
-      }
+  private async loadSnapshot(reader: FirestoreReader): Promise<{ data: StoreData; meta: DocSnapshot<MetaDoc> | null; slices: Map<string, DocSnapshot<SliceDoc>> }> {
+    const ids = [SNAPSHOT_META_ID, ...SLICE_KEYS.map(sliceId)];
+    const docs = await reader.getMany<SliceDoc & MetaDoc>(SNAPSHOT_COLLECTION, ids);
+    const meta = (docs.get(SNAPSHOT_META_ID) as DocSnapshot<MetaDoc> | undefined) || null;
+    const slices = docs as Map<string, DocSnapshot<SliceDoc>>;
+    slices.delete(SNAPSHOT_META_ID);
+    return { data: parseSlices(slices), meta, slices };
+  }
 
-      const data = { ...emptyStore(), ...(snapshot.data as Partial<StoreData>) };
+  private sliceWrites(before: Map<string, DocSnapshot<SliceDoc>>, data: StoreData, version: number): Write[] {
+    const writes: Write[] = [];
+    for (const key of SLICE_KEYS) {
+      const json = serializeSlice(key, data[key]);
+      if (before.get(sliceId(key))?.data.json === json) continue;
+      writes.push({ set: { collection: SNAPSHOT_COLLECTION, id: sliceId(key), data: { json, version } } });
+    }
+    return writes;
+  }
+
+  protected override async mutate<T>(fn: (data: StoreData) => T | Promise<T>): Promise<T> {
+    // Firestore transactions re-run the callback on contention, so its result
+    // is only published once the corresponding version has committed.
+    const committed = await getFirestore().runTransaction(async (tx) => {
+      const { data, meta, slices } = await this.loadSnapshot(tx);
       await ensureSeed(data);
       const result = await fn(data);
-      try {
-        // updateOne is a single statement in Neon HTTP mode. updateMany
-        // starts a transaction there, which the HTTP adapter cannot run.
-        await prisma.storeSnapshot.update({
-          where: { id: "main", version: snapshot.version },
-          data: {
-            data: data as unknown as Prisma.InputJsonValue,
-            version: { increment: 1 },
-          },
-        });
-        this.cache = data;
-        await bumpRedisCacheVersion();
-        return result;
-      } catch (error) {
-        if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2025") {
-          throw error;
-        }
-      }
-
-      // A retry reads a fresh record. A small jitter reduces repeat clashes
-      // when several Worker isolates are writing the same snapshot.
-      await new Promise((resolve) => setTimeout(resolve, Math.min(5 * (attempt + 1), 40) + Math.random() * 10));
-    }
-    throw new Error("Store snapshot changed too often; please retry the request");
+      const version = (meta?.data.version ?? 0) + 1;
+      for (const write of this.sliceWrites(slices, data, version)) tx.write(write);
+      tx.write({ set: { collection: SNAPSHOT_COLLECTION, id: SNAPSHOT_META_ID, data: { version, updatedAt: now() } } });
+      return { result, data };
+    }, { attempts: 12 });
+    this.cache = committed.data;
+    await bumpRedisCacheVersion();
+    return committed.result;
   }
 
   protected override async read(): Promise<StoreData> {
     // This store is scoped to one API request. Collection lookups reuse its
     // snapshot, while later requests always read the latest committed state.
     if (this.cache) return this.cache;
-
-    const prisma = getPrisma();
-    const snapshot = await prisma.storeSnapshot.findUnique({ where: { id: "main" } });
-    if (!snapshot) {
-      const data = emptyStore();
-      await ensureSeed(data);
+    const { data, meta } = await this.loadSnapshot(getFirestore());
+    await ensureSeed(data);
+    if (!meta) {
+      // First run: persist the seeded store unless another request did first.
       try {
-        await prisma.storeSnapshot.create({
-          data: { id: "main", data: data as unknown as Prisma.InputJsonValue },
-        });
-        this.cache = data;
-        return data;
+        const writes = this.sliceWrites(new Map(), data, 1);
+        writes.push({ set: { collection: SNAPSHOT_COLLECTION, id: SNAPSHOT_META_ID, data: { version: 1, updatedAt: now() }, precondition: { exists: false } } });
+        await getFirestore().commit(writes);
       } catch (error) {
-        if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
-          throw error;
-        }
-        // Another request initialized the row first. Use its committed data.
-        const committed = await prisma.storeSnapshot.findUniqueOrThrow({ where: { id: "main" } });
-        this.cache = { ...emptyStore(), ...(committed.data as Partial<StoreData>) };
+        if (!isFirestoreStatus(error, "ALREADY_EXISTS", "FAILED_PRECONDITION")) throw error;
+        const committed = await this.loadSnapshot(getFirestore());
+        await ensureSeed(committed.data);
+        this.cache = committed.data;
         return this.cache;
       }
     }
-
-    const data = { ...emptyStore(), ...(snapshot.data as Partial<StoreData>) };
-    await ensureSeed(data);
     this.cache = data;
     return data;
   }
 
   protected override async persist(data: StoreData) {
     void data;
-    throw new Error("PrismaStore writes must use a versioned mutation");
+    throw new Error("FirestoreStore writes must use a versioned mutation");
   }
 }
 
 let localStorePromise: Promise<DataStore> | null = null;
 
 export async function getStore(): Promise<DataStore> {
-  if (process.env.DATABASE_URL?.trim()) {
+  if (isHostedStore()) {
     const scope = getRequestStoreScope();
-    if (!scope) return new PrismaStore();
-    scope.store ??= Promise.resolve(new PrismaStore());
+    if (!scope) return new FirestoreStore();
+    scope.store ??= Promise.resolve(new FirestoreStore());
     return scope.store;
   }
   if (process.env.ALLOW_LOCAL_STORE === "1") {
     localStorePromise ??= Promise.resolve(new LocalStore());
     return localStorePromise;
   }
-  throw new Error("Neon is not configured. Set DATABASE_URL and DIRECT_URL, or explicitly set ALLOW_LOCAL_STORE=1 for demo-only mode.");
+  throw new Error("Firestore is not configured. Set FIREBASE_SERVICE_ACCOUNT (and FIREBASE_CLIENT_EMAIL for a bare key), or explicitly set ALLOW_LOCAL_STORE=1 for demo-only mode.");
 }
 
 export type { TaskStatus, NotificationKind };

@@ -4,7 +4,8 @@ import { filterAssignedClients } from "@/lib/client-access";
 import { getStore } from "@/lib/store";
 import { getRedisCacheVersion, withRedisCache } from "@/lib/redis-cache";
 import type { ClientStatus } from "@/types";
-import { getPrisma } from "@/lib/prisma";
+import { ENGAGEMENTS } from "@/lib/engagements";
+import { isLocalDemoStore } from "@/lib/firestore";
 
 export const runtime = "nodejs";
 
@@ -87,8 +88,8 @@ export async function GET(req: Request) {
     return withRedisCache(`analytics:${session.role}:${session.uid}`, cacheVersion, 60, async () => {
     const clients = await filterAssignedClients(session, await store.listClients());
     const users = await store.listUsers();
-    const engagementRows = clients.length && !(process.env.ALLOW_LOCAL_STORE === "1" && !process.env.DATABASE_URL)
-      ? await getPrisma().engagement.findMany({ where: { clientId: { in: clients.map((client) => client.id) } } })
+    const engagementRows = clients.length && !isLocalDemoStore()
+      ? await ENGAGEMENTS.find([{ field: "clientId", op: "in", value: clients.map((client) => client.id) }])
       : [];
 
     const clientsByStatus: Record<ClientStatus, number> = {
@@ -106,7 +107,7 @@ export async function GET(req: Request) {
     const completedClients = clients.filter((c) => c.status === "completed");
     let avgOnboardingDays = 0;
     if (completedOnboarding.length) {
-      const totalMs = completedOnboarding.reduce((sum, item) => sum + (item.completedAt!.getTime() - (item.startDate || item.createdAt).getTime()), 0);
+      const totalMs = completedOnboarding.reduce((sum, item) => sum + (new Date(item.completedAt!).getTime() - new Date(item.startDate || item.createdAt).getTime()), 0);
       avgOnboardingDays = Math.round(totalMs / completedOnboarding.length / 8640000 * 10) / 10;
     } else if (completedClients.length) {
       const totalMs = completedClients.reduce((sum, c) => {
