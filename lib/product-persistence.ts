@@ -1,99 +1,96 @@
 import { randomUUID } from "crypto";
-import { Prisma } from "@/generated/prisma/client";
-import { getPrisma } from "@/lib/prisma";
+import { getFirestore, nowIso } from "@/lib/firestore";
 import { jsonError } from "@/lib/api";
 import type { z } from "zod";
-import type { productSchema, releaseSchema } from "@/lib/products";
+import {
+  definedFields, productMemberId, toIso, withWorkLinks,
+  PRODUCTS, PRODUCT_MEMBERS, PRODUCT_MILESTONES, PRODUCT_RELEASES, PRODUCT_WORK_ITEMS,
+  type ProductDoc, type ProductMemberDoc, type ProductMilestoneDoc, type ProductReleaseDoc, type ProductWorkItemDoc,
+  type productSchema, type releaseSchema,
+} from "@/lib/products";
 
 type ProductInput = z.infer<typeof productSchema>;
 type ReleaseInput = z.infer<typeof releaseSchema>;
 
-// Neon HTTP executes one statement per request. Data-changing CTEs keep the
-// parent and its required children atomic without Prisma's transaction API.
-export async function createProductWithOwner(input: ProductInput, ownerId: string, slug: string) {
-  const db = getPrisma();
+// Multi-document writes run in one Firestore transaction so the parent and
+// its required children stay atomic (formerly data-changing CTEs on Neon).
+export async function createProductWithOwner(input: ProductInput, ownerId: string, slug: string): Promise<ProductDoc> {
   const productId = randomUUID();
-  const memberId = randomUUID();
-  await db.$queryRaw`WITH product AS (
-    INSERT INTO "Product" ("id", "name", "slug", "type", "description", "stage", "ownerId", "visibility", "websiteUrl", "createdAt", "updatedAt")
-    VALUES (${productId}, ${input.name}, ${slug}, ${input.type}, ${input.description || ""}, ${input.stage || "idea"}, ${ownerId}, 'members', ${input.websiteUrl || null}, NOW(), NOW())
-    RETURNING "id"
-  ), member AS (
-    INSERT INTO "ProductMember" ("id", "productId", "userId", "role", "createdAt")
-    SELECT ${memberId}, "id", ${ownerId}, 'owner', NOW() FROM product RETURNING "id"
-  ) SELECT product."id", member."id" AS "memberId" FROM product JOIN member ON true`;
-  return db.product.findUniqueOrThrow({ where: { id: productId } });
+  const stamp = nowIso();
+  const product: ProductDoc = {
+    id: productId, name: input.name, slug, type: input.type, description: input.description || "", stage: input.stage || "idea",
+    ownerId, visibility: "members", websiteUrl: input.websiteUrl || null, createdAt: stamp, updatedAt: stamp,
+  };
+  const member: ProductMemberDoc = { id: productMemberId(productId, ownerId), productId, userId: ownerId, role: "owner", createdAt: stamp };
+  return getFirestore().runTransaction(async (tx) => {
+    const taken = await tx.query<ProductDoc>(PRODUCTS.spec([{ field: "slug", op: "==", value: slug }], { limit: 1 }));
+    if (taken.length) throw jsonError("Product slug already exists", 409);
+    tx.write({ set: { collection: PRODUCTS.name, id: productId, data: product, precondition: { exists: false } } });
+    tx.write({ set: { collection: PRODUCT_MEMBERS.name, id: member.id, data: member } });
+    return product;
+  });
 }
 
 export async function createReleaseWithWorkItems(productId: string, input: ReleaseInput) {
-  const db = getPrisma();
   const releaseId = randomUUID();
-  const releasedAt = input.releasedAt ? new Date(input.releasedAt) : input.status === "released" ? new Date() : null;
-  await db.$queryRaw`WITH release AS (
-    INSERT INTO "ProductRelease" ("id", "productId", "version", "environment", "status", "releasedAt", "notes", "repositoryId", "commitSha", "deploymentUrl", "createdAt", "updatedAt")
-    VALUES (${releaseId}, ${productId}, ${input.version}, ${input.environment || "production"}, ${input.status || "planned"}, ${releasedAt}, ${input.notes || ""}, ${input.repositoryId || null}, ${input.commitSha || null}, ${input.deploymentUrl || null}, NOW(), NOW())
-    RETURNING "id"
-  ), links AS (
-    INSERT INTO "ProductReleaseWorkItem" ("releaseId", "workItemId")
-    SELECT release."id", item."id" FROM release CROSS JOIN LATERAL jsonb_array_elements_text(${JSON.stringify(input.workItemIds || [])}::jsonb) AS item("id")
-    RETURNING "releaseId"
-  ) SELECT release."id", (SELECT COUNT(*) FROM links) AS "linkCount" FROM release`;
-  return db.productRelease.findUniqueOrThrow({ where: { id: releaseId }, include: { workLinks: { select: { workItemId: true } } } });
+  const stamp = nowIso();
+  const releasedAt = input.releasedAt ? toIso(input.releasedAt) : input.status === "released" ? stamp : null;
+  const release: ProductReleaseDoc = {
+    id: releaseId, productId, version: input.version, environment: input.environment || "production", status: input.status || "planned",
+    releasedAt, notes: input.notes || "", repositoryId: input.repositoryId || null, commitSha: input.commitSha || null,
+    deploymentUrl: input.deploymentUrl || null, workItemIds: [...new Set(input.workItemIds || [])], createdAt: stamp, updatedAt: stamp,
+  };
+  // The former join rows now live on the release document, so one write is atomic.
+  await PRODUCT_RELEASES.create(releaseId, release);
+  return withWorkLinks(release);
 }
 
 export async function updateReleaseWithWorkItems(id: string, fields: Omit<Partial<ReleaseInput>, "workItemIds" | "releasedAt"> & { releasedAt?: string | Date | null }, workItemIds: string[]) {
-  const db = getPrisma();
-  const columns = {
-    version: "version", environment: "environment", status: "status", releasedAt: "releasedAt",
-    notes: "notes", repositoryId: "repositoryId", commitSha: "commitSha", deploymentUrl: "deploymentUrl",
-  } as const;
-  const assignments = Object.entries(fields).filter(([, value]) => value !== undefined).map(([key, value]) => Prisma.sql`${Prisma.raw(`"${columns[key as keyof typeof columns]}"`)} = ${key === "releasedAt" && typeof value === "string" ? new Date(value) : value}`);
-  assignments.push(Prisma.sql`"updatedAt" = NOW()`);
-  const updated = await db.$queryRaw<Array<{ id: string }>>(Prisma.sql`WITH updated AS (
-    UPDATE "ProductRelease" SET ${Prisma.join(assignments)} WHERE "id" = ${id} RETURNING "id"
-  ), removed AS (
-    DELETE FROM "ProductReleaseWorkItem" WHERE "releaseId" IN (SELECT "id" FROM updated)
-      AND "workItemId" NOT IN (SELECT value FROM jsonb_array_elements_text(${JSON.stringify(workItemIds)}::jsonb) AS item(value)) RETURNING "releaseId"
-  ), inserted AS (
-    INSERT INTO "ProductReleaseWorkItem" ("releaseId", "workItemId")
-    SELECT updated."id", item."id" FROM updated CROSS JOIN LATERAL jsonb_array_elements_text(${JSON.stringify(workItemIds)}::jsonb) AS item("id")
-    WHERE (SELECT COUNT(*) FROM removed) >= 0
-    ON CONFLICT ("releaseId", "workItemId") DO NOTHING
-    RETURNING "releaseId"
-  ) SELECT updated."id", (SELECT COUNT(*) FROM inserted) AS "linkCount" FROM updated`);
-  if (updated.length !== 1) throw jsonError("Release no longer exists", 409);
-  return db.productRelease.findUniqueOrThrow({ where: { id }, include: { workLinks: { select: { workItemId: true } } } });
+  const { releasedAt, ...rest } = fields;
+  const patch: Partial<ProductReleaseDoc> = {
+    ...definedFields(rest),
+    ...(releasedAt !== undefined ? { releasedAt: toIso(releasedAt) } : {}),
+    workItemIds: [...new Set(workItemIds)],
+    updatedAt: nowIso(),
+  };
+  return getFirestore().runTransaction(async (tx) => {
+    const current = await tx.get<ProductReleaseDoc>(PRODUCT_RELEASES.name, id);
+    if (!current) throw jsonError("Release no longer exists", 409);
+    tx.write({ update: { collection: PRODUCT_RELEASES.name, id, data: patch } });
+    return withWorkLinks({ ...current.data, ...patch, id });
+  });
 }
 
-export async function transferProductOwner(id: string, previousOwnerId: string, nextOwnerId: string, fields: Partial<ProductInput> & { slug?: string }) {
-  const db = getPrisma();
-  const columns = { name: "name", slug: "slug", type: "type", description: "description", stage: "stage", ownerId: "ownerId", visibility: "visibility", websiteUrl: "websiteUrl" } as const;
-  const assignments = Object.entries(fields).filter(([, value]) => value !== undefined).map(([key, value]) => Prisma.sql`${Prisma.raw(`"${columns[key as keyof typeof columns]}"`)} = ${value}`);
-  assignments.push(Prisma.sql`"updatedAt" = NOW()`);
-  const updated = await db.$queryRaw<Array<{ id: string }>>(Prisma.sql`WITH updated AS (
-    UPDATE "Product" SET ${Prisma.join(assignments)} WHERE "id" = ${id} AND "ownerId" = ${previousOwnerId} RETURNING "id"
-  ), next_owner AS (
-    INSERT INTO "ProductMember" ("id", "productId", "userId", "role", "createdAt")
-    SELECT ${randomUUID()}, updated."id", ${nextOwnerId}, 'owner', NOW() FROM updated
-    ON CONFLICT ("productId", "userId") DO UPDATE SET "role" = 'owner' RETURNING "id"
-  ), old_owner AS (
-    UPDATE "ProductMember" SET "role" = 'editor' WHERE "productId" IN (SELECT "id" FROM updated) AND "userId" = ${previousOwnerId} RETURNING "id"
-  ) SELECT updated."id", (SELECT COUNT(*) FROM next_owner) AS "newCount", (SELECT COUNT(*) FROM old_owner) AS "oldCount" FROM updated`);
-  if (updated.length !== 1) throw jsonError("Product owner changed; refresh and try again", 409);
-  return db.product.findUniqueOrThrow({ where: { id } });
+export async function transferProductOwner(id: string, previousOwnerId: string, nextOwnerId: string, fields: Partial<ProductInput> & { slug?: string }): Promise<ProductDoc> {
+  const stamp = nowIso();
+  const patch: Partial<ProductDoc> = { ...definedFields(fields), updatedAt: stamp };
+  return getFirestore().runTransaction(async (tx) => {
+    const current = await tx.get<ProductDoc>(PRODUCTS.name, id);
+    if (!current || current.data.ownerId !== previousOwnerId) throw jsonError("Product owner changed; refresh and try again", 409);
+    const nextId = productMemberId(id, nextOwnerId);
+    const previousId = productMemberId(id, previousOwnerId);
+    const [next, previous] = await Promise.all([tx.get<ProductMemberDoc>(PRODUCT_MEMBERS.name, nextId), tx.get<ProductMemberDoc>(PRODUCT_MEMBERS.name, previousId)]);
+    tx.write({ update: { collection: PRODUCTS.name, id, data: patch } });
+    if (next) tx.write({ update: { collection: PRODUCT_MEMBERS.name, id: nextId, data: { role: "owner" } } });
+    else tx.write({ set: { collection: PRODUCT_MEMBERS.name, id: nextId, data: { id: nextId, productId: id, userId: nextOwnerId, role: "owner", createdAt: stamp } satisfies ProductMemberDoc } });
+    if (previous) tx.write({ update: { collection: PRODUCT_MEMBERS.name, id: previousId, data: { role: "editor" } } });
+    return { ...current.data, ...patch, id };
+  });
 }
 
 export async function removeProductMember(productId: string, memberId: string, userId: string) {
-  const db = getPrisma();
-  const rows = await db.$queryRaw<Array<{ id: string }>>`WITH removed AS (
-    DELETE FROM "ProductMember" WHERE "id" = ${memberId} AND "productId" = ${productId} AND "userId" = ${userId}
-      AND "userId" <> (SELECT "ownerId" FROM "Product" WHERE "id" = ${productId}) RETURNING "id"
-  ), work AS (
-    UPDATE "ProductWorkItem" SET "assigneeId" = NULL, "updatedAt" = NOW()
-    WHERE "productId" = ${productId} AND "assigneeId" = ${userId} AND EXISTS (SELECT 1 FROM removed) RETURNING "id"
-  ), milestones AS (
-    UPDATE "ProductMilestone" SET "ownerId" = NULL, "updatedAt" = NOW()
-    WHERE "productId" = ${productId} AND "ownerId" = ${userId} AND EXISTS (SELECT 1 FROM removed) RETURNING "id"
-  ) SELECT removed."id", (SELECT COUNT(*) FROM work) AS "workCount", (SELECT COUNT(*) FROM milestones) AS "milestoneCount" FROM removed`;
-  return rows.length === 1;
+  return getFirestore().runTransaction(async (tx) => {
+    const [member, product] = await Promise.all([tx.get<ProductMemberDoc>(PRODUCT_MEMBERS.name, memberId), tx.get<ProductDoc>(PRODUCTS.name, productId)]);
+    if (!member || member.data.productId !== productId || member.data.userId !== userId) return false;
+    if (!product || product.data.ownerId === userId) return false;
+    const [work, milestones] = await Promise.all([
+      tx.query<ProductWorkItemDoc>(PRODUCT_WORK_ITEMS.spec([{ field: "productId", op: "==", value: productId }, { field: "assigneeId", op: "==", value: userId }])),
+      tx.query<ProductMilestoneDoc>(PRODUCT_MILESTONES.spec([{ field: "productId", op: "==", value: productId }, { field: "ownerId", op: "==", value: userId }])),
+    ]);
+    const stamp = nowIso();
+    tx.write({ delete: { collection: PRODUCT_MEMBERS.name, id: memberId, precondition: { exists: true } } });
+    for (const item of work) tx.write({ update: { collection: PRODUCT_WORK_ITEMS.name, id: item.id, data: { assigneeId: null, updatedAt: stamp } } });
+    for (const milestone of milestones) tx.write({ update: { collection: PRODUCT_MILESTONES.name, id: milestone.id, data: { ownerId: null, updatedAt: stamp } } });
+    return true;
+  });
 }

@@ -3,11 +3,10 @@ import type { AuthSession } from "@/types";
 import { jsonError } from "@/lib/api";
 import { requireClientAccess } from "@/lib/client-access";
 import { notifyUser } from "@/lib/notifications";
-import { getPrisma } from "@/lib/prisma";
 import { createProductWithOwner, createReleaseWithWorkItems } from "@/lib/product-persistence";
 import { createApproval, createMilestone } from "@/lib/project-operations";
 import {
-  id, milestoneSchema, notifyProductMembers, parseBody, productSchema, recordProductActivity,
+  createProductMilestone, createProductWorkItem, milestoneSchema, notifyProductMembers, parseBody, productSchema, recordProductActivity,
   releaseSchema, requireMilestone, requireProductAccess, requireProductMember,
   requireRepository, requireStaffUser, uniqueSlug, validateDependencies,
   validateReleaseWork, workItemSchema,
@@ -153,7 +152,6 @@ export async function executeHodiProjectCreation(action: HodiProjectCreationActi
     return { milestone, href: `/clients/${input.clientId}` };
   }
   const checked = await validateProduct(action, payload, session);
-  const db = getPrisma();
   if (action === "create_product") {
     const input = checked.input as z.infer<typeof productSchema>;
     const ownerId = input.ownerId || session.uid;
@@ -164,13 +162,13 @@ export async function executeHodiProjectCreation(action: HodiProjectCreationActi
   const productId = checked.productId!;
   if (action === "create_product_milestone") {
     const input = checked.input as z.infer<typeof milestoneSchema>;
-    const milestone = await db.productMilestone.create({ data: { id: id(), productId, title: input.title, description: input.description || "", targetDate: input.targetDate ? new Date(input.targetDate) : null, status: input.status || "planned", ownerId: input.ownerId || null } });
+    const milestone = await createProductMilestone(productId, input);
     await recordProductActivity(productId, session.uid, "milestone.created", { milestoneId: milestone.id, title: milestone.title, status: milestone.status, proposalId });
     return { milestone, href: `/products/${productId}` };
   }
   if (action === "create_product_work_item") {
     const input = checked.input as z.infer<typeof workItemSchema>;
-    const workItem = await db.productWorkItem.create({ data: { id: id(), productId, title: input.title, description: input.description || "", milestoneId: input.milestoneId || null, status: input.status || "todo", priority: input.priority || "medium", assigneeId: input.assigneeId || null, dueDate: input.dueDate ? new Date(input.dueDate) : null, dependencyIds: input.dependencyIds || [] } });
+    const workItem = await createProductWorkItem(productId, input);
     await recordProductActivity(productId, session.uid, "work_item.created", { workItemId: workItem.id, title: workItem.title, status: workItem.status, assigneeId: workItem.assigneeId, proposalId });
     if (input.assigneeId && input.assigneeId !== session.uid) {
       try { await notifyUser({ userId: input.assigneeId, kind: "task_assigned", title: `Product work assigned: ${input.title}`, body: checked.name, href: `/products/${productId}` }); }

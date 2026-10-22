@@ -151,7 +151,7 @@ export class RestFirestore implements FirestoreClient {
       const fields = encodeFields(write.update.data);
       // An update must target an existing document; Firestore would otherwise create it.
       const guard = write.update.precondition ?? { exists: true };
-      return { update: { name: this.name(write.update.collection, write.update.id), fields }, updateMask: { fieldPaths: Object.keys(write.update.data).map(fieldPath) }, ...precondition(guard) };
+      return { update: { name: this.name(write.update.collection, write.update.id), fields }, updateMask: { fieldPaths: Object.keys(write.update.data).filter((key) => write.update.data[key] !== undefined).map(fieldPath) }, ...precondition(guard) };
     }
     return { delete: this.name(write.delete.collection, write.delete.id), ...precondition(write.delete.precondition) };
   }
