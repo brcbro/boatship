@@ -60,12 +60,13 @@ npm run deploy
 
 Configure the same secrets in Cloudflare Pages / Workers.
 
-### Document files in R2
+### Document files in Firebase Storage
 
-Both Wrangler files bind the `boatship-documents` R2 bucket as `DOCUMENT_FILES`. Create it once with
-`npx wrangler r2 bucket create boatship-documents` before deploying. With the binding present, new
-uploads are stored in R2 and only their ownership record stays in the database; without it (local
-`next dev`, tests), bytes stay in the `DocumentContent` row. Existing row-stored files move in
+Set `FIREBASE_STORAGE_BUCKET` and `FIREBASE_SERVICE_ACCOUNT` (see `docs/cloudflare-secrets.md`). With both
+present, new uploads are stored in the Firebase Storage bucket through the Google Cloud Storage JSON
+API and only their ownership record stays in the database; without them (local `next dev`, tests),
+bytes stay in the `DocumentContent` row. The server uses the service account directly, so
+`storage.rules` does not govern these objects. Existing row-stored files move in
 batches with `POST /api/internal/document-content-migrate?limit=5` using the `x-boatship-cron-secret`
 header; repeat until the response reports `remaining: 0`.
 

@@ -8,7 +8,11 @@ For a Cloudflare deployment, configure these as Wrangler secrets or equivalent e
 npx wrangler secret put DATABASE_URL
 npx wrangler secret put DIRECT_URL
 npx wrangler secret put BOATSHIP_SECRETS_MASTER_KEY
+npx wrangler secret put FIREBASE_STORAGE_BUCKET
+npx wrangler secret put FIREBASE_SERVICE_ACCOUNT
 ```
+
+`FIREBASE_STORAGE_BUCKET` is the Firebase project's default bucket name (for example `project-id.appspot.com`). `FIREBASE_SERVICE_ACCOUNT` is the complete service-account JSON from the Firebase console, pasted as one line; it needs the Storage Object Admin role on that bucket. The Worker signs a short-lived RS256 assertion with it and never exposes it to the browser. When both are unset, document bytes stay in the database.
 
 For hosted transactional mail, set `ZEPTOMAIL_API_KEY` and `ZEPTOMAIL_FROM` (a full verified, general-purpose sender address). The app uses Zoho's India CPaaS HTTPS API. Existing Resend deployments can use `RESEND_API_KEY` and `RESEND_FROM` instead. The shared mail function selects the display name by message type: Boatship, Boatship Team, or Boatship Updates. Do not use an onboarding-specific address for this shared Client OS stream. Verify the replacement address in the provider, change the Worker secret, and send a controlled test message before releasing mail-dependent routes. Sender secret values must not be committed.
 

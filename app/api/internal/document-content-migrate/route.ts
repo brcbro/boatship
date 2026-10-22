@@ -4,7 +4,7 @@ import { migrateDocumentContentToObjects } from "@/lib/document-content";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-/** Operator-run backfill: moves row-stored document bytes into R2 in small batches. */
+/** Operator-run backfill: moves row-stored document bytes into Firebase Storage in small batches. */
 export async function POST(req: Request) {
   const secret = process.env.BOATSHIP_CRON_SECRET;
   const expected = Buffer.from(secret || "");

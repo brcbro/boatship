@@ -31,12 +31,6 @@ new_sqlite_classes = ["MessageRoom"]
 tag = "v2"
 new_sqlite_classes = ["AppRuntime"]
 
-# Document bytes. Create the bucket before deploying:
-#   wrangler r2 bucket create boatship-documents
-[[r2_buckets]]
-binding = "DOCUMENT_FILES"
-bucket_name = "boatship-documents"
-
 [[routes]]
 pattern = "boatship.cohortix.in"
 custom_domain = true

@@ -10,8 +10,8 @@ const localDirectory = path.join(process.cwd(), ".data", "document-content");
 const relational = () => Boolean(process.env.DATABASE_URL?.trim());
 
 /**
- * Hosted bytes live in R2 when the DOCUMENT_FILES binding exists and in the
- * DocumentContent row otherwise. The row is the ownership record either way,
+ * Hosted bytes live in Firebase Storage when its secrets are configured and
+ * in the DocumentContent row otherwise. The row is the ownership record either way,
  * so reads always authorize through the database before touching the object.
  */
 export async function saveDocumentContent(documentId: string, clientId: string, bytes: Uint8Array, contentType: string): Promise<string> {
@@ -43,7 +43,7 @@ export async function readDocumentContent(document: DocumentRecord, version: Doc
       if (!content) return null;
       if (content.objectKey) {
         const objects = getDocumentObjectStore();
-        if (!objects) { console.error("Document bytes are in object storage but no DOCUMENT_FILES binding is configured"); return null; }
+        if (!objects) { console.error("Document bytes are in object storage but Firebase Storage is not configured"); return null; }
         return objects.get(content.objectKey);
       }
       return content.bytes ? Uint8Array.from(content.bytes) : null;
@@ -89,7 +89,7 @@ export async function deleteDocumentObjects(keys: string[]) {
  */
 export async function migrateDocumentContentToObjects(limit = 5, objects: DocumentObjectStore | null = getDocumentObjectStore()) {
   if (!relational()) throw new Error("Document content migration requires the relational store.");
-  if (!objects) throw new Error("DOCUMENT_FILES binding is not configured.");
+  if (!objects) throw new Error("Firebase Storage is not configured.");
   const prisma = getPrisma();
   const batch = Math.max(1, Math.min(20, Math.floor(limit)));
   const rows = await prisma.documentContent.findMany({ where: { objectKey: null, bytes: { not: null } }, orderBy: { createdAt: "asc" }, take: batch, select: { id: true, documentId: true, clientId: true, bytes: true, contentType: true } });
