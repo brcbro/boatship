@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.mjs",
     "test:e2e": "firebase emulators:exec --only firestore --project demo-boatship \"node --import tsx --test tests/local-flow.e2e.mjs\"",
-    "build:cloudflare": "next build --turbopack && node scripts/build-opennext.mjs --skipNextBuild && node scripts/patch-cloudflare-manifests.mjs && node scripts/prune-cloudflare-assets.mjs",
+    "build:cloudflare": "next build --turbopack && node scripts/build-opennext.mjs --skipNextBuild && node scripts/scrub-env-bundle.mjs && node scripts/patch-cloudflare-manifests.mjs && node scripts/prune-cloudflare-assets.mjs",
     "preview": "npm run build:cloudflare && opennextjs-cloudflare preview",
     "deploy": "npm run build:cloudflare && wrangler deploy --config wrangler.production.toml",
     "cf:dry-run": "npm run build:cloudflare && wrangler deploy --dry-run --outdir .wrangler/dry-run",

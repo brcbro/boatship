@@ -22,6 +22,8 @@ Configure `WEBHOOK_ALLOWED_ORIGINS` as a comma-separated list of exact HTTPS ori
 
 Firestore needs no migration step; `npm run deploy` builds and uploads the Worker. Run `npm run firestore:indexes` whenever `firestore.indexes.json` gains a composite index.
 
+OpenNext copies every `.env*` value into the Worker bundle at build time. `scripts/scrub-env-bundle.mjs` (part of `npm run build:cloudflare`) removes everything except `NEXT_PUBLIC_*` and a short allowlist of non-secret keys, so hosted secrets must be set with `node scripts/worker-secrets.mjs` or `wrangler secret put`; a local `.env.local` value never reaches production on its own.
+
 Security rules:
 
 - Do not use `NEXT_PUBLIC_` for any provider credential.
