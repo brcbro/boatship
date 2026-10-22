@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server";
-import { DEFAULT_MCP_SCOPES, resolveMcpIdentity } from "@/lib/mcp-auth";
-import { getPrisma } from "@/lib/prisma";
+import { DEFAULT_MCP_SCOPES, listMcpProjectAccess, recordMcpAuditEvent, resolveMcpIdentity } from "@/lib/mcp-auth";
 import { createMcpContext, type McpContext } from "@/lib/mcp-context";
 import { handleMcpRequest, type McpJsonRpcRequest } from "@/lib/mcp-server";
 import { checkMcpRateLimit, deviceFingerprint } from "@/lib/mcp-controls";
-import { recordMcpAuditEvent } from "@/lib/mcp-auth";
 
 export const runtime = "nodejs";
 
@@ -15,7 +13,7 @@ async function resolveMcpBearer(req: Request): Promise<{ context: McpContext } |
   const identity = await resolveMcpIdentity(req);
   if (!identity || identity.mcpId !== publicId) return null;
   const projectAccess = identity.identityId
-    ? await getPrisma().mcpProjectAccess.findMany({ where: { identityId: identity.identityId }, select: { projectId: true } })
+    ? await listMcpProjectAccess(identity.identityId)
     : [];
   return {
     context: await createMcpContext(

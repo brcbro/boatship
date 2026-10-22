@@ -1,14 +1,15 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
-import { createRepository, parseRepositoryUrl } from "@/lib/git-repositories";
-import { getPrisma } from "@/lib/prisma";
+import { createRepository, GIT_REPOSITORIES, parseRepositoryUrl, repositorySummary } from "@/lib/git-repositories";
 
 export const runtime = "nodejs";
 
 export async function GET(req: Request) {
   return handleApi(async () => {
     const session = await requireRoles(req, ["admin", "team"]);
-    const repositories = await getPrisma().gitRepositoryConnection.findMany({ where: { active: true }, select: { id: true, provider: true, name: true, owner: true, repository: true, defaultBranch: true, active: true, createdBy: true, createdAt: true, updatedAt: true }, orderBy: { updatedAt: "desc" } });
+    const repositories = (await GIT_REPOSITORIES.find([{ field: "active", op: "==", value: true }]))
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+      .map(repositorySummary);
     return { repositories, viewer: session.uid };
   });
 }

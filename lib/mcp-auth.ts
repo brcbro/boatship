@@ -1,13 +1,31 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "crypto";
-import type { Prisma } from "@/generated/prisma/client";
 import type { AuthSession } from "@/types";
 import { getSessionFromRequest } from "@/lib/auth";
-import { getPrisma } from "@/lib/prisma";
+import { Collection, getFirestore, nowIso, type FsData } from "@/lib/firestore";
+import { deleteWhere } from "@/lib/firestore/bulk";
 import { getStore } from "@/lib/store";
 import { isUnsafeDemoUser } from "@/lib/demo-users";
 
 export const MCP_TOKEN_PREFIX = "boatship_mcp_";
 export const DEFAULT_MCP_SCOPES = ["tasks:read", "projects:read", "context:read"] as const;
+
+/** Firestore documents for MCP identities; timestamps are ISO-8601 strings. */
+export type McpIdentityDoc = {
+  id: string; publicId: string; userId: string; tokenHash: string; status: string; scopes: string[];
+  lastUsedAt: string | null; revokedAt: string | null; createdAt: string; updatedAt: string;
+};
+export const MCP_IDENTITIES = new Collection<McpIdentityDoc>("McpIdentity");
+
+/** Document id is `${identityId}__${projectId}`; `id` keeps the row id. */
+export type McpProjectAccessDoc = { id: string; identityId: string; projectId: string; accessLevel: string; createdAt: string; updatedAt: string };
+export const MCP_PROJECT_ACCESS = new Collection<McpProjectAccessDoc>("McpProjectAccess");
+export const mcpProjectAccessId = (identityId: string, projectId: string) => `${identityId}__${projectId}`;
+
+export type McpAuditEventDoc = {
+  id: string; identityId: string; userId: string; toolName: string; resource: string | null; action: string | null; success: boolean;
+  metadata: FsData | null; createdAt: string;
+};
+export const MCP_AUDIT_EVENTS = new Collection<McpAuditEventDoc>("McpAuditEvent");
 
 export interface McpIdentity {
   mcpId: string;
@@ -74,42 +92,59 @@ export async function issueMcpToken(userId: string, options: { scopes?: readonly
   const scopes = normalizeScopes(options.scopes);
   const projectIds = [...new Set((options.projectIds ?? []).filter(Boolean))];
 
-  const accessIds = projectIds.map(() => randomUUID());
-  await getPrisma().$queryRaw`WITH identity AS (
-    INSERT INTO "McpIdentity" ("id", "publicId", "userId", "tokenHash", "status", "scopes", "createdAt", "updatedAt")
-    VALUES (${identityId}, ${publicId}, ${userId}, ${hashToken(token)}, 'active', ARRAY(SELECT jsonb_array_elements_text(${JSON.stringify(scopes)}::jsonb)), NOW(), NOW())
-    RETURNING "id"
-  ), access AS (
-    INSERT INTO "McpProjectAccess" ("id", "identityId", "projectId", "accessLevel", "createdAt", "updatedAt")
-    SELECT entry."id", identity."id", entry."projectId", 'read', NOW(), NOW()
-    FROM identity CROSS JOIN LATERAL jsonb_to_recordset(${JSON.stringify(projectIds.map((projectId, index) => ({ id: accessIds[index], projectId })))}::jsonb)
-      AS entry("id" text, "projectId" text) RETURNING "id"
-  ) SELECT identity."id", (SELECT COUNT(*) FROM access) AS "accessCount" FROM identity`;
+  const stamp = nowIso();
+  const identity: McpIdentityDoc = { id: identityId, publicId, userId, tokenHash: hashToken(token), status: "active", scopes, lastUsedAt: null, revokedAt: null, createdAt: stamp, updatedAt: stamp };
+  await getFirestore().runTransaction(async (tx) => {
+    tx.write({ set: { collection: MCP_IDENTITIES.name, id: identityId, data: identity, precondition: { exists: false } } });
+    for (const projectId of projectIds) {
+      const access: McpProjectAccessDoc = { id: randomUUID(), identityId, projectId, accessLevel: "read", createdAt: stamp, updatedAt: stamp };
+      tx.write({ set: { collection: MCP_PROJECT_ACCESS.name, id: mcpProjectAccessId(identityId, projectId), data: access, precondition: { exists: false } } });
+    }
+  });
   return { publicId, token, scopes };
+}
+
+export async function findMcpIdentityByPublicId(publicId: string) {
+  return MCP_IDENTITIES.findFirst([{ field: "publicId", op: "==", value: publicId }]);
+}
+
+export async function listMcpProjectAccess(identityId: string) {
+  return MCP_PROJECT_ACCESS.find([{ field: "identityId", op: "==", value: identityId }]);
 }
 
 /** Verifies a raw Bearer token without ever persisting or returning it. */
 export async function verifyMcpToken(token: string): Promise<McpTokenClaims | null> {
   if (!token.startsWith(MCP_TOKEN_PREFIX)) return null;
   const tokenHash = hashToken(token);
-  const identity = await getPrisma().mcpIdentity.findUnique({
-    where: { tokenHash },
-    select: { id: true, publicId: true, userId: true, tokenHash: true, scopes: true, status: true, revokedAt: true, createdAt: true },
-  });
+  const identity = await MCP_IDENTITIES.findFirst([{ field: "tokenHash", op: "==", value: tokenHash }]);
   const ttlDays = Number(process.env.MCP_TOKEN_TTL_DAYS || 180);
-  const expired = ttlDays > 0 && identity?.createdAt && Date.now() - identity.createdAt.getTime() > ttlDays * 86400000;
+  const expired = ttlDays > 0 && identity?.createdAt && Date.now() - new Date(identity.createdAt).getTime() > ttlDays * 86400000;
   if (!identity || !hashesMatch(identity.tokenHash, tokenHash) || identity.status !== "active" || identity.revokedAt || expired) return null;
-  await getPrisma().mcpIdentity.update({ where: { id: identity.id }, data: { lastUsedAt: new Date() } });
+  await MCP_IDENTITIES.update(identity.id, { lastUsedAt: nowIso() }, { exists: true });
   return { identityId: identity.id, publicId: identity.publicId, userId: identity.userId, scopes: identity.scopes };
 }
 
+/** Compare-and-set: only an identity that is not yet revoked is updated. */
 export async function revokeMcpIdentity(publicId: string) {
-  const count = await getPrisma().$executeRaw`UPDATE "McpIdentity" SET "status" = 'revoked', "revokedAt" = NOW(), "updatedAt" = NOW() WHERE "publicId" = ${publicId} AND "status" <> 'revoked'`;
+  const count = await getFirestore().runTransaction(async (tx) => {
+    const rows = await tx.query<McpIdentityDoc>(MCP_IDENTITIES.spec([{ field: "publicId", op: "==", value: publicId }]));
+    const eligible = rows.filter((row) => row.data.status !== "revoked");
+    const stamp = nowIso();
+    for (const row of eligible) tx.write({ update: { collection: MCP_IDENTITIES.name, id: row.id, data: { status: "revoked", revokedAt: stamp, updatedAt: stamp }, precondition: { exists: true } } });
+    return eligible.length;
+  });
   return { count };
 }
 
+/** Removes an identity with its project access and audit events (not atomic; children first). */
+export async function deleteMcpIdentity(identityId: string) {
+  await deleteWhere(MCP_AUDIT_EVENTS.name, [{ field: "identityId", op: "==", value: identityId }]);
+  await deleteWhere(MCP_PROJECT_ACCESS.name, [{ field: "identityId", op: "==", value: identityId }]);
+  await MCP_IDENTITIES.delete(identityId);
+}
+
 export async function hasMcpScope(identityId: string, scope: string) {
-  const identity = await getPrisma().mcpIdentity.findUnique({ where: { id: identityId }, select: { scopes: true } });
+  const identity = await MCP_IDENTITIES.get(identityId);
   return Boolean(identity?.scopes.includes(scope));
 }
 
@@ -133,7 +168,10 @@ export async function resolveMcpIdentity(req: Request, requiredScopes: readonly 
 }
 
 export async function recordMcpAuditEvent(input: { identityId: string; userId: string; toolName: string; resource?: string; action?: string; success?: boolean; metadata?: Record<string, unknown> }) {
-  return getPrisma().mcpAuditEvent.create({
-    data: { id: randomUUID(), identityId: input.identityId, userId: input.userId, toolName: input.toolName, resource: input.resource, action: input.action, success: input.success ?? true, metadata: input.metadata as Prisma.InputJsonObject | undefined },
-  });
+  const event: McpAuditEventDoc = {
+    id: randomUUID(), identityId: input.identityId, userId: input.userId, toolName: input.toolName, resource: input.resource ?? null, action: input.action ?? null,
+    success: input.success ?? true, metadata: input.metadata ? (input.metadata as FsData) : null, createdAt: nowIso(),
+  };
+  await MCP_AUDIT_EVENTS.create(event.id, event);
+  return event;
 }

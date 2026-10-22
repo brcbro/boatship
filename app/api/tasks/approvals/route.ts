@@ -1,6 +1,6 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { getSessionFromRequest } from "@/lib/auth";
-import { getPrisma } from "@/lib/prisma";
+import { byCreatedAtDesc, TASK_MANAGER_APPROVALS } from "@/lib/git-quality";
 import { getStore } from "@/lib/store";
 import { isApprovalReviewer } from "@/lib/mcp-controls";
 import { filterAssignedClients } from "@/lib/client-access";
@@ -12,7 +12,7 @@ export async function GET(req: Request) {
     const session = await getSessionFromRequest(req);
     if (!session || !isApprovalReviewer(session)) throw jsonError("Manager or admin access required", 403);
     const status = new URL(req.url).searchParams.get("status") || "pending";
-    const approvals = await getPrisma().taskManagerApproval.findMany({ where: status === "all" ? undefined : { status }, orderBy: { createdAt: "desc" } });
+    const approvals = (await TASK_MANAGER_APPROVALS.find(status === "all" ? [] : [{ field: "status", op: "==", value: status }])).sort(byCreatedAtDesc);
     const store = await getStore();
     const tasks = await store.listAllTasks();
     const clients = await filterAssignedClients(session, await store.listClients());

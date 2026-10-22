@@ -1,6 +1,7 @@
 import { handleApi, jsonError } from "@/lib/api";
-import { findRepositoryForWebhook, parseWebhookEvent, verifyWebhookSignature, webhookSecretFromEnvironment, type GitProvider } from "@/lib/git-repositories";
-import { getPrisma } from "@/lib/prisma";
+import { nowIso } from "@/lib/firestore";
+import { findRepositoryForWebhook, GIT_EVIDENCE, GIT_TASK_LINKS, parseWebhookEvent, verifyWebhookSignature, webhookSecretFromEnvironment, type GitEvidenceDoc, type GitProvider } from "@/lib/git-repositories";
+import { createValidationRun } from "@/lib/git-quality";
 import { randomUUID } from "crypto";
 
 export const runtime = "nodejs";
@@ -29,14 +30,15 @@ export async function POST(req: Request, { params }: Params) {
       : req.headers.get("x-gitlab-signature") || req.headers.get("x-gitlab-token");
     if (!verifyWebhookSignature(provider, secret, signature, body)) throw jsonError("Invalid webhook signature", 401);
     const deliveryExternalId = `delivery:${event.deliveryId}`;
-    const existing = await getPrisma().gitEvidence.findFirst({ where: { repositoryId: repository.id, externalId: deliveryExternalId }, select: { id: true, taskId: true } });
+    const existing = (await GIT_EVIDENCE.find([{ field: "externalId", op: "==", value: deliveryExternalId }])).find((row) => row.repositoryId === repository.id);
     if (existing) return { accepted: true, duplicate: true, evidenceId: existing.id, taskId: existing.taskId };
-    const created = await getPrisma().gitEvidence.create({ data: { id: randomUUID(), repositoryId: repository.id, taskId: null, kind: event.kind, title: `${provider} ${event.eventName} ${event.action}`, externalId: deliveryExternalId, url: event.url || null, payload: { normalized: { provider, eventName: event.eventName, deliveryId: event.deliveryId, kind: event.kind, action: event.action, externalId: event.externalId, branch: event.branch, baseBranch: event.baseBranch, headSha: event.headSha, baseSha: event.baseSha }, raw: event.raw } as never } });
-    const linked = event.externalId ? await getPrisma().gitTaskLink.findFirst({ where: { repositoryId: repository.id, pullRequestId: event.externalId } }) : null;
+    const created: GitEvidenceDoc = { id: randomUUID(), repositoryId: repository.id, taskId: null, kind: event.kind, title: `${provider} ${event.eventName} ${event.action}`, externalId: deliveryExternalId, url: event.url || null, payload: { normalized: { provider, eventName: event.eventName, deliveryId: event.deliveryId, kind: event.kind, action: event.action, externalId: event.externalId, branch: event.branch, baseBranch: event.baseBranch, headSha: event.headSha, baseSha: event.baseSha }, raw: event.raw as GitEvidenceDoc["payload"] }, createdAt: nowIso() };
+    await GIT_EVIDENCE.create(created.id, created);
+    const linked = event.externalId ? (await GIT_TASK_LINKS.find([{ field: "pullRequestId", op: "==", value: event.externalId }])).find((row) => row.repositoryId === repository.id) || null : null;
     if (linked) {
-      await getPrisma().gitEvidence.update({ where: { id: created.id }, data: { taskId: linked.taskId } });
-      await getPrisma().gitTaskLink.update({ where: { id: linked.id }, data: { branch: event.branch || linked.branch, baseSha: event.baseSha || linked.baseSha, headSha: event.headSha || linked.headSha } });
-      await getPrisma().gitValidationRun.create({ data: { id: randomUUID(), taskId: linked.taskId, status: "blocked", reason: "Webhook received. A local checkout or provider CI evidence is required to verify the PR.", evidence: { provider, event: event.kind, action: event.action, pullRequestUrl: event.url, baseSha: event.baseSha, headSha: event.headSha, changedFiles: [], checks: [], capturedAt: new Date().toISOString() } as never, source: "webhook" } });
+      await GIT_EVIDENCE.update(created.id, { taskId: linked.taskId });
+      await GIT_TASK_LINKS.update(linked.id, { branch: event.branch || linked.branch, baseSha: event.baseSha || linked.baseSha, headSha: event.headSha || linked.headSha, updatedAt: nowIso() });
+      await createValidationRun({ taskId: linked.taskId, status: "blocked", reason: "Webhook received. A local checkout or provider CI evidence is required to verify the PR.", evidence: { provider, event: event.kind, action: event.action, pullRequestUrl: event.url, baseSha: event.baseSha, headSha: event.headSha, changedFiles: [], checks: [], capturedAt: new Date().toISOString() }, source: "webhook" });
     }
     return { accepted: true, evidenceId: created.id, taskId: linked?.taskId || null };
   });

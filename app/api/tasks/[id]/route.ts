@@ -6,8 +6,7 @@ import { canAccessClient } from "@/lib/client-access";
 import { isStaff } from "@/lib/rbac";
 import { getStore } from "@/lib/store";
 import { dispatchWebhooks } from "@/lib/webhooks";
-import { getPolicy } from "@/lib/git-quality";
-import { getPrisma } from "@/lib/prisma";
+import { getPolicy, TASK_MANAGER_APPROVALS } from "@/lib/git-quality";
 import { taskEngagementClosed } from "@/lib/engagements";
 import type {
   AssignedRole,
@@ -183,7 +182,7 @@ export async function PATCH(req: Request, { params }: Params) {
       if (clientPatch.status === "completed") {
         const policy = await getPolicy(existing.clientId, existing.type);
         if (policy?.requiredApproval) {
-          const approval = await getPrisma().taskManagerApproval.findUnique({ where: { taskId: id } });
+          const approval = await TASK_MANAGER_APPROVALS.get(id);
           if (approval?.status !== "approved") {
             throw jsonError("Manager approval is required before completing this task", 409);
           }
@@ -254,7 +253,7 @@ export async function PATCH(req: Request, { params }: Params) {
     if (patch.status === "completed") {
       const policy = await getPolicy(existing.clientId, existing.type);
       if (policy?.requiredApproval) {
-        const approval = await getPrisma().taskManagerApproval.findUnique({ where: { taskId: id } });
+        const approval = await TASK_MANAGER_APPROVALS.get(id);
         if (approval?.status !== "approved") {
           throw jsonError("Manager approval is required before completing this task", 409);
         }

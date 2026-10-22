@@ -1,11 +1,48 @@
 import { randomUUID } from "crypto";
-import { getPrisma } from "@/lib/prisma";
+import { Collection, nowIso, type FsData } from "@/lib/firestore";
+import { GIT_EVIDENCE } from "@/lib/git-repositories";
 import type { GitChangedFile, GitValidationEvidence, GitValidationRequest } from "@/lib/git-validation-types";
 
 export type QualityPolicy = { id: string; requiredFiles: string[]; requiredChecks: string[]; requiredBuild: boolean; requiredScreenshot: boolean; requiredApproval: boolean; allowedPaths: string[]; maxStaleHours: number };
 
+/** Firestore documents for quality gates; timestamps are ISO-8601 strings. */
+export type DefinitionOfDonePolicyDoc = {
+  id: string; projectId: string; repositoryId: string | null; taskType: string | null; requiredFiles: string[]; requiredChecks: string[];
+  requiredBuild: boolean; requiredScreenshot: boolean; requiredApproval: boolean; allowedPaths: string[]; maxStaleHours: number;
+  createdBy: string; createdAt: string; updatedAt: string;
+};
+export const DEFINITION_OF_DONE_POLICIES = new Collection<DefinitionOfDonePolicyDoc>("DefinitionOfDonePolicy");
+
+export type GitValidationRunDoc = {
+  id: string; taskId: string; status: string; reason: string | null; evidence: FsData; triggeredBy: string | null; source: string; createdAt: string; updatedAt: string;
+};
+export const GIT_VALIDATION_RUNS = new Collection<GitValidationRunDoc>("GitValidationRun");
+
+/** Document id is the taskId (one approval per task); `id` keeps its own value. */
+export type TaskManagerApprovalDoc = {
+  id: string; taskId: string; reviewerId: string; status: string; note: string | null; createdAt: string; reviewedAt: string | null;
+};
+export const TASK_MANAGER_APPROVALS = new Collection<TaskManagerApprovalDoc>("TaskManagerApproval");
+
+export const byUpdatedAtDesc = <T extends { updatedAt: string }>(a: T, b: T) => b.updatedAt.localeCompare(a.updatedAt);
+export const byCreatedAtDesc = <T extends { createdAt: string }>(a: T, b: T) => b.createdAt.localeCompare(a.createdAt);
+
+/**
+ * Policies for a project, newest first, keeping those that apply to the
+ * task type (or any type) and, when a repository is given, to that
+ * repository (or any repository). Mirrors the former OR/AND SQL filter.
+ */
+export async function listApplicablePolicies(projectId: string, taskType?: string, repositoryId?: string) {
+  const rows = await DEFINITION_OF_DONE_POLICIES.find([{ field: "projectId", op: "==", value: projectId }]);
+  return rows
+    // Prisma treated `{ taskType: undefined }` as no condition, so without a task type every policy applies.
+    .filter((row) => !taskType || row.taskType === null || row.taskType === taskType)
+    .filter((row) => !repositoryId || row.repositoryId === null || row.repositoryId === repositoryId)
+    .sort(byUpdatedAtDesc);
+}
+
 export async function getPolicy(projectId: string, taskType?: string, repositoryId?: string) {
-  const rows = await getPrisma().definitionOfDonePolicy.findMany({ where: { projectId, OR: [{ taskType: null }, { taskType: taskType || undefined }], AND: repositoryId ? [{ OR: [{ repositoryId: null }, { repositoryId }] }] : undefined }, orderBy: { updatedAt: "desc" } });
+  const rows = await listApplicablePolicies(projectId, taskType, repositoryId);
   return rows[0] as QualityPolicy | undefined;
 }
 
@@ -25,17 +62,22 @@ export function qualityChecks() {
   return ["secret-scan", "dependency-scan", "deployment-preview", "deployment-production"] as const;
 }
 
+export async function createValidationRun(input: { taskId: string; status: string; reason?: string | null; evidence: FsData; triggeredBy?: string | null; source: string }) {
+  const stamp = nowIso();
+  const run: GitValidationRunDoc = { id: randomUUID(), taskId: input.taskId, status: input.status, reason: input.reason ?? null, evidence: input.evidence, triggeredBy: input.triggeredBy ?? null, source: input.source, createdAt: stamp, updatedAt: stamp };
+  await GIT_VALIDATION_RUNS.create(run.id, run);
+  return run;
+}
+
 export async function persistValidation(taskId: string, evidence: GitValidationEvidence, request: GitValidationRequest, triggeredBy?: string) {
-  const prisma = getPrisma();
-  return prisma.gitValidationRun.create({ data: { id: randomUUID(), taskId, status: evidence.status, reason: evidence.reason, evidence: evidence as never, triggeredBy, source: request.source || "manual" } });
+  return createValidationRun({ taskId, status: evidence.status, reason: evidence.reason, evidence: evidence as unknown as FsData, triggeredBy, source: request.source || "manual" });
 }
 
 export async function getTaskQuality(taskId: string) {
-  const prisma = getPrisma();
   const [runs, evidence, approval] = await Promise.all([
-    prisma.gitValidationRun.findMany({ where: { taskId }, orderBy: { createdAt: "desc" }, take: 20 }),
-    prisma.gitEvidence.findMany({ where: { taskId }, orderBy: { createdAt: "desc" }, take: 50 }),
-    prisma.taskManagerApproval.findUnique({ where: { taskId } }),
+    GIT_VALIDATION_RUNS.find([{ field: "taskId", op: "==", value: taskId }]).then((rows) => rows.sort(byCreatedAtDesc).slice(0, 20)),
+    GIT_EVIDENCE.find([{ field: "taskId", op: "==", value: taskId }]).then((rows) => rows.sort(byCreatedAtDesc).slice(0, 50)),
+    TASK_MANAGER_APPROVALS.get(taskId),
   ]);
   return { runs, evidence, approval };
 }

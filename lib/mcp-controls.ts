@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "crypto";
-import { getPrisma } from "@/lib/prisma";
+import type { Where } from "@/lib/firestore";
+import { MCP_AUDIT_EVENTS, type McpAuditEventDoc } from "@/lib/mcp-auth";
 import { getStore } from "@/lib/store";
 import { canAccessClient } from "@/lib/client-access";
 import { consumeRateLimit } from "@/lib/rate-limit";
@@ -19,15 +20,27 @@ export function deviceFingerprint(req: Request) {
   return createHash("sha256").update(value).digest("hex").slice(0, 16);
 }
 
-export async function auditExport(identityId?: string, userId?: string) {
+/**
+ * Audit events inside the retention window, newest first. One equality
+ * filter goes to Firestore; the createdAt range is only sent when there is
+ * no equality (otherwise it would need a composite index) and is applied in
+ * memory instead.
+ */
+async function auditEventsInRetention(equality: Where | null, take: number): Promise<McpAuditEventDoc[]> {
   const retentionDays = Number(process.env.MCP_RETENTION_DAYS || 365);
-  const createdAt = retentionDays > 0 ? { gte: new Date(Date.now() - retentionDays * 86400000) } : undefined;
-  const events = await getPrisma().mcpAuditEvent.findMany({
-    where: identityId ? { identityId, createdAt } : userId ? { userId, createdAt } : createdAt ? { createdAt } : undefined,
-    orderBy: { createdAt: "desc" },
-    take: 10_000,
-  });
-  return events.map((event) => sanitizeForMcp({ ...event, createdAt: event.createdAt.toISOString() }));
+  const cutoff = retentionDays > 0 ? new Date(Date.now() - retentionDays * 86400000).toISOString() : null;
+  const where: Where[] = equality ? [equality] : cutoff ? [{ field: "createdAt", op: ">=", value: cutoff }] : [];
+  const events = await MCP_AUDIT_EVENTS.find(where);
+  return events
+    .filter((event) => !cutoff || event.createdAt >= cutoff)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, take);
+}
+
+export async function auditExport(identityId?: string, userId?: string) {
+  const equality: Where | null = identityId ? { field: "identityId", op: "==", value: identityId } : userId ? { field: "userId", op: "==", value: userId } : null;
+  const events = await auditEventsInRetention(equality, 10_000);
+  return events.map((event) => sanitizeForMcp({ ...event }));
 }
 
 export async function contextPack(context: McpContext, taskId: string) {
@@ -55,10 +68,8 @@ export async function contextPack(context: McpContext, taskId: string) {
 }
 
 export async function sessionHistory(identityId: string, limit = 50) {
-  const retentionDays = Number(process.env.MCP_RETENTION_DAYS || 365);
-  const createdAt = retentionDays > 0 ? { gte: new Date(Date.now() - retentionDays * 86400000) } : undefined;
-  const events = await getPrisma().mcpAuditEvent.findMany({ where: { identityId, ...(createdAt ? { createdAt } : {}) }, orderBy: { createdAt: "desc" }, take: Math.min(Math.max(limit, 1), 200) });
-  return sanitizeForMcp(events.map((event) => ({ toolName: event.toolName, resource: event.resource, action: event.action, success: event.success, metadata: event.metadata, createdAt: event.createdAt.toISOString() })));
+  const events = await auditEventsInRetention({ field: "identityId", op: "==", value: identityId }, Math.min(Math.max(limit, 1), 200));
+  return sanitizeForMcp(events.map((event) => ({ toolName: event.toolName, resource: event.resource, action: event.action, success: event.success, metadata: event.metadata, createdAt: event.createdAt })));
 }
 
 type ApprovalInput = { context: McpContext; action: string; taskId: string; payload: Record<string, unknown>; approved?: boolean; approvalId?: string };

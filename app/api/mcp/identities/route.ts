@@ -1,46 +1,23 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles, requireSession } from "@/lib/auth";
-import { issueMcpToken, MCP_SCOPES, revokeMcpIdentity } from "@/lib/mcp-auth";
-import { getPrisma } from "@/lib/prisma";
+import { findMcpIdentityByPublicId, issueMcpToken, listMcpProjectAccess, MCP_IDENTITIES, MCP_PROJECT_ACCESS, MCP_SCOPES, revokeMcpIdentity, type McpIdentityDoc } from "@/lib/mcp-auth";
 import { getStore } from "@/lib/store";
 
 export const runtime = "nodejs";
 
-function serializeIdentity(identity: {
-  publicId: string;
-  userId: string;
-  status: string;
-  scopes: string[];
-  lastUsedAt: Date | null;
-  revokedAt: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
-  projectAccess: Array<{ projectId: string; accessLevel: string }>;
-}) {
+function serializeIdentity(identity: McpIdentityDoc, projectAccess: Array<{ projectId: string; accessLevel: string }>) {
   return {
     publicId: identity.publicId,
     userId: identity.userId,
     status: identity.status,
     scopes: identity.scopes,
-    projectAccess: identity.projectAccess,
-    lastUsedAt: identity.lastUsedAt?.toISOString() ?? null,
-    revokedAt: identity.revokedAt?.toISOString() ?? null,
-    createdAt: identity.createdAt.toISOString(),
-    updatedAt: identity.updatedAt.toISOString(),
+    projectAccess,
+    lastUsedAt: identity.lastUsedAt ?? null,
+    revokedAt: identity.revokedAt ?? null,
+    createdAt: identity.createdAt,
+    updatedAt: identity.updatedAt,
   };
 }
-
-const identitySelect = {
-  publicId: true,
-  userId: true,
-  status: true,
-  scopes: true,
-  lastUsedAt: true,
-  revokedAt: true,
-  createdAt: true,
-  updatedAt: true,
-  projectAccess: { select: { projectId: true, accessLevel: true } },
-} as const;
 
 async function readJson(req: Request) {
   try {
@@ -71,12 +48,19 @@ export async function GET(req: Request) {
     const isAdmin = session.role === "admin";
     if (isAdmin) await requireRoles(req, ["admin"]);
 
-    const identities = await getPrisma().mcpIdentity.findMany({
-      where: isAdmin ? undefined : { userId: session.uid },
-      orderBy: { createdAt: "desc" },
-      select: identitySelect,
-    });
-    return { identities: identities.map(serializeIdentity) };
+    const identities = (await MCP_IDENTITIES.find(isAdmin ? [] : [{ field: "userId", op: "==", value: session.uid }]))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    // The former `projectAccess` include: one query per identity's rows, joined in memory.
+    const access = identities.length
+      ? await MCP_PROJECT_ACCESS.find([{ field: "identityId", op: "in", value: identities.map((identity) => identity.id) }])
+      : [];
+    const byIdentity = new Map<string, Array<{ projectId: string; accessLevel: string }>>();
+    for (const row of access) {
+      const list = byIdentity.get(row.identityId) || [];
+      list.push({ projectId: row.projectId, accessLevel: row.accessLevel });
+      byIdentity.set(row.identityId, list);
+    }
+    return { identities: identities.map((identity) => serializeIdentity(identity, byIdentity.get(identity.id) || [])) };
   });
 }
 
@@ -105,7 +89,7 @@ export async function POST(req: Request) {
 
 async function revoke(req: Request, publicId: string) {
   const session = await requireSession(req);
-  const identity = await getPrisma().mcpIdentity.findUnique({ where: { publicId }, select: { userId: true } });
+  const identity = await findMcpIdentityByPublicId(publicId);
   if (!identity) throw jsonError("MCP identity not found", 404);
   if (identity.userId !== session.uid) await requireRoles(req, ["admin"]);
   await revokeMcpIdentity(publicId);
@@ -127,11 +111,12 @@ export async function PATCH(req: Request) {
     if (!publicId) throw jsonError("publicId is required", 400);
     if (body.action === "regenerate") {
       const session = await requireSession(req);
-      const identity = await getPrisma().mcpIdentity.findUnique({ where: { publicId }, select: { userId: true, scopes: true, projectAccess: { select: { projectId: true } } } });
+      const identity = await findMcpIdentityByPublicId(publicId);
       if (!identity) throw jsonError("MCP identity not found", 404);
       if (identity.userId !== session.uid) await requireRoles(req, ["admin"]);
+      const projectAccess = await listMcpProjectAccess(identity.id);
       await revokeMcpIdentity(publicId);
-      const issued = await issueMcpToken(identity.userId, { scopes: identity.scopes, projectIds: identity.projectAccess.map((item) => item.projectId) });
+      const issued = await issueMcpToken(identity.userId, { scopes: identity.scopes, projectIds: projectAccess.map((item) => item.projectId) });
       return { identity: { publicId: issued.publicId, userId: identity.userId, scopes: issued.scopes }, token: issued.token, warning: "Store this token now. It will not be returned again." };
     }
     return revoke(req, publicId);

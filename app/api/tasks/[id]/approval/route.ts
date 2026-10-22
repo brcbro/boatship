@@ -2,7 +2,8 @@ import { randomUUID } from "crypto";
 import { handleApi, jsonError } from "@/lib/api";
 import { getSessionFromRequest } from "@/lib/auth";
 import { isApprovalReviewer } from "@/lib/mcp-controls";
-import { getPrisma } from "@/lib/prisma";
+import { nowIso } from "@/lib/firestore";
+import { TASK_MANAGER_APPROVALS, type TaskManagerApprovalDoc } from "@/lib/git-quality";
 import { getStore } from "@/lib/store";
 import { canAccessClient } from "@/lib/client-access";
 import { taskEngagementClosed } from "@/lib/engagements";
@@ -18,7 +19,7 @@ export async function GET(req: Request, { params }: Params) {
     const task = await (await getStore()).getTask(id);
     if (!task) throw jsonError("Task not found", 404);
     if (!await canAccessClient(session, task.clientId)) throw jsonError("Forbidden", 403);
-    const approval = await getPrisma().taskManagerApproval.findUnique({ where: { taskId: id } });
+    const approval = await TASK_MANAGER_APPROVALS.get(id);
     return { approval };
   });
 }
@@ -37,7 +38,11 @@ export async function POST(req: Request, { params }: Params) {
     const note = typeof body.reason === "string" ? body.reason.trim() : typeof body.note === "string" ? body.note.trim() : "";
     if (!status) throw jsonError("status must be approved or rejected", 400);
     if (status === "rejected" && !note) throw jsonError("A reason is required when rejecting", 400);
-    const approval = await getPrisma().taskManagerApproval.upsert({ where: { taskId: id }, create: { id: randomUUID(), taskId: id, reviewerId: session.uid, status, note: note || null, reviewedAt: new Date() }, update: { reviewerId: session.uid, status, note: note || null, reviewedAt: new Date() } });
+    // Upsert keyed by taskId: the document id is the taskId, `id` keeps the first row id.
+    const existing = await TASK_MANAGER_APPROVALS.get(id);
+    const stamp = nowIso();
+    const approval: TaskManagerApprovalDoc = { id: existing?.id || randomUUID(), taskId: id, reviewerId: session.uid, status, note: note || null, createdAt: existing?.createdAt || stamp, reviewedAt: stamp };
+    await TASK_MANAGER_APPROVALS.set(id, approval);
     return { approval };
   });
 }

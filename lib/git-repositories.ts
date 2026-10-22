@@ -1,8 +1,35 @@
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "crypto";
-import { getPrisma } from "@/lib/prisma";
+import { Collection, nowIso, type FsData } from "@/lib/firestore";
 import { providerSyncConfig } from "@/lib/git-provider-sync";
 
 export type GitProvider = "github" | "gitlab";
+
+/** Firestore documents for the git area; timestamps are ISO-8601 strings. */
+export type GitRepositoryConnectionDoc = {
+  id: string; provider: string; name: string; owner: string; repository: string; defaultBranch: string;
+  webhookSecretHash: string | null; accessTokenRef: string | null; active: boolean; createdBy: string; createdAt: string; updatedAt: string;
+};
+export const GIT_REPOSITORIES = new Collection<GitRepositoryConnectionDoc>("GitRepositoryConnection");
+
+/** Document id is `${taskId}__${repositoryId}`; the `id` field holds the same value. */
+export type GitTaskLinkDoc = {
+  id: string; taskId: string; repositoryId: string; branch: string | null; pullRequestUrl: string | null; pullRequestId: string | null;
+  baseSha: string | null; headSha: string | null; createdAt: string; updatedAt: string;
+};
+export const GIT_TASK_LINKS = new Collection<GitTaskLinkDoc>("GitTaskLink");
+export const gitTaskLinkId = (taskId: string, repositoryId: string) => `${taskId}__${repositoryId}`;
+
+export type GitEvidenceDoc = {
+  id: string; taskId: string | null; repositoryId: string; kind: string; title: string; externalId: string | null; url: string | null;
+  payload: FsData; createdAt: string;
+};
+export const GIT_EVIDENCE = new Collection<GitEvidenceDoc>("GitEvidence");
+
+/** The public shape of a repository (no secret hash or token reference). */
+export type GitRepositorySummary = Pick<GitRepositoryConnectionDoc, "id" | "provider" | "name" | "owner" | "repository" | "defaultBranch" | "active" | "createdBy" | "createdAt" | "updatedAt">;
+export function repositorySummary(row: GitRepositoryConnectionDoc): GitRepositorySummary {
+  return { id: row.id, provider: row.provider, name: row.name, owner: row.owner, repository: row.repository, defaultBranch: row.defaultBranch, active: row.active, createdBy: row.createdBy, createdAt: row.createdAt, updatedAt: row.updatedAt };
+}
 
 export type NormalizedGitEvent = {
   provider: GitProvider;
@@ -68,14 +95,19 @@ export function webhookSecretFromEnvironment(provider: GitProvider, owner: strin
 }
 
 export async function createRepository(input: { provider: GitProvider; name: string; owner: string; repository: string; defaultBranch?: string; webhookSecret?: string; accessTokenRef?: string; createdBy: string }) {
-  return getPrisma().gitRepositoryConnection.create({
-    data: { id: randomUUID(), provider: input.provider, name: input.name, owner: input.owner, repository: input.repository, defaultBranch: input.defaultBranch || "main", webhookSecretHash: input.webhookSecret ? hashWebhookSecret(input.webhookSecret) : null, accessTokenRef: input.accessTokenRef || null, createdBy: input.createdBy },
-    select: { id: true, provider: true, name: true, owner: true, repository: true, defaultBranch: true, active: true, createdBy: true, createdAt: true, updatedAt: true },
-  });
+  const stamp = nowIso();
+  const row: GitRepositoryConnectionDoc = {
+    id: randomUUID(), provider: input.provider, name: input.name, owner: input.owner, repository: input.repository, defaultBranch: input.defaultBranch || "main",
+    webhookSecretHash: input.webhookSecret ? hashWebhookSecret(input.webhookSecret) : null, accessTokenRef: input.accessTokenRef || null, active: true, createdBy: input.createdBy,
+    createdAt: stamp, updatedAt: stamp,
+  };
+  await GIT_REPOSITORIES.create(row.id, row);
+  return repositorySummary(row);
 }
 
-export async function findRepositoryForWebhook(provider: GitProvider, owner: string, repository: string) {
-  return getPrisma().gitRepositoryConnection.findFirst({ where: { provider, owner, repository, active: true } });
+export async function findRepositoryForWebhook(provider: GitProvider, owner: string, repository: string): Promise<GitRepositoryConnectionDoc | null> {
+  const candidates = await GIT_REPOSITORIES.find([{ field: "owner", op: "==", value: owner }]);
+  return candidates.find((row) => row.provider === provider && row.repository === repository && row.active) || null;
 }
 
 export function parseWebhookEvent(
@@ -176,7 +208,7 @@ export async function syncRepositoryMetadata(repository: { id: string; provider:
   const metadata = await response.json() as { default_branch?: unknown; html_url?: unknown; web_url?: unknown };
   const defaultBranch = typeof metadata.default_branch === "string" ? metadata.default_branch.trim() : "";
   if (!defaultBranch || defaultBranch.length > 255) throw new Error("Git provider returned an invalid default branch");
-  const updated = await getPrisma().gitRepositoryConnection.update({ where: { id: repository.id }, data: { defaultBranch } });
+  await GIT_REPOSITORIES.update(repository.id, { defaultBranch, updatedAt: nowIso() }, { exists: true });
   const url = provider === "github" ? metadata.html_url : metadata.web_url;
-  return { provider, repositoryId: updated.id, status: "synced" as const, defaultBranch: updated.defaultBranch, url: typeof url === "string" ? url : null };
+  return { provider, repositoryId: repository.id, status: "synced" as const, defaultBranch, url: typeof url === "string" ? url : null };
 }
