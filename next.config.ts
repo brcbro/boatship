@@ -4,6 +4,10 @@ const nextConfig: NextConfig = {
   // OpenNext Cloudflare adapter consumes this config at deploy time.
   // Local `next dev` / `next build` use the Node.js runtime for API routes.
   output: "standalone",
+  // Next's tracer loads @opentelemetry/api lazily through its CommonJS entry,
+  // but the OpenNext middleware bundle resolves the ESM entry; trace the whole
+  // package so both files exist in the output.
+  outputFileTracingIncludes: { "/*": ["node_modules/@opentelemetry/api/**/*"] },
   // Keep local data, environment files, and tooling out of the server trace.
   outputFileTracingExcludes: {
     "/*": [

@@ -73,7 +73,13 @@ export class RestFirestore implements FirestoreClient {
     const text = await response.text();
     if (!response.ok) {
       let status = "UNKNOWN", message = text.slice(0, 300);
-      try { const parsed = JSON.parse(text) as { error?: { status?: string; message?: string } }; status = parsed.error?.status || status; message = parsed.error?.message || message; } catch { /* keep raw text */ }
+      try {
+        // Batch endpoints wrap the error in an array; single ones return an object.
+        const raw = JSON.parse(text) as { error?: { status?: string; message?: string; code?: number } } | Array<{ error?: { status?: string; message?: string; code?: number } }>;
+        const parsed = Array.isArray(raw) ? raw[0] : raw;
+        status = parsed?.error?.status || (parsed?.error?.code === 403 ? "PERMISSION_DENIED" : status);
+        message = parsed?.error?.message || message;
+      } catch { /* keep raw text */ }
       throw new FirestoreError(`Firestore ${method} ${path} failed: ${status}: ${message}`, status, response.status);
     }
     return (text ? JSON.parse(text) : {}) as T;
