@@ -7,8 +7,9 @@ interface __BaseEnv_CloudflareEnv {
 	OPENROUTER_API_KEY: string;
 	OPENROUTER_MODEL: string;
 	BOATSHIP_SECRETS_MASTER_KEY: string;
-	DATABASE_URL: string;
-	DIRECT_URL: string;
+	FIREBASE_SERVICE_ACCOUNT: string;
+	FIREBASE_CLIENT_EMAIL: string;
+	FIREBASE_STORAGE_BUCKET: string;
 	MESSAGE_ROOM: DurableObjectNamespace<import("./custom-worker").MessageRoom>;
 }
 declare namespace Cloudflare {
@@ -23,7 +24,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "COMPOSIO_API_KEY" | "OPENROUTER_API_KEY" | "OPENROUTER_MODEL" | "BOATSHIP_SECRETS_MASTER_KEY" | "DATABASE_URL" | "DIRECT_URL">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "COMPOSIO_API_KEY" | "OPENROUTER_API_KEY" | "OPENROUTER_MODEL" | "BOATSHIP_SECRETS_MASTER_KEY" | "FIREBASE_SERVICE_ACCOUNT" | "FIREBASE_CLIENT_EMAIL" | "FIREBASE_STORAGE_BUCKET">> {}
 }
 
 // Begin runtime types

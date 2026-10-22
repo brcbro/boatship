@@ -5,7 +5,7 @@ Shared workspace for client accounts and their engagements. Staff manage work, d
 ## Stack
 
 - Next.js (App Router) + Tailwind CSS
-- Neon PostgreSQL + Prisma ORM for application data, users, sessions, and integration ownership
+- Firebase: Firestore for application data, users, sessions, and integration ownership; Firebase Storage for document files
 - Zoho CPaaS / ZeptoMail or Resend for transactional email (local demo logs to console without a provider; hosted mode requires a provider key and verified sender)
 - Composio for 250+ app integrations (Slack, Gmail, Drive, HubSpot, …)
 - Cloudflare Worker via OpenNext (`@opennextjs/cloudflare`)
@@ -36,9 +36,8 @@ Hosted email delivery uses `ZEPTOMAIL_API_KEY` and a verified general-purpose `Z
 
 ## Environment
 
-Copy `.env.example` to `.env.local` and set the pooled Neon `DATABASE_URL` plus direct `DIRECT_URL`.
-Run `npm run db:deploy` to apply reviewed Prisma migrations to the intended Neon database. The application refuses to use the local file store unless `ALLOW_LOCAL_STORE=1` is explicitly set for demo-only work.
-Keep demo data in explicit `ALLOW_LOCAL_STORE=1` mode. The old `db:import-local` shortcut is retired because it could replace populated data and import fixed demo credentials; see the [operations runbooks](docs/operations/README.md) before planning a reviewed data migration.
+Copy `.env.example` to `.env.local` and set `FIREBASE_SERVICE_ACCOUNT` (the service-account JSON, or its PEM key with `FIREBASE_CLIENT_EMAIL`) and `FIREBASE_STORAGE_BUCKET`. Firestore needs no schema migration; collections are created on first write, and `npm run firestore:indexes` creates any composite index listed in `firestore.indexes.json`. The application refuses to use the local file store unless `ALLOW_LOCAL_STORE=1` is explicitly set for demo-only work.
+Keep demo data in explicit `ALLOW_LOCAL_STORE=1` mode. The old `db:import-local` shortcut is retired because it could replace populated data and import fixed demo credentials; see the [operations runbooks](docs/operations/README.md) before planning a reviewed data migration. Operator scripts run with `node --import tsx` (for example `node --import tsx scripts/provision-first-admin.mjs --expect-project boatship-main`).
 
 Passwords are stored as scrypt hashes, and login sessions are opaque database records with hashed tokens.
 
@@ -70,24 +69,20 @@ bytes stay in the `DocumentContent` row. The server uses the service account dir
 batches with `POST /api/internal/document-content-migrate?limit=5` using the `x-boatship-cron-secret`
 header; repeat until the response reports `remaining: 0`.
 
-### Optional Cloudflare Hyperdrive
+### Firestore access and tests
 
-Production can use Hyperdrive to avoid opening a full PostgreSQL connection to Neon for every
-Worker request. Create a Hyperdrive configuration with the direct Neon connection string, then
-uncomment the `[[hyperdrive]]` example in `wrangler.toml` and replace its placeholder with the real
-configuration ID. The application automatically uses the `HYPERDRIVE` binding on Cloudflare and
-keeps using the pooled `DATABASE_URL` with the Neon HTTP adapter during local `next dev` runs.
-
-Do not put a database URL or Hyperdrive ID into application source code. Keep `DATABASE_URL` as a
-Worker secret for fallback and maintenance tasks. Run `npm run cf:dry-run` before deployment to
-build the OpenNext output, prune unused static assets, and validate the Worker without uploading it.
+The Worker reaches Firestore through its REST API with a short-lived service-account token, so no
+Firebase SDK runs on Cloudflare. `npm run test:e2e` and `npm run local-qa` start the Firestore
+emulator (Java 11+ required) and seed an isolated fixture; `npm run test:firestore` runs the client
+contract against the emulator. Run `npm run cf:dry-run` before deployment to build the OpenNext
+output, prune unused static assets, and validate the Worker without uploading it.
 
 ### Optional Redis cache
 
 Set `REDIS_REST_URL` and `REDIS_REST_TOKEN` to an Upstash Redis REST database to cache the
 analytics endpoint for 60 seconds. Every successful datastore write advances a cache generation,
 so cached analytics are immediately bypassed after a mutation. Redis is optional and cache outages
-fall back to Neon without affecting requests. Keep these values as Worker secrets; do not expose
+fall back to Firestore without affecting requests. Keep these values as Worker secrets; do not expose
 them with a `NEXT_PUBLIC_` prefix.
 
 ### Live messages
@@ -99,4 +94,4 @@ pages continue using their polling fallback.
 
 ## Security rules
 
-Server API routes enforce RBAC. Each authenticated Boatship user gets an isolated Composio user namespace (`boatship_<userId>`), and connected-account ownership is also recorded in Neon.
+Server API routes enforce RBAC. Each authenticated Boatship user gets an isolated Composio user namespace (`boatship_<userId>`), and connected-account ownership is also recorded in Firestore.

@@ -2,10 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
-import { readFile } from "node:fs/promises";
-import { PGlite } from "@electric-sql/pglite";
-import { createLocalQa, QA_PASSWORD } from "../scripts/lib/local-qa.mjs";
-import { installQaWasmLoader } from "../scripts/lib/qa-wasm.mjs";
+import { createLocalQa, QA_PASSWORD, QA_PROJECT } from "../scripts/lib/local-qa.mjs";
 
 function loopbackUrl(value, protocols = ["http:"]) {
   const url = new URL(value);
@@ -66,54 +63,28 @@ async function waitForServer(child) {
 test("isolated migration, authorization and client delivery flows", { timeout: 600_000 }, async (t) => {
   const restoreProviders = disableProviders();
   const qa = await createLocalQa({ web: !override, port: Number(base.port || 3100) });
-  const wasmLoader = installQaWasmLoader();
-  const preservedEnvironment = new Map(["DATABASE_URL", "DIRECT_URL", "ALLOW_LOCAL_STORE", "NODE_ENV", "PRISMA_CLIENT_FORCE_WASM"].map((key) => [key, process.env[key]]));
+  const preservedEnvironment = new Map(["FIRESTORE_EMULATOR_HOST", "FIREBASE_PROJECT_ID", "FIREBASE_SERVICE_ACCOUNT", "FIREBASE_STORAGE_BUCKET", "ALLOW_LOCAL_STORE", "NODE_ENV"].map((key) => [key, process.env[key]]));
   t.after(async () => {
-    await globalThis.boatshipLoopbackPool?.pool.end();
-    globalThis.boatshipLoopbackPool = undefined;
-    wasmLoader.deregister();
     await qa.close();
     for (const [key, value] of preservedEnvironment) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
     restoreProviders();
   });
 
-  await t.test("migration preserves current and historical bytes while removing binary JSON", async () => {
-    const contents = (await qa.db.query('SELECT id, bytes, size FROM "DocumentContent" ORDER BY id')).rows;
-    assert.equal(contents.length, 2);
-    const current = contents.find((item) => item.id === "legacy:qa_document:current");
-    const historical = contents.find((item) => item.id === "legacy:qa_document:version:0");
+  await t.test("the emulator fixture holds file bytes as content records and references in the snapshot", async () => {
+    const contents = await qa.firestore.getMany("DocumentContent", ["legacy:qa_document:current", "legacy:qa_document:version:0"]);
+    assert.equal(contents.size, 2);
+    const current = contents.get("legacy:qa_document:current").data;
+    const historical = contents.get("legacy:qa_document:version:0").data;
     assert.deepEqual(Buffer.from(current.bytes), qa.currentBytes);
     assert.deepEqual(Buffer.from(historical.bytes), qa.oldBytes);
     assert.equal(current.size, qa.currentBytes.length);
     assert.equal(historical.size, qa.oldBytes.length);
-    const snapshot = (await qa.db.query('SELECT data, version FROM "StoreSnapshot" WHERE id=$1', ["main"])).rows[0];
-    assert.equal(snapshot.version, 1);
-    assert.equal(Object.hasOwn(snapshot.data.documents[0], "contentBase64"), false);
-    assert.equal(Object.hasOwn(snapshot.data.documents[0].versions[0], "contentBase64"), false);
-    assert.equal(snapshot.data.documents[0].contentId, current.id);
-    assert.equal(snapshot.data.documents[0].versions[0].contentId, historical.id);
-    const clock = (await qa.db.query("SELECT $1::timestamptz > NOW() AS future, current_setting('TimeZone') AS zone", [new Date(Date.now() + 300000).toISOString()])).rows[0];
-    assert.equal(clock.future, true, "Timezone-aware dates must remain future regardless of the database session's timezone");
-    const columns = (await qa.db.query("SELECT column_name,data_type FROM information_schema.columns WHERE table_name=$1 AND column_name=ANY($2)", ["IntegrationJob", ["leaseUntil", "nextAttemptAt", "createdAt", "updatedAt"]])).rows;
-    assert.equal(columns.length, 4);
-    assert.ok(columns.every((column) => column.data_type === "timestamp with time zone"));
-  });
-
-  await t.test("an invalid legacy file rolls back the entire document migration", async (subtest) => {
-    const db = await PGlite.create();
-    subtest.after(() => db.close());
-    await db.exec('CREATE TABLE "StoreSnapshot" (id TEXT PRIMARY KEY, data JSONB NOT NULL, version INTEGER NOT NULL, "updatedAt" TIMESTAMP(3) NOT NULL)');
-    const snapshot = { documents: [{ id: "invalid_legacy", clientId: "qa_client", contentBase64: "!invalid-base64!", contentType: "image/png", versions: [] }] };
-    await db.query('INSERT INTO "StoreSnapshot" VALUES ($1,$2,0,NOW())', ["main", JSON.stringify(snapshot)]);
-    const sql = await readFile(new URL("../prisma/migrations/20261014000000_separate_document_content_and_integration_jobs/migration.sql", import.meta.url), "utf8");
-    await assert.rejects(() => db.exec(sql));
-    await db.exec("ROLLBACK");
-    const tables = (await db.query("SELECT to_regclass('public.\"DocumentContent\"') AS content, to_regclass('public.\"IntegrationJob\"') AS jobs")).rows[0];
-    assert.equal(tables.content, null);
-    assert.equal(tables.jobs, null);
-    const unchanged = (await db.query('SELECT data,version FROM "StoreSnapshot" WHERE id=$1', ["main"])).rows[0];
-    assert.equal(unchanged.version, 0);
-    assert.deepEqual(unchanged.data, snapshot);
+    const meta = await qa.firestore.get("StoreSnapshot", "main");
+    assert.equal(meta.data.version, 1);
+    const documents = JSON.parse((await qa.firestore.get("StoreSnapshot", "main:documents")).data.json);
+    assert.equal(Object.hasOwn(documents[0], "contentBase64") && documents[0].contentBase64 !== null, false);
+    assert.equal(documents[0].contentId, "legacy:qa_document:current");
+    assert.equal(documents[0].versions[0].contentId, "legacy:qa_document:version:0");
   });
 
   await waitForServer(qa.child);
@@ -349,9 +320,9 @@ test("isolated migration, authorization and client delivery flows", { timeout: 6
     await permissions(grants);
   });
 
-  await t.test("real PostgreSQL job helpers deduplicate, claim concurrently and recover expired final leases", async () => {
-    assert.ok(["127.0.0.1", "localhost", "[::1]"].includes(new URL(qa.connectionString).hostname));
-    Object.assign(process.env, { DATABASE_URL: qa.connectionString, DIRECT_URL: qa.connectionString, ALLOW_LOCAL_STORE: "0", NODE_ENV: "development", PRISMA_CLIENT_FORCE_WASM: "1" });
+  await t.test("real Firestore job helpers deduplicate, claim concurrently and recover expired final leases", async () => {
+    assert.ok(["127.0.0.1", "localhost", "[::1]"].includes(new URL(qa.host).hostname));
+    Object.assign(process.env, { FIRESTORE_EMULATOR_HOST: new URL(qa.host).host, FIREBASE_PROJECT_ID: QA_PROJECT, FIREBASE_SERVICE_ACCOUNT: "", ALLOW_LOCAL_STORE: "0", NODE_ENV: "development" });
     const { enqueueIntegrationEvent, drainIntegrationJobs, retryIntegrationJob } = await import("../lib/integration-jobs.ts");
     const event = { type: "task.completed", clientId: "qa_client", clientName: "Harbour", companyName: "Harbour Studio", taskTitle: "Synthetic denied event" };
     const first = await enqueueIntegrationEvent("qa_none", event, `sql:${runId}:0`);
@@ -364,12 +335,12 @@ test("isolated migration, authorization and client delivery flows", { timeout: 6
     assert.equal(new Set(claimed.map((item) => item.id)).size, 4);
     assert.ok(claimed.every((item) => item.status === "failed" && item.recorded));
     await drainIntegrationJobs(20);
-    const terminal = (await qa.db.query('SELECT id,status,attempts FROM "IntegrationJob" WHERE id=ANY($1)', [ids])).rows;
+    const terminal = [...(await qa.firestore.getMany("IntegrationJob", ids)).values()].map((doc) => doc.data);
     assert.equal(terminal.length, 5);
     assert.ok(terminal.every((item) => item.status === "failed" && item.attempts === 1));
-    await qa.db.query('UPDATE "IntegrationJob" SET status=$1, attempts=10, "leaseUntil"=$2, "leaseToken"=$3 WHERE id=$4', ["processing", "2000-01-01T00:00:00Z", "expired-lease", ids[0]]);
+    await qa.firestore.commit([{ update: { collection: "IntegrationJob", id: ids[0], data: { status: "processing", attempts: 10, leaseUntil: "2000-01-01T00:00:00.000Z", leaseToken: "expired-lease" } } }]);
     await drainIntegrationJobs(20);
-    const exhausted = (await qa.db.query('SELECT status,"leaseToken","leaseUntil",attempts FROM "IntegrationJob" WHERE id=$1', [ids[0]])).rows[0];
+    const exhausted = (await qa.firestore.get("IntegrationJob", ids[0])).data;
     assert.equal(exhausted.status, "failed");
     assert.equal(exhausted.attempts, 10);
     assert.equal(exhausted.leaseToken, null);
@@ -377,7 +348,7 @@ test("isolated migration, authorization and client delivery flows", { timeout: 6
     const admin = { uid: "qa_admin", name: "QA admin", email: "admin@qa.invalid", role: "admin", clientId: null, permissions: [] };
     assert.equal(await retryIntegrationJob(admin, ids[0]), true);
     await drainIntegrationJobs(1);
-    const retried = (await qa.db.query('SELECT id,status,attempts FROM "IntegrationJob" WHERE id=$1', [ids[0]])).rows[0];
+    const retried = (await qa.firestore.get("IntegrationJob", ids[0])).data;
     assert.equal(retried.id, ids[0]);
     assert.equal(retried.status, "failed");
     assert.equal(retried.attempts, 1);

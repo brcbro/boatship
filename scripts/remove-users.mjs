@@ -1,11 +1,8 @@
 import { config } from "dotenv";
-import { neon } from "@neondatabase/serverless";
+import { getFirestore, serviceAccountProjectId } from "./lib/firestore-cli.mjs";
 
 config({ path: ".env.local", quiet: true });
 config({ quiet: true });
-
-const connectionString = process.env.DIRECT_URL?.trim() || process.env.DATABASE_URL?.trim();
-if (!connectionString) throw new Error("DIRECT_URL or DATABASE_URL is required");
 
 const requestedEmails = String(process.env.BOATSHIP_REMOVE_EMAILS || "")
   .split(",")
@@ -13,27 +10,38 @@ const requestedEmails = String(process.env.BOATSHIP_REMOVE_EMAILS || "")
   .filter(Boolean);
 if (!requestedEmails.length) throw new Error("BOATSHIP_REMOVE_EMAILS is required");
 
-const sql = neon(connectionString);
-const rows = await sql`SELECT data FROM "StoreSnapshot" WHERE id = 'main' LIMIT 1`;
-if (!rows[0]) throw new Error("StoreSnapshot(main) does not exist");
+const projectId = process.env.FIRESTORE_EMULATOR_HOST ? "emulator" : serviceAccountProjectId();
+const firestore = getFirestore();
 
-const data = rows[0].data;
-const users = Array.isArray(data.users) ? data.users : [];
-const targets = users.filter((user) => requestedEmails.includes(String(user.email || "").toLowerCase()));
-const foundEmails = new Set(targets.map((user) => String(user.email).toLowerCase()));
-const missing = requestedEmails.filter((email) => !foundEmails.has(email));
-if (missing.length) throw new Error(`No account found for: ${missing.join(", ")}`);
+const removed = await firestore.runTransaction(async (tx) => {
+  const [meta, usersSlice, notificationsSlice] = await Promise.all([
+    tx.get("StoreSnapshot", "main"), tx.get("StoreSnapshot", "main:users"), tx.get("StoreSnapshot", "main:notifications"),
+  ]);
+  if (!meta) throw new Error("StoreSnapshot(main) does not exist");
+  const users = usersSlice ? JSON.parse(usersSlice.data.json) : [];
+  const profiles = (await tx.query({ collection: "UserProfile" })).map((doc) => ({ ...doc.data, uid: doc.id }));
+  const known = new Map();
+  for (const user of [...users, ...profiles]) known.set(String(user.email || "").toLowerCase(), user);
+  const missing = requestedEmails.filter((email) => !known.has(email));
+  if (missing.length) throw new Error(`No account found for: ${missing.join(", ")}`);
+  const targets = requestedEmails.map((email) => known.get(email));
+  const targetIds = new Set(targets.map((user) => user.uid));
+  const version = meta.data.version + 1;
+  tx.write({ set: { collection: "StoreSnapshot", id: "main:users", data: { json: JSON.stringify(users.filter((user) => !targetIds.has(user.uid))), version } } });
+  if (notificationsSlice) {
+    const notifications = JSON.parse(notificationsSlice.data.json).filter((item) => !targetIds.has(item.userId));
+    tx.write({ set: { collection: "StoreSnapshot", id: "main:notifications", data: { json: JSON.stringify(notifications), version } } });
+  }
+  tx.write({ set: { collection: "StoreSnapshot", id: "main", data: { version, updatedAt: new Date().toISOString() } } });
+  for (const uid of targetIds) tx.write({ delete: { collection: "UserProfile", id: uid } });
+  return targets;
+});
 
-const targetIds = new Set(targets.map((user) => user.uid));
-data.users = users.filter((user) => !targetIds.has(user.uid));
-if (Array.isArray(data.notifications)) {
-  data.notifications = data.notifications.filter((item) => !targetIds.has(item.userId));
+// Sessions and notification records are separate collections; remove them after the snapshot commit.
+for (const user of removed) {
+  for (const collection of ["AuthSession", "NotificationRecord"]) {
+    const docs = await firestore.query({ collection, where: [{ field: "userId", op: "==", value: user.uid }] });
+    if (docs.length) await firestore.commit(docs.map((doc) => ({ delete: { collection, id: doc.id } })));
+  }
+  console.log(`Removed ${user.name} <${user.email}> from ${projectId}`);
 }
-
-await sql`UPDATE "StoreSnapshot" SET data = ${JSON.stringify(data)}::jsonb, "updatedAt" = NOW() WHERE id = 'main'`;
-for (const userId of targetIds) {
-  await sql`DELETE FROM "AuthSession" WHERE "userId" = ${userId}`;
-}
-
-for (const user of targets) console.log(`Removed ${user.name} <${user.email}>`);
-console.log(`Remaining users: ${data.users.length}`);

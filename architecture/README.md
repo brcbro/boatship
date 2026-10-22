@@ -15,7 +15,7 @@ Existing focused references: [Git integration](../docs/git-integration.md), [MCP
 
 The [Client OS record](client-os.md) describes the account/engagement split, migration, access boundaries, and remaining rollout work.
 
-Audit implementation references: [staff permissions](permissions.md), [Neon documents and runtime scaling](document-storage.md), [forms and drafts](forms-validation-drafts.md), [durable integration jobs](integration-jobs.md), and [interface changes](interface-audit-remediation.md). These October changes are locally implemented and require the pending migration before deployment.
+Audit implementation references: [staff permissions](permissions.md), [document storage and runtime scaling](document-storage.md), [forms and drafts](forms-validation-drafts.md), [durable integration jobs](integration-jobs.md), and [interface changes](interface-audit-remediation.md). The [Firestore port](firestore-port.md) replaced Neon/Prisma on 2026-10-22; the new database starts empty.
 
 The [audit completion record](audit-remediation.md) maps all ten findings to changes, verification, and remaining release boundaries.
 
@@ -30,11 +30,12 @@ flowchart LR
   Browser[Public, staff and client UI] --> Next[Next.js pages and API routes]
   Next --> Auth[Session and role checks]
   Next --> Store[Client delivery DataStore]
-  Next --> Relational[Prisma relational services]
-  Store --> Neon[(Neon PostgreSQL)]
-  Relational --> Neon
+  Next --> Relational[Firestore collection services]
+  Store --> Firestore[(Firestore)]
+  Relational --> Firestore
   Next --> Jobs[Durable integration queue]
-  Jobs --> Neon
+  Jobs --> Firestore
+  Next --> Files[Firebase Storage]
   Jobs --> Composio[Composio / external apps]
   Next --> Email[Zoho CPaaS or Resend email]
   Next --> Redis[Optional Redis REST cache]
@@ -56,9 +57,9 @@ flowchart LR
 | `lib/auth.ts`, `lib/session.ts`, `lib/rbac.ts`, `proxy.ts` | Sessions, roles, permissions, and route-level redirects. |
 | `lib/hodi-*.ts`, `lib/agent.ts`, `lib/boatship-rag.ts` | Agent context, queue, proposals, communications, and automation reviews. |
 | `lib/git-*.ts`, `lib/mcp-*.ts` | Repository evidence, validation, MCP identity and tools. |
-| `prisma/schema.prisma`, `prisma/migrations/`, `generated/prisma/` | Database schema, migrations, generated client. |
+| `lib/firestore/`, `lib/google-auth.ts`, `firestore.indexes.json` | Firestore REST client, in-memory test client, service-account auth, declared composite indexes. |
 | `custom-worker.ts`, `lib/realtime/`, `wrangler*.toml` | Cloudflare Worker and live message room. |
-| `scripts/` | Database migration/import, user provisioning, and Cloudflare build helpers. |
+| `scripts/` | User provisioning, Firestore index creation, QA fixture, and Cloudflare build helpers. |
 | `public/reference-home-static/` | Imported marketing reference assets and static material; avoid treating its older customer claims as verified Boatship claims. |
 
 ## How to maintain this folder

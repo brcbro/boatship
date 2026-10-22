@@ -27,12 +27,6 @@ new_sqlite_classes = ["MessageRoom"]
 tag = "v2"
 new_sqlite_classes = ["AppRuntime"]
 
-# Hyperdrive is supported by lib/prisma.ts, but a binding must only be enabled
-# after creating the real resource. Never commit a placeholder ID.
-# [[hyperdrive]]
-# binding = "HYPERDRIVE"
-# id = "<set-your-real-hyperdrive-id>"
-
 [[routes]]
 pattern = "boatship.cohortix.in"
 custom_domain = true

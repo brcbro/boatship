@@ -2,7 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   assertFirstAdminEligible,
-  checkedDatabaseHost,
   normalizeBootstrapInput,
 } from "../scripts/lib/bootstrap-admin.mjs";
 
@@ -26,8 +25,6 @@ test("bootstrap refuses to promote an existing identity", () => {
   assert.throws(() => assertFirstAdminEligible({ users: [] }, [{ role: "client", email: "a@example.com" }], "a@example.com"), /already belongs/);
 });
 
-test("bootstrap rejects weak credentials and the wrong database host", () => {
+test("bootstrap rejects weak credentials", () => {
   assert.throws(() => normalizeBootstrapInput({ email: "owner@example.com", name: "Owner", password: "admin123" }), /16/);
-  assert.throws(() => checkedDatabaseHost("postgresql://user:pass@staging.example/db", "production.example"), /does not match/);
-  assert.equal(checkedDatabaseHost("postgresql://user:pass@staging.example/db", "staging.example"), "staging.example");
 });

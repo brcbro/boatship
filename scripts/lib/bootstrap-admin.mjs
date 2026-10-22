@@ -30,13 +30,3 @@ export function assertFirstAdminEligible(snapshotData, profiles, email) {
     throw new Error("That email already belongs to a user; do not promote an existing user with this command");
   }
 }
-
-export function checkedDatabaseHost(connectionString, expectedHost) {
-  if (!expectedHost) throw new Error("--expect-host is required");
-  const url = new URL(connectionString);
-  if (!/^postgres(?:ql)?:$/.test(url.protocol)) throw new Error("DIRECT_URL must be PostgreSQL");
-  if (url.hostname.toLowerCase() !== expectedHost.toLowerCase()) {
-    throw new Error("DIRECT_URL host does not match --expect-host");
-  }
-  return url.hostname;
-}

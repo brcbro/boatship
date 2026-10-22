@@ -1,1 +1,0 @@
-ALTER TABLE "StoreSnapshot" ADD COLUMN "version" INTEGER NOT NULL DEFAULT 0;

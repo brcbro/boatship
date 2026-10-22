@@ -1,12 +1,10 @@
 # Hosted secret setup
 
-Boatship never sends provider credentials to the browser. Composio and OpenRouter credentials entered in Integrations are encrypted with AES-256-GCM before they are stored in Neon. The encryption key must exist only in the server deployment environment.
+Boatship never sends provider credentials to the browser. Composio and OpenRouter credentials entered in Integrations are encrypted with AES-256-GCM before they are stored in Firestore. The encryption key must exist only in the server deployment environment.
 
 For a Cloudflare deployment, configure these as Wrangler secrets or equivalent encrypted deployment secrets:
 
 ```bash
-npx wrangler secret put DATABASE_URL
-npx wrangler secret put DIRECT_URL
 npx wrangler secret put BOATSHIP_SECRETS_MASTER_KEY
 npx wrangler secret put FIREBASE_STORAGE_BUCKET
 npx wrangler secret put FIREBASE_SERVICE_ACCOUNT
@@ -18,11 +16,11 @@ For hosted transactional mail, set `ZEPTOMAIL_API_KEY` and `ZEPTOMAIL_FROM` (a f
 
 `BOATSHIP_SECRETS_MASTER_KEY` must be a 32-byte key encoded as either 64 hexadecimal characters or base64. Generate it locally and paste it into the secret prompt; never commit it to `.env.example`, source control, or a public dashboard.
 
-`COMPOSIO_API_KEY` and `OPENROUTER_API_KEY` may remain server-wide fallback secrets, but hosted users should normally enter their own credentials through the secure Integrations panel. Those values are encrypted in Neon and are never returned after submission.
+`COMPOSIO_API_KEY` and `OPENROUTER_API_KEY` may remain server-wide fallback secrets, but hosted users should normally enter their own credentials through the secure Integrations panel. Those values are encrypted in Firestore and are never returned after submission.
 
 Configure `WEBHOOK_ALLOWED_ORIGINS` as a comma-separated list of exact HTTPS origins before enabling outbound webhooks. An empty value disables new destinations and delivery. Review ownership of each approved domain before adding it. Rotate older webhook signing secrets that may have been exposed through previous API responses.
 
-Apply pending Prisma migrations before deploying code that uses the versioned snapshot and shared rate-limit tables (`npm run db:deploy` is part of `npm run deploy`).
+Firestore needs no migration step; `npm run deploy` builds and uploads the Worker. Run `npm run firestore:indexes` whenever `firestore.indexes.json` gains a composite index.
 
 Security rules:
 

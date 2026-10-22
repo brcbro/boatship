@@ -1,6 +1,6 @@
 # Firestore persistence port
 
-Last reviewed: 2026-10-22. In progress in the working tree; Neon/Prisma remain in the repository until every module below is ported.
+Last reviewed: 2026-10-22. Complete in the working tree: every module is ported and Prisma, Neon, pg, and PGlite are removed from the repository and dependencies.
 
 ## Decision
 
@@ -26,9 +26,11 @@ The user chose to leave Neon PostgreSQL (its free-tier compute quota was exhaust
 
 ## Status
 
-Ported: delivery store snapshot (one document per slice under `StoreSnapshot/main:<slice>` plus `StoreSnapshot/main` meta, written in a transaction), `UserProfile`, `NotificationRecord`, `AuthSession`, `Engagement`, `ClientContact`, `RateLimitBucket`, `DocumentContent`, `UserProviderSecret`, and the routes that use them.
+Ported: the delivery store snapshot (one document per slice under `StoreSnapshot/main:<slice>` plus `StoreSnapshot/main` meta, written in a transaction), `UserProfile`, `NotificationRecord`, `AuthSession`, `Engagement`, `ClientContact`, `RateLimitBucket`, `DocumentContent`, `UserProviderSecret`, `IntegrationJob`, `HodiQueueItem`, `HodiActionProposal`, `HodiCommunicationProposal`, `HodiAutomationRuleState`/`Run`, `ComposioConnection`, products (`Product`, `ProductMember` keyed `${productId}__${userId}`, `ProductMilestone`, `ProductWorkItem`, `ProductRelease` carrying `workItemIds`, `ProductActivity`), git (`GitRepositoryConnection`, `GitTaskLink`, `GitEvidence`, `GitValidationRun`, `DefinitionOfDonePolicy`, `TaskManagerApproval` keyed by task), and MCP (`McpIdentity`, `McpProjectAccess`, `McpAuditEvent`).
 
-Pending: `IntegrationJob`, `HodiQueueItem`, `HodiActionProposal`, `HodiCommunicationProposal`, `HodiAutomationRuleState`/`Run`, `ComposioConnection`, products (`Product*`), git (`GitRepositoryConnection`, `GitTaskLink`, `GitEvidence`, `GitValidationRun`, `DefinitionOfDonePolicy`, `TaskManagerApproval`), MCP (`McpIdentity`, `McpProjectAccess`, `McpAuditEvent`), Prisma removal, the e2e harness, scripts, and deploy configuration.
+Tests: `tests/firestore.test.mjs` (client contract, also against the emulator), `tests/firestore-store.test.mjs`, `tests/queues-firestore.test.mjs`, `tests/products-firestore.test.mjs`, `tests/git-mcp-firestore.test.mjs` on the in-memory client, and `tests/local-flow.e2e.mjs` against the emulator through `scripts/lib/local-qa.mjs`. Operator scripts: `scripts/provision-first-admin.mjs --expect-project <id>`, `scripts/remove-users.mjs`, `scripts/firestore-indexes.mjs`, all run with `node --import tsx`.
+
+No composite index is declared yet; every query uses equality filters (or a single range) and sorts in memory. Hosted verification against the real project is recorded in [status.md](status.md).
 
 ## Limits to respect
 
