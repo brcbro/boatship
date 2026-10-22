@@ -19,7 +19,8 @@
     "preview": "npm run build:cloudflare && opennextjs-cloudflare preview",
     "deploy": "npm run db:deploy && npm run build:cloudflare && wrangler deploy --config wrangler.production.toml",
     "cf:dry-run": "npm run build:cloudflare && wrangler deploy --dry-run --outdir .wrangler/dry-run",
-    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
+    "test:firestore": "firebase emulators:exec --only firestore --project demo-boatship \"node --import tsx --test tests/firestore.test.mjs\""
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.60",
