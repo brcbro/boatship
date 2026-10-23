@@ -1,4 +1,5 @@
 import { handleApi, jsonError } from "@/lib/api";
+import { AccountError, applyAccountChange } from "@/lib/accounts";
 import { requireRoles } from "@/lib/auth";
 import { getStore } from "@/lib/store";
 import { getRedisCacheVersion, withRedisCache } from "@/lib/redis-cache";
@@ -34,7 +35,7 @@ export async function GET(req: Request) {
 /** Update team member permissions (admin only). */
 export async function PATCH(req: Request) {
   return handleApi(async () => {
-    await requireRoles(req, ["admin"]);
+    const session = await requireRoles(req, ["admin"]);
     const body = (await req.json().catch(() => ({}))) as {
       uid?: string;
       permissions?: unknown;
@@ -53,10 +54,20 @@ export async function PATCH(req: Request) {
       throw jsonError("Can only update staff permissions", 400);
     }
 
-    const updated = await store.upsertUser({
-      ...user,
-      permissions,
-    });
+    // Field-level and audited. Sessions are not invalidated: verification
+    // rebuilds the session from the profile, so the new capabilities apply on
+    // the next mutating request and, after the memo, on reads.
+    let updated;
+    try {
+      updated = await applyAccountChange({
+        uid: user.uid,
+        patch: () => ({ permissions }),
+        audit: { action: "staff.permissions.changed", actor: session, metadata: { permissions } },
+      });
+    } catch (error) {
+      if (error instanceof AccountError) throw jsonError(error.message, error.status);
+      throw error;
+    }
 
     return {
       user: {

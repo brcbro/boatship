@@ -1,12 +1,19 @@
-import { randomUUID } from "crypto";
 import { handleApi, jsonError } from "@/lib/api";
+import { deliverMailIntent, issuePasswordReset } from "@/lib/accounts";
 import { appBaseUrl } from "@/lib/client-status";
-import { emailDeliveryConfigured, resetPasswordEmailHtml, sendEmail } from "@/lib/email";
+import { emailDeliveryConfigured, resetPasswordEmailHtml } from "@/lib/email";
 import { getStore } from "@/lib/store";
 import { consumeAccountAndIpLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
+/**
+ * Starts password recovery. The response is the same whether or not the
+ * address exists. A hashed, single-use reset action and a mail intent are
+ * committed first; the email is sent afterwards and its outcome recorded.
+ * Suspended and deactivated accounts receive nothing: a reset never
+ * reactivates them.
+ */
 export async function POST(req: Request) {
   return handleApi(async () => {
     if (!emailDeliveryConfigured()) throw jsonError("Email delivery is not configured", 503);
@@ -23,24 +30,17 @@ export async function POST(req: Request) {
 
     // Always succeed — do not reveal whether the email exists.
     if (user) {
-      const token = randomUUID().replace(/-/g, "");
-      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-      const resetUrl = `${appBaseUrl(req)}/login?reset=${encodeURIComponent(token)}`;
-      await sendEmail({
-        to: user.email,
-        subject: "Reset your Boatship password",
-        html: resetPasswordEmailHtml({
-          name: user.name,
-          resetUrl,
-        }),
-      });
-      await store.upsertUser({
-        ...user,
-        inviteToken: token,
-        inviteTokenExpiresAt: expiresAt,
-      });
+      const issued = await issuePasswordReset({ user });
+      if (issued) {
+        const resetUrl = `${appBaseUrl(req)}/login?reset=${encodeURIComponent(issued.token)}`;
+        await deliverMailIntent(issued.intent, {
+          to: user.email,
+          subject: "Reset your Boatship password",
+          html: resetPasswordEmailHtml({ name: user.name, resetUrl }),
+        });
+      }
     }
 
     return { ok: true };
-  });
+  }, { headers: { "Cache-Control": "private, no-store" } });
 }

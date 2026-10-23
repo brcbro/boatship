@@ -15,6 +15,8 @@ Existing focused references: [Git integration](../docs/git-integration.md), [MCP
 
 The [Client OS record](client-os.md) describes the account/engagement split, migration, access boundaries, and remaining rollout work.
 
+The [account sections and user management plan](accounts-plan.md) proposes personal account sections for administrators, team members, and clients, plus permissions, invitations, client organization administration, recovery, offboarding, and phased verification. Its phase 0 is implemented and recorded in [accounts.md](accounts.md): explicit account status and authorization version, field-level profile writes, hashed single-use credential actions, email claims, account audit events and mail intents, and the sign-in rule shared by cookie, MCP and job paths. Later phases remain plans.
+
 The [interface redesign record](ui-redesign.md) describes the Regatta visual system, shells and navigation introduced on 2026-10-23; tokens and components are in [DESIGN.md](../DESIGN.md).
 
 Audit implementation references: [staff permissions](permissions.md), [document storage and runtime scaling](document-storage.md), [forms and drafts](forms-validation-drafts.md), [durable integration jobs](integration-jobs.md), and [interface changes](interface-audit-remediation.md). The [Firestore port](firestore-port.md) replaced Neon/Prisma on 2026-10-22 and defined the storage interface; the [PostgreSQL store](postgres-store.md) moved all persistence to a ClickHouse Cloud PostgreSQL service behind that interface on 2026-10-23. The database starts empty.
@@ -57,6 +59,7 @@ flowchart LR
 | `lib/store.ts`, `types/index.ts` | Client delivery domain and its persistence interface. |
 | `lib/products.ts`, `types/product.ts` | Product validation, membership, work, and release helpers. |
 | `lib/auth.ts`, `lib/session.ts`, `lib/rbac.ts`, `proxy.ts` | Sessions, roles, permissions, and route-level redirects. |
+| `lib/accounts.ts`, `lib/account-status.ts` | Account lifecycle, credential actions, email claims, audit and mail intents ([accounts.md](accounts.md)). |
 | `lib/hodi-*.ts`, `lib/agent.ts`, `lib/boatship-rag.ts` | Agent context, queue, proposals, communications, and automation reviews. |
 | `lib/git-*.ts`, `lib/mcp-*.ts` | Repository evidence, validation, MCP identity and tools. |
 | `lib/firestore/`, `lib/google-auth.ts`, `firestore.indexes.json` | Storage interface with the PostgreSQL client (`postgres.ts`, production), the Firestore REST client (fallback and emulator tests), the in-memory test client, service-account auth, and declared Firestore composite indexes. |

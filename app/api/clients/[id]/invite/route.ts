@@ -1,9 +1,9 @@
-import { randomUUID } from "crypto";
 import { handleApi, jsonError } from "@/lib/api";
+import { AccountError, CLIENT_INVITATION_TTL_MS, inviteAccount } from "@/lib/accounts";
 import { requireRoles } from "@/lib/auth";
 import { appBaseUrl } from "@/lib/client-status";
 import { enqueueIntegrationEvent } from "@/lib/integration-jobs";
-import { emailDeliveryConfigured, inviteEmailHtml, sendEmail } from "@/lib/email";
+import { emailDeliveryConfigured, inviteEmailHtml } from "@/lib/email";
 import { getStore } from "@/lib/store";
 import { canAccessClient } from "@/lib/client-access";
 import { consumeAccountAndIpLimit, consumeRateLimit } from "@/lib/rate-limit";
@@ -13,6 +13,11 @@ export const runtime = "nodejs";
 
 type Params = { params: Promise<{ id: string }> };
 
+/**
+ * Invite a client portal user for one company. An address that belongs to
+ * staff or to another company is refused. An existing active user of the same
+ * company keeps their password and status; they only receive a new link.
+ */
 export async function POST(req: Request, { params }: Params) {
   return handleApi(async () => {
     const session = await requireRoles(req, ["admin", "team"]);
@@ -38,46 +43,44 @@ export async function POST(req: Request, { params }: Params) {
       throw jsonError("Too many invitations. Try again later.", 429);
     }
 
-    const inviteToken = randomUUID().replace(/-/g, "");
-    const inviteTokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-
-    const existing = await store.getUserByEmail(email);
-    if (existing && (existing.role !== "client" || existing.clientId !== client.id)) {
-      throw jsonError("This email already belongs to another account", 400);
-    }
-
-    const loginUrl = `${appBaseUrl(req)}/login?reset=${encodeURIComponent(inviteToken)}`;
-    await sendEmail({
-      to: email,
-      subject: `You're invited to the Boatship workspace — ${client.companyName}`,
-      html: inviteEmailHtml({
+    let result;
+    try {
+      result = await inviteAccount({
+        actor: session,
+        email,
         name,
-        companyName: client.companyName,
-        loginUrl,
-      }),
-    });
-
-    const user = await store.upsertUser({
-      uid: existing?.uid || randomUUID(),
-      email,
-      name,
-      role: "client",
-      clientId: client.id,
-      createdAt: existing?.createdAt || new Date().toISOString(),
-      inviteToken,
-      inviteTokenExpiresAt,
-      mustResetPassword: true,
-      password: null,
-      passwordHash: null,
-    });
+        role: "client",
+        clientId: client.id,
+        ttlMs: CLIENT_INVITATION_TTL_MS,
+        resolveExisting: (existing) => {
+          if (existing.role !== "client" || existing.clientId !== client.id) {
+            throw new AccountError("This email already belongs to another account", 400, "email_conflict");
+          }
+          return "reuse";
+        },
+        buildEmail: ({ token }) => ({
+          to: email,
+          subject: `You're invited to the Boatship workspace — ${client.companyName}`,
+          html: inviteEmailHtml({ name, companyName: client.companyName, loginUrl: `${appBaseUrl(req)}/login?reset=${encodeURIComponent(token)}` }),
+        }),
+      });
+    } catch (error) {
+      if (error instanceof AccountError) throw jsonError(error.message, error.status);
+      throw error;
+    }
+    const { user } = result;
 
     const invitationActivity = await store.addActivity({
       clientId: client.id,
       actorId: session.uid,
       actorName: session.name,
       action: "client.invited",
-      meta: { email, userId: user.uid },
+      meta: { email, userId: user.uid, delivery: result.delivery.status },
     });
+
+    if (result.delivery.status === "failed") {
+      throw jsonError("The invitation was saved but the email could not be sent. Invite again to retry.", 502);
+    }
 
     const integrationJobs = await enqueueIntegrationEvent(session.uid, {
       type: "client.invited",
@@ -104,6 +107,7 @@ export async function POST(req: Request, { params }: Params) {
         clientId: user.clientId,
       },
       invitationSent: true,
+      existingCredentialsKept: result.existingCredentialsKept,
       integrationJobs: integrationJobs.map(({ id, kind, status }) => ({ id, kind, status })),
     };
   });

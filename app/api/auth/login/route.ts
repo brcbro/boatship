@@ -1,22 +1,15 @@
 import { internalErrorResponse, jsonError, jsonOk } from "@/lib/api";
-import { createDatabaseSession, SESSION_COOKIE } from "@/lib/auth";
+import { accountStatus, currentAuthzVersion } from "@/lib/account-status";
+import { recordAccountAudit } from "@/lib/accounts";
+import { createDatabaseSession } from "@/lib/auth";
 import { isUnsafeDemoUser } from "@/lib/demo-users";
 import { verifyPassword } from "@/lib/password";
 import { consumeAccountAndIpLimit } from "@/lib/rate-limit";
+import { SESSION_COOKIE, sessionCookieOptions } from "@/lib/session";
 import { getStore } from "@/lib/store";
 import type { AuthSession } from "@/types";
 
 export const runtime = "nodejs";
-
-function sessionCookieOptions() {
-  return {
-    httpOnly: true,
-    sameSite: "lax" as const,
-    path: "/",
-    secure: process.env.NODE_ENV === "production",
-    maxAge: 60 * 60 * 24 * 14,
-  };
-}
 
 function passwordsMatch(password: string, expected: string | null | undefined) {
   return Boolean(expected) && password === expected;
@@ -45,7 +38,8 @@ export async function POST(req: Request) {
       return jsonError("Invalid email or password", 401);
     }
 
-    if (user.mustResetPassword) {
+    const status = accountStatus(user);
+    if (status === "invited" || user.mustResetPassword) {
       return jsonError("Set your password using the link sent to your email before signing in", 403);
     }
 
@@ -64,6 +58,13 @@ export async function POST(req: Request) {
       return jsonError("Invalid email or password", 401);
     }
 
+    // Checked after the password so an attacker learns nothing about the
+    // account from the response; the owner is told plainly.
+    if (status !== "active") {
+      await recordAccountAudit({ action: "login.denied", actor: { uid: user.uid, role: user.role }, targetUserId: user.uid, result: "denied", reason: `account ${status}` }).catch(() => undefined);
+      return jsonError("This account cannot sign in. Contact an administrator.", 403);
+    }
+
     const session: AuthSession = {
       uid: user.uid,
       email: user.email,
@@ -72,9 +73,9 @@ export async function POST(req: Request) {
       clientId: user.clientId,
       permissions: user.permissions,
     };
-    const token = await createDatabaseSession(session);
+    const token = await createDatabaseSession(session, { authzVersion: currentAuthzVersion(user) });
 
-    const response = jsonOk({ token, session });
+    const response = jsonOk({ token, session }, { headers: { "Cache-Control": "private, no-store" } });
     response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions());
     return response;
   } catch (err) {

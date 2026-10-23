@@ -95,10 +95,7 @@ export async function POST(req: Request) {
         continue;
       }
 
-      await store.upsertUser({
-        ...user,
-        lastDigestAt: nowIso,
-      });
+      await store.updateUserFields(user.uid, { lastDigestAt: nowIso });
 
       sent.push({
         userId: user.uid,

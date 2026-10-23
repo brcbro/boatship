@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID, scryptSync } from "node:crypto";
+import { createHash, randomBytes, randomUUID, scryptSync } from "node:crypto";
 import { config } from "dotenv";
 import { assertFirstAdminEligible, normalizeBootstrapInput } from "./lib/bootstrap-admin.mjs";
 import { getFirestore, storeTargetId } from "./lib/firestore-cli.mjs";
@@ -50,6 +50,7 @@ const passwordHash = `${salt}:${scryptSync(input.password, salt, 64).toString("h
 const user = {
   uid, email: input.email, name: input.name, role: "admin", clientId: null, createdAt,
   inviteToken: null, inviteTokenExpiresAt: null, mustResetPassword: false, password: null, passwordHash, permissions: [],
+  status: "active", authzVersion: 0, updatedAt: createdAt, statusChangedAt: createdAt, statusReason: null,
 };
 
 // One transaction: a concurrent snapshot change or a newly appeared admin
@@ -61,5 +62,6 @@ await firestore.runTransaction(async (tx) => {
   tx.write({ set: { collection: "StoreSnapshot", id: "main:users", data: { json: JSON.stringify([...current.snapshotUsers, user]), version } } });
   tx.write({ set: { collection: "StoreSnapshot", id: "main", data: { version, updatedAt: createdAt } } });
   tx.write({ set: { collection: "UserProfile", id: uid, data: { ...user, digestEnabled: false, lastDigestAt: null }, precondition: { exists: false } } });
+  tx.write({ set: { collection: "IdentityEmailClaim", id: createHash("sha256").update(input.email).digest("hex"), data: { email: input.email, userId: uid, createdAt, updatedAt: createdAt }, precondition: { exists: false } } });
 });
 console.log(`Created first administrator ${input.email} on ${projectId}.`);

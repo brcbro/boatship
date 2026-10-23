@@ -4,6 +4,7 @@ import type { AuthSession, UserRole } from "@/types";
 import { getStore } from "@/lib/store";
 import { Collection, nowIso } from "@/lib/firestore";
 import { isUnsafeDemoUser } from "@/lib/demo-users";
+import { accountCanAuthenticate, currentAuthzVersion } from "@/lib/account-status";
 import { requireStaffRequestPermissions } from "@/lib/rbac";
 import {
   SESSION_COOKIE,
@@ -15,19 +16,65 @@ export { SESSION_COOKIE, encodeLocalSession };
 
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 14;
 
-/** Keyed by the SHA-256 of the bearer token; never stores the token itself. */
-export type AuthSessionDoc = { tokenHash: string; userId: string; expiresAt: string; createdAt: string };
+/**
+ * Keyed by the SHA-256 of the bearer token; never stores the token itself.
+ * `publicId` is what account UIs and APIs name a session by; it is unrelated
+ * to the hash. `authzVersion` is the user's version when the session was
+ * issued; a later status, role, permission or password change bumps the
+ * user's version and every earlier session stops verifying on every runtime
+ * instance, whether or not its record was deleted. Records written before
+ * 2026-10-23 lack both fields.
+ */
+export type AuthSessionDoc = { tokenHash: string; userId: string; expiresAt: string; createdAt: string; publicId?: string; authzVersion?: number };
 export const AUTH_SESSIONS = new Collection<AuthSessionDoc>("AuthSession");
 
 function tokenHash(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
 
-export async function createDatabaseSession(session: AuthSession) {
+/** Opaque session id for responses. Legacy records derive one that cannot be turned back into the hash. */
+export function sessionPublicId(record: Pick<AuthSessionDoc, "tokenHash" | "publicId">) {
+  return record.publicId ?? `legacy_${createHash("sha256").update(`session-public:${record.tokenHash}`).digest("hex").slice(0, 32)}`;
+}
+
+export async function createDatabaseSession(session: AuthSession, options: { authzVersion?: number } = {}) {
   const token = `${encodeLocalSession(session)}.${randomBytes(32).toString("base64url")}`;
   const hash = tokenHash(token);
-  await AUTH_SESSIONS.create(hash, { tokenHash: hash, userId: session.uid, expiresAt: new Date(Date.now() + SESSION_TTL_MS).toISOString(), createdAt: nowIso() });
+  const authzVersion = options.authzVersion ?? currentAuthzVersion((await (await getStore()).getUser(session.uid)) ?? {});
+  await AUTH_SESSIONS.create(hash, {
+    tokenHash: hash,
+    userId: session.uid,
+    expiresAt: new Date(Date.now() + SESSION_TTL_MS).toISOString(),
+    createdAt: nowIso(),
+    publicId: `ses_${randomBytes(16).toString("hex")}`,
+    authzVersion,
+  });
   return token;
+}
+
+/** The bearer token of the request: the HTTP-only cookie first, then the Authorization header. */
+export function requestSessionToken(req: Pick<Request, "headers">) {
+  const cookie = req.headers.get("cookie")?.match(new RegExp(`(?:^|;\\s*)${SESSION_COOKIE}=([^;]+)`))?.[1];
+  if (cookie) return decodeURIComponent(cookie);
+  const authorization = req.headers.get("authorization");
+  return authorization?.startsWith("Bearer ") ? authorization.slice(7) : null;
+}
+
+export function sessionTokenHash(token: string) {
+  return tokenHash(token);
+}
+
+/**
+ * Replaces the caller's session after a credential change: every session of
+ * the user, the current one included, is revoked and a fresh token is issued
+ * under the user's current authz version. Returns how many other sessions
+ * were signed out.
+ */
+export async function rotateDatabaseSession(currentToken: string | null, session: AuthSession, options: { authzVersion?: number } = {}) {
+  const revoked = await revokeOtherDatabaseSessions(session.uid, null);
+  if (currentToken) forgetSession(tokenHash(currentToken));
+  const token = await createDatabaseSession(session, options);
+  return { token, revoked: Math.max(0, revoked - (currentToken ? 1 : 0)) };
 }
 
 export async function revokeDatabaseSession(token: string | null | undefined) {
@@ -54,9 +101,19 @@ export async function revokeOtherDatabaseSessions(userId: string, keepTokenHash?
   return targets.length;
 }
 
-async function getDatabaseSession(token: string): Promise<AuthSession | null> {
+export type VerifyOptions = {
+  /**
+   * Skip the per-runtime memo and verify against the database. Mutating
+   * requests use this so a suspension, revocation or version bump committed
+   * anywhere denies them at once; reads may be served from the memo for up to
+   * SESSION_CACHE_TTL_MS after a change made on another runtime instance.
+   */
+  authoritative?: boolean;
+};
+
+async function getDatabaseSession(token: string, options: VerifyOptions = {}): Promise<AuthSession | null> {
   const hash = tokenHash(token);
-  const cached = getCachedSession(hash);
+  const cached = options.authoritative ? null : getCachedSession(hash);
   if (cached) return cached;
 
   const record = await AUTH_SESSIONS.get(hash);
@@ -67,7 +124,14 @@ async function getDatabaseSession(token: string): Promise<AuthSession | null> {
   }
 
   const user = await (await getStore()).getUser(record.userId);
-  if (!user || user.mustResetPassword || isUnsafeDemoUser(user)) return null;
+  const stale = record.authzVersion !== undefined && user !== null && record.authzVersion !== currentAuthzVersion(user);
+  if (!user || !accountCanAuthenticate(user) || isUnsafeDemoUser(user) || stale) {
+    // The account is gone, cannot sign in, or the session was issued before a
+    // change that invalidates sessions (password, status, role, permissions).
+    // The record is removed so the session list stays truthful.
+    await revokeDatabaseSession(token);
+    return null;
+  }
   const session: AuthSession = {
     uid: user.uid,
     email: user.email,
@@ -85,34 +149,28 @@ export function invalidateUserSessions(userId: string) {
   forgetUserSessions(userId);
 }
 
-export async function verifyIdToken(idToken: string): Promise<AuthSession | null> {
-  const database = await getDatabaseSession(idToken);
+export async function verifyIdToken(idToken: string, options: VerifyOptions = {}): Promise<AuthSession | null> {
+  const database = await getDatabaseSession(idToken, options);
   if (database) return database;
 
   return null;
 }
 
-export async function getSessionFromRequest(req: Request): Promise<AuthSession | null> {
-  const cookieHeader = req.headers.get("cookie") || "";
-  const match = cookieHeader.match(new RegExp(`${SESSION_COOKIE}=([^;]+)`));
-  if (match?.[1]) {
-    // Browser requests may also carry an old local-storage bearer token. The
-    // HTTP-only cookie is the authoritative browser session; prioritising it
-    // prevents an expired header from logging a valid dashboard session out
-    // during a page refresh.
-    const session = await verifyIdToken(decodeURIComponent(match[1]));
-    if (session) requireStaffRequestPermissions(session, req);
-    return session;
-  }
+function isReadRequest(req: Pick<Request, "method">) {
+  const method = req.method.toUpperCase();
+  return method === "GET" || method === "HEAD";
+}
 
-  const authHeader = req.headers.get("authorization");
-  if (authHeader?.startsWith("Bearer ")) {
-    const session = await verifyIdToken(authHeader.slice(7));
-    if (session) requireStaffRequestPermissions(session, req);
-    return session;
-  }
-
-  return null;
+export async function getSessionFromRequest(req: Request, options: VerifyOptions = {}): Promise<AuthSession | null> {
+  // Browser requests may also carry an old local-storage bearer token. The
+  // HTTP-only cookie is the authoritative browser session; prioritising it
+  // prevents an expired header from logging a valid dashboard session out
+  // during a page refresh.
+  const token = requestSessionToken(req);
+  if (!token) return null;
+  const session = await verifyIdToken(token, { authoritative: options.authoritative ?? !isReadRequest(req) });
+  if (session) requireStaffRequestPermissions(session, req);
+  return session;
 }
 
 export async function getServerSession(): Promise<AuthSession | null> {
