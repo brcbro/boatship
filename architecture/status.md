@@ -92,6 +92,8 @@ The production build and Wrangler dry run passed, and Cloudflare deployed Worker
 
 ## Change log for this architecture folder
 
+- 2026-10-23: Cut PostgreSQL load from the hosted store: slice documents are cached per runtime instance and refreshed by meta version, verified sessions are memoised for 30 s, and the message fallback poll runs every 60 s instead of 15 s. Unit tests (103), typecheck, lint, and the end-to-end suite on a scratch table of the live service passed locally; the effect on ClickHouse Cloud compute time is not yet measured and the change is not deployed. Details in `postgres-store.md`.
+
 - 2026-10-15: Recorded pending audit implementation and release order, current storage decision, permissions, strict/atomic forms, drafts, engagement context, provider jobs, runtime sharding, accessibility/navigation, and dependency triage. Local verification is separate from the earlier deployed release history.
 
 - 2026-09-27: Reframed shared product and mail copy around Client OS work, reserved onboarding wording for the onboarding engagement and legacy reports, separated client/team invitations, made task mail engagement-aware, added a token-free team welcome action, and required a general hosted sender address. Implementation and release evidence are tracked above.
