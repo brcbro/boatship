@@ -1,5 +1,5 @@
 import { config } from "dotenv";
-import { getFirestore, serviceAccountProjectId } from "./lib/firestore-cli.mjs";
+import { getFirestore, storeTargetId } from "./lib/firestore-cli.mjs";
 
 config({ path: ".env.local", quiet: true });
 config({ quiet: true });
@@ -10,7 +10,7 @@ const requestedEmails = String(process.env.BOATSHIP_REMOVE_EMAILS || "")
   .filter(Boolean);
 if (!requestedEmails.length) throw new Error("BOATSHIP_REMOVE_EMAILS is required");
 
-const projectId = process.env.FIRESTORE_EMULATOR_HOST ? "emulator" : serviceAccountProjectId();
+const projectId = storeTargetId();
 const firestore = getFirestore();
 
 const removed = await firestore.runTransaction(async (tx) => {

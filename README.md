@@ -37,7 +37,7 @@ Hosted email delivery uses `ZEPTOMAIL_API_KEY` and a verified general-purpose `Z
 ## Environment
 
 Copy `.env.example` to `.env.local` and set `DATABASE_URL` (the PostgreSQL connection string) plus `FIREBASE_SERVICE_ACCOUNT` (the service-account JSON, or its PEM key with `FIREBASE_CLIENT_EMAIL`) and `FIREBASE_STORAGE_BUCKET` for file storage. The database needs no schema migration; the `documents` table is created on first use. The application refuses to use the local file store unless `ALLOW_LOCAL_STORE=1` is explicitly set for demo-only work.
-Keep demo data in explicit `ALLOW_LOCAL_STORE=1` mode. The old `db:import-local` shortcut is retired because it could replace populated data and import fixed demo credentials; see the [operations runbooks](docs/operations/README.md) before planning a reviewed data migration. Operator scripts run with `node --import tsx` (for example `node --import tsx scripts/provision-first-admin.mjs --expect-project boatship-main`).
+Keep demo data in explicit `ALLOW_LOCAL_STORE=1` mode. The old `db:import-local` shortcut is retired because it could replace populated data and import fixed demo credentials; see the [operations runbooks](docs/operations/README.md) before planning a reviewed data migration. Operator scripts run with `node --import tsx` (for example `node --import tsx scripts/provision-first-admin.mjs --expect-project <postgres host from DATABASE_URL>`).
 
 Passwords are stored as scrypt hashes, and login sessions are opaque database records with hashed tokens.
 

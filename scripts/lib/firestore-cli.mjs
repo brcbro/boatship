@@ -9,6 +9,20 @@ export function serviceAccountProjectId() {
   return account.projectId;
 }
 
+/**
+ * The identifier an operator must name to confirm the target: the PostgreSQL
+ * host when DATABASE_URL is set, otherwise the Firebase project id. Never a
+ * credential.
+ */
+export function storeTargetId() {
+  if (process.env.FIRESTORE_EMULATOR_HOST?.trim()) return "emulator";
+  const databaseUrl = process.env.DATABASE_URL?.trim();
+  if (databaseUrl) {
+    try { return new URL(databaseUrl).hostname; } catch { throw new Error("DATABASE_URL is not a valid connection URL"); }
+  }
+  return serviceAccountProjectId();
+}
+
 export function getFirestore() {
   const emulator = process.env.FIRESTORE_EMULATOR_HOST?.trim();
   if (emulator) return new RestFirestore({ projectId: process.env.FIREBASE_PROJECT_ID?.trim() || "demo-boatship", host: emulator.startsWith("http") ? emulator : `http://${emulator}` });
