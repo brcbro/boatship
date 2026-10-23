@@ -84,6 +84,21 @@ export async function revokeDatabaseSession(token: string | null | undefined) {
   await AUTH_SESSIONS.delete(hash);
 }
 
+/**
+ * Revokes one of the user's own sessions by its public id. Legacy records have
+ * a derived id, so the match compares derived ids across the user's sessions
+ * rather than looking a hash up. Returns the record that was removed, or null
+ * when no session of this user has that id (another user's id is never found).
+ */
+export async function revokeDatabaseSessionByPublicId(userId: string, publicId: string) {
+  const records = await AUTH_SESSIONS.find([{ field: "userId", op: "==", value: userId }]);
+  const target = records.find((record) => sessionPublicId(record) === publicId);
+  if (!target) return null;
+  forgetSession(target.tokenHash);
+  await AUTH_SESSIONS.delete(target.tokenHash);
+  return target;
+}
+
 /** Active sessions for a user, newest first. */
 export async function listDatabaseSessions(userId: string) {
   const records = await AUTH_SESSIONS.find([{ field: "userId", op: "==", value: userId }, { field: "expiresAt", op: ">", value: nowIso() }]);

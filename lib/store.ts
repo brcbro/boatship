@@ -81,6 +81,8 @@ export type UserProfileDoc = {
   password: string | null; passwordHash: string | null; permissions: string[]; digestEnabled: boolean; lastDigestAt: string | null;
   /** Account foundations (2026-10-23). Absent on older documents; readers derive defaults. */
   status?: string; authzVersion?: number; updatedAt?: string | null; statusChangedAt?: string | null; statusReason?: string | null;
+  /** Personal preferences (2026-10-23). Absent on older documents. */
+  timezone?: string | null; hourCycle?: string | null;
 };
 
 /** Fields a partial user update may touch. Identity (`uid`, `createdAt`) is never patched. */
@@ -112,6 +114,8 @@ export function userProfileData(user: AppUser): UserProfileDoc {
     updatedAt: user.updatedAt ?? null,
     statusChangedAt: user.statusChangedAt ?? null,
     statusReason: user.statusReason ?? null,
+    timezone: user.timezone ?? null,
+    hourCycle: user.hourCycle ?? null,
   };
 }
 
@@ -134,6 +138,8 @@ export function userProfilePatch(patch: UserFieldPatch): Partial<UserProfileDoc>
   if ("authzVersion" in patch && patch.authzVersion !== undefined) doc.authzVersion = patch.authzVersion;
   if ("statusChangedAt" in patch) doc.statusChangedAt = patch.statusChangedAt ?? null;
   if ("statusReason" in patch) doc.statusReason = patch.statusReason ?? null;
+  if ("timezone" in patch) doc.timezone = patch.timezone ?? null;
+  if ("hourCycle" in patch) doc.hourCycle = patch.hourCycle ?? null;
   doc.updatedAt = patch.updatedAt ?? now();
   return doc;
 }
@@ -159,6 +165,8 @@ export function appUserFromProfile(user: UserProfileDoc): AppUser {
     updatedAt: user.updatedAt ?? null,
     statusChangedAt: user.statusChangedAt ?? null,
     statusReason: user.statusReason ?? null,
+    timezone: user.timezone ?? null,
+    hourCycle: user.hourCycle === "12h" || user.hourCycle === "24h" ? user.hourCycle : null,
   };
 }
 

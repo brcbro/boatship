@@ -11,6 +11,12 @@ const PUBLIC_PATHS = [
   "/api/auth/reset-password",
 ];
 
+/**
+ * Staff shell roots. `matchesRoute` covers every subpage, so the six account
+ * sections under `/account/*` (security, notifications, preferences, access,
+ * privacy) need no separate entries; the client equivalents live under
+ * `/portal/account/*` and are covered by the `/portal` client-area check.
+ */
 const ADMIN_PATHS = [
   "/dashboard", "/settings", "/clients", "/team", "/workload", "/projects",
   "/products", "/workspace", "/calendar", "/messages", "/templates",

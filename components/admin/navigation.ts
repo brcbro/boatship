@@ -64,7 +64,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
 /** Everything configured occasionally lives under Settings. */
 export const SETTINGS_ITEMS: readonly NavItem[] = [
   { href: "/settings", label: "Overview", icon: Settings2, description: "Everything you can configure, in one place." },
-  { href: "/account", label: "Account", icon: UserRound, description: "Your profile, password and appearance." },
+  { href: "/account", label: "My account", icon: UserRound, description: "Your profile, security, notifications, preferences and access." },
   { href: "/workspace", label: "Workspace policies", icon: UsersRound, description: "Defaults and rules that apply to every client." },
   { href: "/templates", label: "Service templates", icon: ClipboardCheck, description: "Reusable engagement and task templates." },
   { href: "/forms", label: "Forms", icon: FileText, description: "Form definitions clients fill in." },

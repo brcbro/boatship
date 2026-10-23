@@ -2,7 +2,7 @@
 
 Date: 2026-10-23.
 
-Status: **Phase 0 implemented on 2026-10-23** ([accounts.md](accounts.md)); phases 1–4 remain plans. The user confirmed the scope: personal account pages plus user management, permissions, invitations, and account lifecycle for administrators, team members, and clients. The baseline table below describes the repository before phase 0; the implemented record supersedes it for status, profile writes, credential actions, email claims, audit, mail intents and session verification.
+Status: **Phases 0 and 1 implemented on 2026-10-23** ([accounts.md](accounts.md)); phases 2–4 remain plans. Phase 1 shipped the six personal sections, per-session revocation, the access summary, security activity, timezone/time-format preferences and account requests; verified email change, MFA and recent-authentication proofs stayed out, as the dependency order requires. The user confirmed the scope: personal account pages plus user management, permissions, invitations, and account lifecycle for administrators, team members, and clients. The baseline table below describes the repository before phase 0; the implemented record supersedes it for status, profile writes, credential actions, email claims, audit, mail intents and session verification.
 
 ## 1. Product decisions and boundaries
 

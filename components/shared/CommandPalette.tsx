@@ -9,6 +9,7 @@ import { apiFetch } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { Kbd } from "@/components/shared/ui";
 import { NAV_GROUPS, SETTINGS_ITEMS } from "@/components/admin/navigation";
+import { ACCOUNT_SECTIONS } from "@/components/shared/account/AccountLayout";
 
 type SearchResult = {
   type: "client" | "task" | "document" | "vessel";
@@ -20,9 +21,12 @@ type SearchResult = {
 
 type NavLink = { href: string; label: string };
 
+const ACCOUNT_LINKS = (basePath: string): NavLink[] => ACCOUNT_SECTIONS.map((section) => ({ href: `${basePath}${section.path}`, label: `My account · ${section.label}` }));
+
 const ADMIN_LINKS: NavLink[] = [
   ...NAV_GROUPS.flatMap((group) => group.items.map((item) => ({ href: item.href, label: item.label }))),
-  ...SETTINGS_ITEMS.map((item) => ({ href: item.href, label: item.href === "/settings" ? "Settings" : `Settings · ${item.label}` })),
+  ...SETTINGS_ITEMS.filter((item) => item.href !== "/account").map((item) => ({ href: item.href, label: item.href === "/settings" ? "Settings" : `Settings · ${item.label}` })),
+  ...ACCOUNT_LINKS("/account"),
 ];
 
 const CLIENT_LINKS: NavLink[] = [
@@ -33,7 +37,7 @@ const CLIENT_LINKS: NavLink[] = [
   { href: "/portal/engagements", label: "Engagements" },
   { href: "/portal/forms", label: "Forms" },
   { href: "/portal/approvals", label: "Approvals" },
-  { href: "/portal/account", label: "Account" },
+  ...ACCOUNT_LINKS("/portal/account"),
 ];
 
 const OPEN_EVENT = "boatship:command-palette";

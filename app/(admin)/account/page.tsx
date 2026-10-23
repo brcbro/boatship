@@ -1,5 +1,5 @@
-import { AccountSettings } from "@/components/shared/AccountSettings";
+import { ProfileSection } from "@/components/shared/account/ProfileSection";
 
-export default function AccountPage() {
-  return <AccountSettings />;
+export default function AccountProfilePage() {
+  return <ProfileSection basePath="/account" />;
 }
