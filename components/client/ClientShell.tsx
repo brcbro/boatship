@@ -88,7 +88,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-6">
             <Link href="/portal" className="flex shrink-0 items-center gap-2.5" aria-label="Boatship home">
-              <span aria-hidden="true" className="grid h-8 w-8 place-items-center rounded-[9px] bg-[var(--accent)] font-[family-name:var(--font-display)] text-[17px] font-extrabold leading-none text-[var(--on-accent)]">b</span>
+              <span aria-hidden="true" className="grid h-8 w-8 place-items-center rounded-[9px] bg-[var(--accent)] font-[family-name:var(--font-display)] text-[17px] font-bold leading-none text-[var(--on-accent)]">b</span>
               <Image src="/brand/boatship-logo-black.png" alt="Boatship" width={1428} height={366} priority className="show-light hidden h-5 w-auto sm:block" /><Image src="/brand/boatship-logo-white.png" alt="" aria-hidden="true" width={1432} height={370} className="show-dark hidden h-5 w-auto sm:block" />
             </Link>
             <nav className="hidden items-center gap-1 md:flex" aria-label="Client portal">

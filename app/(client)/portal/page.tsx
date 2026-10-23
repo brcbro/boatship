@@ -108,13 +108,13 @@ export default function PortalDashboardPage() {
           <p id="next-heading" className="text-xs font-bold uppercase tracking-[0.12em] opacity-80">Your next step</p>
           {pendingApprovals.length > 0 ? (
             <>
-              <p className="mt-3 font-[family-name:var(--font-display)] text-[1.75rem] font-extrabold leading-[1.05] tracking-[-0.02em] sm:text-[2.1rem]">{pendingApprovals[0].subject}</p>
+              <p className="mt-3 font-[family-name:var(--font-display)] text-[1.75rem] font-bold leading-[1.05] tracking-[-0.02em] sm:text-[2.1rem]">{pendingApprovals[0].subject}</p>
               <p className="mt-2 text-sm opacity-85">A decision is waiting · {pendingApprovals.length} approval{pendingApprovals.length === 1 ? "" : "s"} to review</p>
               <Link href="/portal/approvals" className="mt-6 inline-flex min-h-11 items-center gap-2 rounded-[var(--radius-md)] bg-[var(--on-accent)] px-4 text-sm font-semibold text-[var(--accent)] transition-transform hover:translate-x-0.5">Review approval <ArrowRight className="h-4 w-4" aria-hidden="true" /></Link>
             </>
           ) : nextTask ? (
             <>
-              <p className="mt-3 font-[family-name:var(--font-display)] text-[1.75rem] font-extrabold leading-[1.05] tracking-[-0.02em] sm:text-[2.1rem]">{nextTask.title}</p>
+              <p className="mt-3 font-[family-name:var(--font-display)] text-[1.75rem] font-bold leading-[1.05] tracking-[-0.02em] sm:text-[2.1rem]">{nextTask.title}</p>
               <p className="mt-2 flex flex-wrap items-center gap-2 text-sm opacity-85">
                 {nextTask.engagementId ? <span>{engagements.find((item) => item.id === nextTask.engagementId)?.name}</span> : null}
                 {nextTask.dueDate ? <span>· Due {formatDate(nextTask.dueDate)}</span> : null}
@@ -125,7 +125,7 @@ export default function PortalDashboardPage() {
             </>
           ) : (
             <>
-              <p className="mt-3 font-[family-name:var(--font-display)] text-[1.75rem] font-extrabold leading-[1.05] tracking-[-0.02em] sm:text-[2.1rem]">You’re all caught up</p>
+              <p className="mt-3 font-[family-name:var(--font-display)] text-[1.75rem] font-bold leading-[1.05] tracking-[-0.02em] sm:text-[2.1rem]">You’re all caught up</p>
               <p className="mt-2 text-sm opacity-85">There are no tasks or decisions waiting for you. Your team will let you know when something changes.</p>
             </>
           )}

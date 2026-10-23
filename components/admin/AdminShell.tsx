@@ -152,7 +152,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           {compact ? <span className="sr-only">Settings</span> : "Settings"}
         </Link>
         <div className={cn("mt-2 flex items-center gap-2 rounded-[var(--radius-md)] px-1 py-1", compact && "justify-center")}>
-          <span aria-hidden="true" className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--accent)] font-[family-name:var(--font-display)] text-[13px] font-extrabold text-[var(--on-accent)]">
+          <span aria-hidden="true" className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--accent)] font-[family-name:var(--font-display)] text-[13px] font-bold text-[var(--on-accent)]">
             {(session?.name || "S").trim().charAt(0).toUpperCase()}
           </span>
           {compact ? null : (

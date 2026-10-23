@@ -255,7 +255,7 @@ export function PageHeader({
     <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0">
         {eyebrow ? <div className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--ink-muted)]">{eyebrow}</div> : null}
-        <h1 className="max-w-3xl font-[family-name:var(--font-display)] text-[2rem] font-extrabold leading-[1.02] tracking-[-0.03em] text-[var(--ink)] sm:text-[2.5rem]">{title}</h1>
+        <h1 className="max-w-3xl font-[family-name:var(--font-display)] text-[2rem] font-bold leading-[1.05] tracking-[-0.02em] text-[var(--ink)] sm:text-[2.25rem]">{title}</h1>
         {description ? <p className="mt-2 max-w-2xl text-[0.95rem] leading-6 text-[var(--ink-muted)]">{description}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
@@ -346,7 +346,7 @@ export function RecordHeader({
         <div className="min-w-0">
           {eyebrow ? <div className="mb-1 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--ink-muted)]">{eyebrow}</div> : null}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <h1 className="min-w-0 truncate font-[family-name:var(--font-display)] text-[1.6rem] font-extrabold leading-[1.05] tracking-[-0.03em] text-[var(--ink)] sm:text-[2rem]">{title}</h1>
+            <h1 className="min-w-0 truncate font-[family-name:var(--font-display)] text-[1.5rem] font-bold leading-[1.05] tracking-[-0.02em] text-[var(--ink)] sm:text-[1.9rem]">{title}</h1>
             {badges ? <div className="flex flex-wrap items-center gap-1.5">{badges}</div> : null}
           </div>
           {subtitle ? <p className="mt-1 truncate text-sm text-[var(--ink-muted)]">{subtitle}</p> : null}

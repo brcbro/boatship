@@ -49,8 +49,8 @@ export const metadata: Metadata = {
   },
 };
 
-/* Applies the stored theme before first paint so there is no flash. "system" leaves the attribute off. */
-const themeInit = `(function(){try{var t=localStorage.getItem("boatship-theme");if(t==="dark"||t==="light"){document.documentElement.setAttribute("data-theme",t)}}catch(e){}})();`;
+/* Applies the stored theme before first paint so there is no flash. Dark is the default; "system" leaves the attribute off. */
+const themeInit = `(function(){try{var t=localStorage.getItem("boatship-theme");if(t==="dark"||t==="light"){document.documentElement.setAttribute("data-theme",t)}else if(t!=="system"){document.documentElement.setAttribute("data-theme","dark")}}catch(e){document.documentElement.setAttribute("data-theme","dark")}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
