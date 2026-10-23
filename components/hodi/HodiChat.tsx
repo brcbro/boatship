@@ -563,7 +563,7 @@ export function HodiChat({ variant = "page", context = null }: { variant?: HodiC
           <header className={cn("relative z-30 flex shrink-0 items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--surface)] py-3", isDrawer ? "px-3" : "px-4 sm:px-6")}>
             <div className="flex min-w-0 items-center gap-3">
               {!isDrawer ? <button ref={historyTriggerRef} type="button" aria-label="Open chat history" onClick={() => setMobileHistoryOpen(true)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-[var(--ink)] hover:bg-[var(--surface-2)] md:hidden"><PanelLeft className="h-5 w-5" /></button> : null}
-              {!isDrawer ? <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--brand)] text-[var(--on-brand)] shadow-[0_6px_16px_rgba(20,20,20,0.14)]" aria-hidden="true">
+              {!isDrawer ? <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--brand)] text-[var(--on-brand)]" aria-hidden="true">
                 <Bot className="h-5 w-5" />
               </span> : null}
               <div className="min-w-0">
@@ -650,7 +650,7 @@ export function HodiChat({ variant = "page", context = null }: { variant?: HodiC
           {messages.length === 0 ? (
             <div className="mx-auto flex h-full max-w-xl flex-col justify-center space-y-6 py-8">
               <div className="space-y-2 text-center agent-message-enter">
-                <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--brand)] text-[var(--on-brand)] shadow-[0_10px_24px_rgba(20,20,20,0.14)]">
+                <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--brand)] text-[var(--on-brand)]">
                   <Bot className="h-6 w-6" />
                 </span>
                 <h1 className={cn("font-[family-name:var(--font-display)] tracking-[-0.02em] text-[var(--ink)]", isDrawer ? "text-xl" : "text-3xl")}>{context ? `Ask about ${context.label}` : "What can I help with?"}</h1>
@@ -663,7 +663,7 @@ export function HodiChat({ variant = "page", context = null }: { variant?: HodiC
                     type="button"
                     disabled={!status?.ready || busy}
                     onClick={() => runSuggestion(s)}
-                    className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-raised)] px-3.5 py-3 text-left text-sm leading-snug text-[var(--ink)] transition duration-200 hover:-translate-y-0.5 hover:border-[var(--brand)]/40 hover:shadow-[0_8px_18px_rgba(20,20,20,0.06)] disabled:opacity-50"
+                    className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-raised)] px-3.5 py-3 text-left text-sm leading-snug text-[var(--ink)] transition duration-200 hover:border-[var(--border-strong)] hover:bg-[var(--surface-2)] disabled:opacity-50"
                   >
                     {s}
                   </button>
@@ -684,7 +684,7 @@ export function HodiChat({ variant = "page", context = null }: { variant?: HodiC
                   key={m.id}
                   className={
                     m.role === "user"
-                      ? "agent-message-enter max-w-[88%] self-end rounded-[var(--radius-lg)] rounded-br-md bg-[var(--brand)] px-4 py-3 text-sm leading-relaxed text-[var(--on-brand)] shadow-[0_8px_20px_rgba(20,20,20,0.09)] sm:max-w-[78%]"
+                      ? "agent-message-enter max-w-[88%] self-end rounded-[var(--radius-lg)] rounded-br-md border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 text-sm leading-relaxed text-[var(--ink)] sm:max-w-[78%]"
                       : "agent-message-enter w-full max-w-3xl self-start space-y-3 text-sm leading-7 text-[var(--ink)]"
                   }
                 >
@@ -722,11 +722,11 @@ export function HodiChat({ variant = "page", context = null }: { variant?: HodiC
                     </details>
                   ) : null}
                   {text ? (
-                    <div className={`flex items-center gap-1 ${m.role === "user" ? "justify-end text-[var(--on-brand)]/80" : "text-[var(--ink-muted)]"}`}>
+                    <div className={`flex items-center gap-1 text-[var(--ink-muted)] ${m.role === "user" ? "justify-end" : ""}`}>
                       <button type="button" onClick={() => void copyMessage(m.id, text)} className="inline-flex h-7 items-center gap-1 rounded-[var(--radius-sm)] px-2 text-[11px] font-medium transition hover:bg-[var(--surface-2)] hover:text-[var(--ink)]" title="Copy message">
                         {copiedMessageId === m.id ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}{copiedMessageId === m.id ? "Copied" : "Copy"}
                       </button>
-                      {m.role === "user" ? <button type="button" onClick={() => editAndResend(text)} disabled={busy} className="inline-flex h-7 items-center gap-1 rounded-[var(--radius-sm)] px-2 text-[11px] font-medium transition hover:bg-[var(--on-brand)]/15 disabled:opacity-50" title="Edit message"><Pencil className="h-3.5 w-3.5" />Edit</button> : <>
+                      {m.role === "user" ? <button type="button" onClick={() => editAndResend(text)} disabled={busy} className="inline-flex h-7 items-center gap-1 rounded-[var(--radius-sm)] px-2 text-[11px] font-medium transition hover:bg-[var(--surface-2)] hover:text-[var(--ink)] disabled:opacity-50" title="Edit message"><Pencil className="h-3.5 w-3.5" />Edit</button> : <>
                         <button type="button" onClick={improveResponse} disabled={busy} className="inline-flex h-7 items-center gap-1 rounded-[var(--radius-sm)] px-2 text-[11px] font-medium transition hover:bg-[var(--surface-2)] hover:text-[var(--ink)] disabled:opacity-50" title="Ask Hodi to improve this response"><RotateCcw className="h-3.5 w-3.5" />Improve</button>
                       </>}
                     </div>

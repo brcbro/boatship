@@ -29,7 +29,7 @@ export function buttonClasses({ variant = "primary", size = "md", className }: {
     size === "lg" && "min-h-12 px-5 text-[15px]",
     variant === "primary" && "bg-[var(--brand)] text-[var(--on-brand)] hover:bg-[var(--brand-strong)]",
     variant === "accent" && "bg-[var(--accent)] bg-[image:var(--accent-gradient)] text-[var(--on-accent)] hover:brightness-110",
-    variant === "secondary" && "border border-[var(--border-strong)] bg-[var(--surface-raised)] text-[var(--ink)] hover:border-[var(--ink-faint)] hover:bg-[var(--surface-2)]",
+    variant === "secondary" && "border border-[var(--border-strong)] bg-transparent text-[var(--ink)] hover:bg-[var(--brand-soft)]",
     variant === "ghost" && "text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]",
     variant === "danger" && "bg-[var(--danger)] text-white hover:brightness-95",
     className
@@ -60,8 +60,9 @@ export function ButtonLink({
 /* Fields                                                              */
 /* ------------------------------------------------------------------ */
 
+// Fields are dim wells: no border at rest, a hairline on hover, an accent ring on focus.
 const fieldBase =
-  "w-full rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-[var(--surface-raised)] px-3 text-sm text-[var(--ink)] outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-[var(--ink-faint)] focus:border-[var(--brand)] focus:ring-4 focus:ring-[var(--brand-soft)] disabled:cursor-not-allowed disabled:bg-[var(--surface-2)] disabled:text-[var(--ink-muted)] aria-[invalid=true]:border-[var(--danger)]";
+  "w-full rounded-[var(--radius-md)] border border-transparent bg-[var(--surface-2)] px-3 text-sm text-[var(--ink)] outline-none transition-[border-color,box-shadow,background-color] duration-150 placeholder:text-[var(--ink-faint)] hover:border-[var(--border-strong)] focus:border-[var(--border-strong)] focus:bg-[var(--surface-raised)] focus:ring-4 focus:ring-[var(--accent-soft)] disabled:cursor-not-allowed disabled:opacity-60 aria-[invalid=true]:border-[var(--danger)]";
 
 export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input className={cn(fieldBase, "min-h-10 py-2 max-sm:min-h-11", className)} {...props} />;
