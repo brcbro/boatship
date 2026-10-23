@@ -3,7 +3,7 @@ import type { AccountStatus, AppUser, AuthSession, StaffPermission, UserRole } f
 import { accountCanAuthenticate, accountStatus, currentAuthzVersion } from "@/lib/account-status";
 import { revokeOtherDatabaseSessions } from "@/lib/auth";
 import { sendEmail, type EmailPayload } from "@/lib/email";
-import { Collection, getFirestore, isFirestoreStatus, isLocalDemoStore, MemoryFirestore, nowIso, type FirestoreClient, type FirestoreTransaction, type FsData } from "@/lib/firestore";
+import { Collection, getFirestore, isFirestoreStatus, isLocalDemoStore, MemoryFirestore, nowIso, type FirestoreClient, type FirestoreTransaction, type FsData, type Where } from "@/lib/firestore";
 import { DEFAULT_TEAM_PERMISSIONS } from "@/lib/rbac";
 import { forgetUserSessions } from "@/lib/session-cache";
 import { appUserFromProfile, getStore, userProfileData, userProfilePatch, USER_PROFILES, type UserFieldPatch, type UserProfileDoc } from "@/lib/store";
@@ -83,6 +83,31 @@ export type AccountMailIntentDoc = {
   sentAt: string | null;
 };
 export const ACCOUNT_MAIL_INTENTS = new Collection<AccountMailIntentDoc>("AccountMailIntent", accountsClient);
+
+export type AccountRequestKind = "access" | "export" | "deactivation";
+export type AccountRequestStatus = "open" | "approved" | "declined" | "completed" | "withdrawn";
+/**
+ * A personal request to administrators (plan phase 1): access to more work,
+ * a copy of the person's own account data, or deactivation of their login.
+ * Creating one changes nothing else; review is an administrator operation
+ * added in a later phase, so every record stays `open` until then.
+ */
+export type AccountRequestDoc = {
+  id: string;
+  kind: AccountRequestKind;
+  userId: string;
+  status: AccountRequestStatus;
+  /** Free text from the requester, bounded and never interpreted. */
+  reason: string | null;
+  decisionNote: string | null;
+  decidedBy: string | null;
+  decidedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+export const ACCOUNT_REQUESTS = new Collection<AccountRequestDoc>("AccountRequest", accountsClient);
+export const ACCOUNT_REQUEST_KINDS: AccountRequestKind[] = ["access", "export", "deactivation"];
+export const ACCOUNT_REQUEST_REASON_MAX = 1000;
 
 export const STAFF_INVITATION_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 export const CLIENT_INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -204,8 +229,43 @@ function writeAudit(tx: FirestoreTransaction, input: AuditInput) {
   return doc;
 }
 
-export async function listAccountAuditEvents(targetUserId: string, limit = 50) {
-  return ACCOUNT_AUDIT_EVENTS.find([{ field: "targetUserId", op: "==", value: targetUserId }], { orderBy: [{ field: "createdAt", direction: "desc" }], limit });
+/**
+ * Audit events about one user, newest first. `before` is the `createdAt` of
+ * the last event already shown; the storage interface has no offset cursor,
+ * so the page is keyed by that timestamp.
+ */
+export async function listAccountAuditEvents(targetUserId: string, options: { limit?: number; before?: string | null } = {}) {
+  const where: Where[] = [{ field: "targetUserId", op: "==", value: targetUserId }];
+  if (options.before) where.push({ field: "createdAt", op: "<", value: options.before });
+  return ACCOUNT_AUDIT_EVENTS.find(where, { orderBy: [{ field: "createdAt", direction: "desc" }], limit: options.limit ?? 50 });
+}
+
+/** The person's own requests, newest first. Authorization is the caller's: `userId` must come from the session. */
+export async function listAccountRequests(userId: string, limit = 50) {
+  return ACCOUNT_REQUESTS.find([{ field: "userId", op: "==", value: userId }], { orderBy: [{ field: "createdAt", direction: "desc" }], limit });
+}
+
+/**
+ * Records a personal request and its audit event. One open request per kind
+ * at a time: a second one is refused so administrators see a single item.
+ */
+export async function createAccountRequest(input: { actor: Pick<AuthSession, "uid" | "role">; kind: AccountRequestKind; reason?: string | null }): Promise<AccountRequestDoc> {
+  if (!ACCOUNT_REQUEST_KINDS.includes(input.kind)) throw new AccountError("Unsupported request kind", 400, "invalid_input");
+  const reason = typeof input.reason === "string" ? input.reason.trim() : "";
+  if (reason.length > ACCOUNT_REQUEST_REASON_MAX) throw new AccountError(`Keep the reason under ${ACCOUNT_REQUEST_REASON_MAX} characters`, 400, "invalid_input");
+  const open = await ACCOUNT_REQUESTS.find([{ field: "userId", op: "==", value: input.actor.uid }, { field: "kind", op: "==", value: input.kind }, { field: "status", op: "==", value: "open" }], { limit: 1 });
+  if (open.length) throw new AccountError("You already have an open request of this kind", 409, "request_open");
+  const stamp = nowIso();
+  const doc: AccountRequestDoc = {
+    id: randomUUID(), kind: input.kind, userId: input.actor.uid, status: "open", reason: reason || null,
+    decisionNote: null, decidedBy: null, decidedAt: null, createdAt: stamp, updatedAt: stamp,
+  };
+  const audit = auditDocument({ action: `account.request.${input.kind}.created`, actor: input.actor, targetUserId: input.actor.uid, metadata: { requestId: doc.id } });
+  await accountsClient().commit([
+    { set: { collection: ACCOUNT_REQUESTS.name, id: doc.id, data: doc, precondition: { exists: false } } },
+    { set: { collection: ACCOUNT_AUDIT_EVENTS.name, id: audit.id, data: audit, precondition: { exists: false } } },
+  ]);
+  return doc;
 }
 
 async function readProfile(tx: FirestoreTransaction, uid: string): Promise<{ doc: UserProfileDoc; user: AppUser } | null> {

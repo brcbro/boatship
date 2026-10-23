@@ -1,4 +1,5 @@
 import { handleApi, jsonError } from "@/lib/api";
+import { recordAccountAudit } from "@/lib/accounts";
 import { listDatabaseSessions, requestSessionToken, requireSession, revokeOtherDatabaseSessions, sessionPublicId, sessionTokenHash } from "@/lib/auth";
 
 export const runtime = "nodejs";
@@ -30,6 +31,7 @@ export async function DELETE(req: Request) {
     const token = requestSessionToken(req);
     if (!token) throw jsonError("Unauthorized", 401);
     const revoked = await revokeOtherDatabaseSessions(session.uid, sessionTokenHash(token));
+    if (revoked > 0) await recordAccountAudit({ action: "sessions.revoked.others", actor: session, targetUserId: session.uid, metadata: { revoked } }).catch(() => undefined);
     return { ok: true, revoked };
   }, NO_STORE);
 }

@@ -1,5 +1,5 @@
-import { AccountSettings } from "@/components/shared/AccountSettings";
+import { ProfileSection } from "@/components/shared/account/ProfileSection";
 
-export default function ClientAccountPage() {
-  return <AccountSettings />;
+export default function ClientAccountProfilePage() {
+  return <ProfileSection basePath="/portal/account" />;
 }

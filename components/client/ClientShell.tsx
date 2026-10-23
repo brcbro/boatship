@@ -38,7 +38,7 @@ const MORE: readonly Item[] = [
   { href: "/portal/engagements", label: "Engagements", icon: Layers3 },
   { href: "/portal/forms", label: "Forms", icon: ClipboardCheck },
   { href: "/portal/approvals", label: "Approvals", icon: ThumbsUp },
-  { href: "/portal/account", label: "Account", icon: UserRound },
+  { href: "/portal/account", label: "My account", icon: UserRound },
 ];
 
 function isActive(pathname: string, href: string, exact?: boolean) {
@@ -116,7 +116,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
             </button>
             <ThemeToggle />
             <NotificationBell tone="light" />
-            <Link href="/portal/account" prefetch={false} aria-label="Account" title="Account" className={cn("ml-1 hidden min-h-10 items-center gap-2 rounded-full border border-[var(--border)] py-1 pl-1 pr-3 text-[var(--ink)] transition-colors hover:bg-[var(--surface-2)] md:inline-flex", isActive(pathname, "/portal/account") && "bg-[var(--surface-2)]")}>
+            <Link href="/portal/account" prefetch={false} aria-label="My account" title="My account" className={cn("ml-1 hidden min-h-10 items-center gap-2 rounded-full border border-[var(--border)] py-1 pl-1 pr-3 text-[var(--ink)] transition-colors hover:bg-[var(--surface-2)] md:inline-flex", isActive(pathname, "/portal/account") && "bg-[var(--surface-2)]")}>
               <span aria-hidden="true" className="grid h-7 w-7 place-items-center rounded-full bg-[var(--brand)] text-[12px] font-bold text-[var(--on-brand)]">{(session?.name || "C").trim().charAt(0).toUpperCase()}</span>
               <span className="max-w-[9rem] truncate text-sm font-medium">{loading ? "…" : session?.name || "Client"}</span>
             </Link>

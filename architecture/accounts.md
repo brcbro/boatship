@@ -1,8 +1,8 @@
 # Account foundations
 
-Last reviewed: 2026-10-23. Implemented in the repository (plan phase 0 of [accounts-plan.md](accounts-plan.md)); not yet deployed to the Worker and not yet exercised against the hosted database.
+Last reviewed: 2026-10-23. Implemented in the repository (plan phases 0 and 1 of [accounts-plan.md](accounts-plan.md)); not yet deployed to the Worker and not yet exercised against the hosted database.
 
-This record describes the identity and credential layer that the later account, team and client-administration work builds on. Everything here is server behavior; the account pages are unchanged apart from keeping the rotated session after a password change.
+This record describes the identity and credential layer (phase 0) that the later account, team and client-administration work builds on, and the personal account sections built on it (phase 1, below).
 
 ## What changed
 
@@ -71,6 +71,39 @@ Old records keep working without the backfill: the codec derives status, missing
 
 Unit suite (112), typecheck and lint pass. Not run: the end-to-end suite on a scratch table (`QA_DATABASE_URL` is not set on this machine), the Firestore emulator suite, the Cloudflare build, and any hosted check; the hosted invitation and reset flows should be exercised with synthetic users before this is relied on.
 
+## Phase 1: personal account sections
+
+Implemented 2026-10-23 on top of the records above. `components/shared/AccountSettings.tsx` is gone; `components/shared/account/` holds one `AccountLayout` and six section components rendered by thin pages under both shells. Each section loads and saves on its own through `useAccountResource` (one endpoint per call, no shared `Promise.all`), so a failing session list never hides name editing.
+
+| Section | Staff URL | Client URL | Data |
+| --- | --- | --- | --- |
+| Profile | `/account` | `/portal/account` | `GET/PATCH /api/account` (name only; email read-only with copy that says the change flow does not exist yet). |
+| Security and sessions | `/account/security` | `/portal/account/security` | Password change (unchanged route), `GET /api/account/sessions`, `DELETE /api/account/sessions` (others), `DELETE /api/account/sessions/[id]` (one), `GET /api/account/security-events`. |
+| Notifications | `/account/notifications` | `/portal/account/notifications` | Staff: the digest flag through `PATCH /api/account`, with copy that says digests run only when an administrator sends them. Clients: no digest control; always-sent security mail is explained. |
+| Preferences | `/account/preferences` | `/portal/account/preferences` | `ThemePicker` (browser-only, said so) plus `GET/PATCH /api/account/preferences`. |
+| My access | `/account/access` | `/portal/account/access` | `GET /api/account/access`. |
+| Privacy and requests | `/account/privacy` | `/portal/account/privacy` | `GET/POST /api/account/requests`. |
+
+Layout: identity summary (initials, name, email, role) from the verified session, a vertical six-item navigation from `lg`, horizontal scrolling tabs below it, one main column. The staff Settings entry is now "My account"; the client More menu and header link use the same label; the command palette lists every section. `proxy.ts` needed no new entries because `/account` and `/portal` match their subpaths; `tests/account-routes.test.mjs` asserts the redirects for every section URL.
+
+### Endpoints added
+
+| Endpoint | Behavior |
+| --- | --- |
+| `DELETE /api/account/sessions/[id]` | Revokes one own session by public id. `revokeDatabaseSessionByPublicId` compares derived ids across the user's own records, so a legacy id works and another user's id is a 404. Revoking the current session returns `signedOut: true` and clears the cookie; the client then signs out. Audited as `session.revoked` / `session.revoked.current`; revoke-others now writes `sessions.revoked.others`. |
+| `GET /api/account/access` | Role, status, every capability group with `granted` flags (`lib/account-access.ts`, grouped Client work / Reviews / Reporting / Configuration with admin-only markers), the effective key list, assigned clients for team users (from `listClients({ assignedTeamMemberId })`, never the general list), product memberships for staff, and the own organization with the assigned contact's name for clients. |
+| `GET /api/account/security-events` | Own audit events, newest first, `limit` (default 20, max 50) and `before=<createdAt>` cursor; `nextBefore` says whether an older page exists. Only a fixed allowlist of actions is returned, with label, result, `by` (you / administrator / staff / system) and time; reasons, metadata and actor ids never leave the server. |
+| `GET/PATCH /api/account/preferences` | `timezone` (IANA, validated with `Intl.DateTimeFormat`) and `hourCycle` (`12h`/`24h`), null to clear; any other field is a 400. Stored on the profile (`UserProfile.timezone`, `hourCycle`; absent on older records) through `updateUserFields`. Used by `formatAccountDateTime` on the account pages only; other screens still follow the device. |
+| `GET/POST /api/account/requests` | `AccountRequest` records (`id`, `kind` access/export/deactivation, `userId` from the session, `status`, bounded `reason`, decision fields, timestamps) in the shared document table. One open request per kind, 10 creations per hour per user, audited as `account.request.<kind>.created`. The DTO omits the reviewer. No review or fulfilment exists yet, so every request stays `open`; the UI says so and invents no support address or deadline. |
+
+`staffRequestPermissionRules` now lists `/api/account/*` explicitly as requiring no capability, so a team user with `permissions: []` can use every section.
+
+Not shipped, by plan: verified email change, MFA, recent-authentication proofs, device descriptions (sessions are listed by time only, with copy that says why), per-category notification controls, client digests, and request review.
+
+### Verification
+
+`tests/account-routes.test.mjs` (6 tests) drives the route handlers with cookie-authenticated `Request`s over the in-memory client: per-session revoke including cross-user 404s and current-session sign-out; preference allowlist, validation, session-bound writes and survival of a concurrent credential change; the access summary for an admin, a team user with `[]`, a team user with two capabilities and a client, with no other organization or unassigned client in the response; security-event sanitisation and cursor paging without duplicates or another user's events; account requests bound to the session with duplicate-open and validation refusals; and `proxy` redirects for all twelve section URLs plus the capability policy for a zero-capability team user.
+
 ## Open work from the plan
 
-Phase 1 onwards: account sections and the six-section layout, individual session revocation by public id, recent-authentication proofs, verified email change, the staff lifecycle API over `setAccountStatus` with last-admin safeguards and handover, invitation listing/resend/revoke, client portal rosters, and socket revocation.
+Phase 2 onwards: recent-authentication proofs, verified email change, the staff lifecycle API over `setAccountStatus` with last-admin safeguards and handover, invitation listing/resend/revoke, account-request review, client portal rosters, safe device summaries on sessions, and socket revocation.

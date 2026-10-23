@@ -131,7 +131,13 @@ export interface AppUser {
   updatedAt?: string | null;
   statusChangedAt?: string | null;
   statusReason?: string | null;
+  /** Personal display preferences (plan phase 1). Null or absent means "follow the device". */
+  timezone?: string | null;
+  hourCycle?: HourCycle | null;
 }
+
+/** 12-hour or 24-hour clock for dates shown on account pages. */
+export type HourCycle = "12h" | "24h";
 
 export interface Vessel {
   id: string;

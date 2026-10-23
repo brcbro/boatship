@@ -84,6 +84,10 @@ export function staffRequestPermissionRules(url: string, method: string): Permis
   const needs = (...permissions: StaffPermission[]): PermissionRule[] => permissions.map((permission) => ({ anyOf: [permission] }));
   const inArea = (area: string) => path === `/api/${area}` || path.startsWith(`/api/${area}/`);
 
+  // Personal account endpoints are available to every signed-in staff member,
+  // including a team user with an explicit empty capability list; each one
+  // scopes its data to the session's own uid.
+  if (inArea("account")) return [];
   if (inArea("audit") || inArea("gdpr")) return needs("audit.export");
   if (inArea("analytics")) return needs("analytics.view");
   if (inArea("integrations") || inArea("settings/secrets")) return needs("integrations.manage");
