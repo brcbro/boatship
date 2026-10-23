@@ -31,7 +31,7 @@ export function buttonClasses({ variant = "primary", size = "md", className }: {
     variant === "accent" && "bg-[var(--accent)] bg-[image:var(--accent-gradient)] text-[var(--on-accent)] hover:brightness-110",
     variant === "secondary" && "border border-[var(--border-strong)] bg-transparent text-[var(--ink)] hover:bg-[var(--brand-soft)]",
     variant === "ghost" && "text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]",
-    variant === "danger" && "bg-[var(--danger)] text-white hover:brightness-95",
+    variant === "danger" && "bg-[var(--danger)] text-[var(--on-accent)] hover:brightness-95",
     className
   );
 }

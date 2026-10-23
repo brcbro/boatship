@@ -501,7 +501,7 @@ export default function ClientsPage() {
                 {clients.map((c) => (
                   <tr
                     key={c.id}
-                    className="border-t border-[var(--border)] hover:bg-slate-50/80"
+                    className="border-t border-[var(--border)] hover:bg-[var(--surface-2)]"
                   >
                     <td className="px-5 py-3" onClick={(e) => e.stopPropagation()}>
                       <input

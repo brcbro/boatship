@@ -246,7 +246,7 @@ export default function DashboardPage() {
                 {clients.map((c) => (
                   <tr
                     key={c.id}
-                    className="border-t border-[var(--border)] hover:bg-slate-50/80"
+                    className="border-t border-[var(--border)] hover:bg-[var(--surface-2)]"
                   >
                     <td className="px-4 py-2.5">
                       <Link
