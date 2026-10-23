@@ -11,7 +11,7 @@ npx wrangler secret put FIREBASE_STORAGE_BUCKET
 npx wrangler secret put FIREBASE_SERVICE_ACCOUNT
 ```
 
-`DATABASE_URL` is the PostgreSQL connection string of the ClickHouse Cloud service; the Worker always connects over TLS. It is the system of record, so treat the password as a production secret.
+`DATABASE_URL` is the PostgreSQL connection string of the ClickHouse Cloud service and is the system of record for data and file bytes, so treat the password as a production secret. On Cloudflare the Worker does not use it directly: the service's certificate is privately signed, so a Hyperdrive config created with `npx wrangler hyperdrive create boatship-db --caching-disabled --connection-string="<DATABASE_URL>?sslmode=require"` and bound as `HYPERDRIVE` in `wrangler.production.toml` carries the connection. Keep caching disabled. The three Firebase secrets are only needed for the Firestore fallback and can be left unset.
 
 `FIREBASE_STORAGE_BUCKET` is the Firebase project's default bucket name (for example `project-id.appspot.com`). `FIREBASE_SERVICE_ACCOUNT` is the complete service-account JSON from the Firebase console, pasted as one line, or only its PEM private key with the account's email in `FIREBASE_CLIENT_EMAIL`; the account needs the Storage Object Admin role on that bucket. The Worker signs a short-lived RS256 assertion with it and never exposes it to the browser. When both are unset, document bytes stay in the database.
 

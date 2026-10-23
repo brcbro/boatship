@@ -1,8 +1,10 @@
 import { firebaseDocumentObjectStore, firebaseStorageConfigFromEnv } from "@/lib/firebase-storage";
+import { getFirestore, isHostedStore, PostgresFirestore } from "@/lib/firestore";
 
 /**
- * Minimal object-store contract for document bytes. Firebase Storage satisfies
- * it in production; tests use an in-memory implementation. Keys are built from
+ * Minimal object-store contract for document bytes. The PostgreSQL blob table
+ * satisfies it in production (Firebase Storage remains for the Firestore
+ * fallback); tests use an in-memory implementation. Keys are built from
  * ownership identifiers so a leaked key still needs the authenticated route.
  */
 export type DocumentObjectStore = {
@@ -20,10 +22,26 @@ export function documentObjectKey(clientId: string, documentId: string, contentI
   return `documents/${clientId}/${documentId}/${contentId}`;
 }
 
-/** The Firebase Storage store when its secrets are set; null under plain `next dev` and tests. */
+/**
+ * The PostgreSQL blob table whenever the database is PostgreSQL, else Firebase
+ * Storage when its secrets are set; null under the in-memory test client and
+ * the local demo.
+ */
 export function getDocumentObjectStore(): DocumentObjectStore | null {
+  if (isHostedStore()) {
+    const client = getFirestore();
+    if (client instanceof PostgresFirestore) return postgresDocumentObjectStore(client);
+  }
   const config = firebaseStorageConfigFromEnv();
   return config ? firebaseDocumentObjectStore(config) : null;
+}
+
+export function postgresDocumentObjectStore(client: PostgresFirestore): DocumentObjectStore {
+  return {
+    put: (key, bytes, contentType) => client.putBlob(key, bytes, contentType),
+    get: (key) => client.getBlob(key),
+    delete: (keys) => client.deleteBlobs(keys),
+  };
 }
 
 export function memoryDocumentObjectStore(): DocumentObjectStore & { objects: Map<string, { bytes: Uint8Array; contentType: string }> } {

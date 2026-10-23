@@ -2,9 +2,24 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "3000"
+      ],
+      "port": 3000
+    },
+    {
       "name": "local-qa",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "local-qa"],
+      "runtimeArgs": [
+        "run",
+        "local-qa"
+      ],
       "port": 3100
     }
   ]

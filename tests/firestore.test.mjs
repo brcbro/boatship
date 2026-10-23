@@ -15,6 +15,23 @@ let scratch = null;
 if (databaseUrl) backends.push(["postgres", () => (scratch = new PostgresFirestore({ url: databaseUrl, table: `contract_test_${process.pid}`, max: 4 }))]);
 test.after(async () => { if (scratch) { await scratch.drop(); await scratch.close(); } });
 
+if (databaseUrl) {
+  test("postgres: blobs round-trip, replace, and delete", { timeout: 60_000 }, async () => {
+    const db = scratch || new PostgresFirestore({ url: databaseUrl, table: `contract_test_${process.pid}`, max: 4 });
+    scratch = db;
+    const key = `documents/client/doc/${process.pid}`;
+    const bytes = Uint8Array.from({ length: 70_000 }, (_, index) => index % 251);
+    await db.putBlob(key, bytes, "application/octet-stream");
+    assert.deepEqual(await db.getBlob(key), bytes);
+    await db.putBlob(key, Uint8Array.from([1, 2, 3]), "image/png");
+    assert.deepEqual(await db.getBlob(key), Uint8Array.from([1, 2, 3]));
+    assert.equal(await db.getBlob("documents/missing"), null);
+    await db.deleteBlobs([key, "documents/missing"]);
+    assert.equal(await db.getBlob(key), null);
+    await assert.rejects(db.putBlob("bad key", bytes, "x"), /Invalid blob key/);
+  });
+}
+
 let run = 0;
 const col = (name) => `${name}_${process.pid}_${Date.now()}_${run++}`;
 

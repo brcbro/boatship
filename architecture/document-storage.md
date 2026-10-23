@@ -1,6 +1,11 @@
 # Document content and runtime scaling
 
-Last reviewed: 2026-10-22. Implemented in the working tree; the October migration, the object-key migration, and the Firebase Storage secrets have not been applied to production.
+Last reviewed: 2026-10-23. Implemented in the working tree; not yet deployed.
+
+## Where bytes live now
+
+Since 2026-10-23 file bytes are stored in the PostgreSQL database beside the documents ([postgres-store.md](postgres-store.md)): `PostgresFirestore` keeps a `documents_blobs` table (`key text primary key, bytes bytea, content_type, size, created_at`), and `lib/document-objects.ts` returns that table as the `DocumentObjectStore` whenever the database is PostgreSQL, ahead of Firebase Storage. Firebase Storage is used only when the Firestore fallback is the database and `FIREBASE_STORAGE_BUCKET` is set; with neither, small files stay inline. The `DocumentContent` record and the `objectKey` layout (`documents/<clientId>/<documentId>/<contentId>`) are unchanged, so save, read, cleanup, cascade deletion, and the backfill route work the same against either store. The upload limit is 25 MiB (`DOCUMENT_MAX_BYTES`), raised from 10 MiB; a file travels as base64 JSON through the Worker and is written in one `INSERT` on a bytea column, which is reasonable for documents up to that size and not intended for video. `npm run test:postgres` covers blob put, replace, get, and delete on the live service; `npm run test:e2e:postgres` uploads through the API into a scratch blob table. The description below of Firebase Storage remains accurate for the fallback path.
+
 
 ## File content and metadata
 

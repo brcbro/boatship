@@ -4,6 +4,7 @@
 interface __BaseEnv_CloudflareEnv {
 	ASSETS: Fetcher;
 	DATABASE_URL: string;
+	HYPERDRIVE: Hyperdrive;
 	COMPOSIO_API_KEY: string;
 	OPENROUTER_API_KEY: string;
 	OPENROUTER_MODEL: string;

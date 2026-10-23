@@ -2,6 +2,7 @@ import { handleApi, jsonError } from "@/lib/api";
 import { requireSession } from "@/lib/auth";
 import { canAccessClient } from "@/lib/client-access";
 import { getStore } from "@/lib/store";
+import { DOCUMENT_MAX_BYTES, DOCUMENT_MAX_LABEL } from "@/lib/document-files";
 
 export const runtime = "nodejs";
 
@@ -14,7 +15,7 @@ const ALLOWED_TYPES = new Set([
 ]);
 
 const ALLOWED_EXT = new Set(["pdf", "png", "jpg", "jpeg", "webp"]);
-const MAX_BYTES = 10 * 1024 * 1024;
+const MAX_BYTES = DOCUMENT_MAX_BYTES;
 
 export async function POST(req: Request) {
   return handleApi(async () => {
@@ -40,7 +41,7 @@ export async function POST(req: Request) {
       throw jsonError("File type must be pdf, png, jpg, jpeg, or webp", 400);
     }
     if (typeof body.size === "number" && body.size > MAX_BYTES) {
-      throw jsonError("File size must be 10MB or less", 400);
+      throw jsonError(`File size must be ${DOCUMENT_MAX_LABEL} or less`, 400);
     }
 
     const safeName = body.fileName.replace(/[^a-zA-Z0-9._-]/g, "_");

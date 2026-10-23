@@ -1,6 +1,7 @@
 import { Buffer } from "node:buffer";
 
-export const DOCUMENT_MAX_BYTES = 10 * 1024 * 1024;
+export const DOCUMENT_MAX_BYTES = 25 * 1024 * 1024;
+export const DOCUMENT_MAX_LABEL = "25MB";
 const FILE_TYPES: Record<string, string[]> = {
   "application/pdf": ["pdf"], "image/png": ["png"],
   "image/jpeg": ["jpg", "jpeg"], "image/webp": ["webp"],
@@ -23,11 +24,11 @@ export function decodeDocumentUpload(input: { base64: unknown; fileName: unknown
   const contentType = input.contentType.toLowerCase() === "image/jpg" ? "image/jpeg" : input.contentType.toLowerCase();
   const extension = input.fileName.split(".").pop()?.toLowerCase() || "";
   if (!FILE_TYPES[contentType]?.includes(extension)) throw new DocumentInputError("File type must be PDF, PNG, JPEG, or WebP and match its extension.");
-  if (typeof input.base64 !== "string" || input.base64.length > Math.ceil(DOCUMENT_MAX_BYTES / 3) * 4 + 128) throw new DocumentInputError("File size must be 10MB or less.");
+  if (typeof input.base64 !== "string" || input.base64.length > Math.ceil(DOCUMENT_MAX_BYTES / 3) * 4 + 128) throw new DocumentInputError(`File size must be ${DOCUMENT_MAX_LABEL} or less.`);
   const raw = input.base64.replace(/^data:[^,]*,/, "");
   if (!raw || raw.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(raw)) throw new DocumentInputError("The file could not be read. Choose it again.");
   const bytes = Uint8Array.from(Buffer.from(raw, "base64"));
-  if (!bytes.length || bytes.length > DOCUMENT_MAX_BYTES || (input.size !== undefined && (typeof input.size !== "number" || input.size !== bytes.length))) throw new DocumentInputError("File size is invalid or exceeds 10MB.");
+  if (!bytes.length || bytes.length > DOCUMENT_MAX_BYTES || (input.size !== undefined && (typeof input.size !== "number" || input.size !== bytes.length))) throw new DocumentInputError(`File size is invalid or exceeds ${DOCUMENT_MAX_LABEL}.`);
   if (sniffDocumentType(bytes) !== contentType) throw new DocumentInputError("The file contents do not match its selected type.");
   return { bytes, contentType, fileName: input.fileName.trim() };
 }

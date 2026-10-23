@@ -5,7 +5,7 @@ Shared workspace for client accounts and their engagements. Staff manage work, d
 ## Stack
 
 - Next.js (App Router) + Tailwind CSS
-- PostgreSQL on ClickHouse Cloud for application data, users, sessions, and integration ownership (JSON documents in one table); Firebase Storage for document files
+- PostgreSQL on ClickHouse Cloud for application data, users, sessions, integration ownership (JSON documents in one table) and document file bytes (a bytea blob table); Firebase Storage and Firestore remain only as fallbacks
 - Zoho CPaaS / ZeptoMail or Resend for transactional email (local demo logs to console without a provider; hosted mode requires a provider key and verified sender)
 - Composio for 250+ app integrations (Slack, Gmail, Drive, HubSpot, …)
 - Cloudflare Worker via OpenNext (`@opennextjs/cloudflare`)
@@ -36,7 +36,7 @@ Hosted email delivery uses `ZEPTOMAIL_API_KEY` and a verified general-purpose `Z
 
 ## Environment
 
-Copy `.env.example` to `.env.local` and set `DATABASE_URL` (the PostgreSQL connection string) plus `FIREBASE_SERVICE_ACCOUNT` (the service-account JSON, or its PEM key with `FIREBASE_CLIENT_EMAIL`) and `FIREBASE_STORAGE_BUCKET` for file storage. The database needs no schema migration; the `documents` table is created on first use. The application refuses to use the local file store unless `ALLOW_LOCAL_STORE=1` is explicitly set for demo-only work.
+Copy `.env.example` to `.env.local` and set `DATABASE_URL` (the PostgreSQL connection string). On Cloudflare the Worker reaches the database through a Hyperdrive binding instead (see [docs/cloudflare-secrets.md](docs/cloudflare-secrets.md)). Files are stored in the database too, so no Firebase variables are needed; they only matter for the Firestore fallback. The database needs no schema migration; the `documents` and `documents_blobs` tables are created on first use. The application refuses to use the local file store unless `ALLOW_LOCAL_STORE=1` is explicitly set for demo-only work.
 Keep demo data in explicit `ALLOW_LOCAL_STORE=1` mode. The old `db:import-local` shortcut is retired because it could replace populated data and import fixed demo credentials; see the [operations runbooks](docs/operations/README.md) before planning a reviewed data migration. Operator scripts run with `node --import tsx` (for example `node --import tsx scripts/provision-first-admin.mjs --expect-project <postgres host from DATABASE_URL>`).
 
 Passwords are stored as scrypt hashes, and login sessions are opaque database records with hashed tokens.

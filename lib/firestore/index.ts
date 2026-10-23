@@ -1,3 +1,4 @@
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { serviceAccountFromEnv, sharedTokenProvider } from "@/lib/google-auth";
 import { RestFirestore } from "./client";
 import { PostgresFirestore } from "./postgres";
@@ -17,7 +18,22 @@ let shared: { key: string; client: FirestoreClient } | null = null;
  * Firestore. ALLOW_LOCAL_STORE keeps the file-based demo.
  */
 export function isHostedStore(env: Record<string, string | undefined> = process.env): boolean {
-  return Boolean(override) || Boolean(env.FIRESTORE_EMULATOR_HOST?.trim()) || Boolean(env.DATABASE_URL?.trim()) || Boolean(env.FIREBASE_SERVICE_ACCOUNT?.trim());
+  return Boolean(override) || Boolean(env.FIRESTORE_EMULATOR_HOST?.trim()) || Boolean(databaseUrl(env)) || Boolean(env.FIREBASE_SERVICE_ACCOUNT?.trim());
+}
+
+/**
+ * On Cloudflare the HYPERDRIVE binding supplies the connection string
+ * (Hyperdrive pools connections and terminates TLS to the origin, whose
+ * certificate is privately signed). Elsewhere DATABASE_URL connects directly.
+ */
+export function databaseUrl(env: Record<string, string | undefined> = process.env): string | undefined {
+  if (env === process.env) {
+    try {
+      const binding = (getCloudflareContext().env as { HYPERDRIVE?: { connectionString?: string } }).HYPERDRIVE;
+      if (binding?.connectionString) return binding.connectionString;
+    } catch { /* Not running under OpenNext (next dev, tests, scripts). */ }
+  }
+  return env.DATABASE_URL?.trim() || undefined;
 }
 
 export function isLocalDemoStore(env: Record<string, string | undefined> = process.env): boolean {
@@ -34,11 +50,11 @@ export function getFirestore(env: Record<string, string | undefined> = process.e
     if (shared?.key !== key) shared = { key, client: new RestFirestore({ projectId, database, host: emulator.startsWith("http") ? emulator : `http://${emulator}` }) };
     return shared.client;
   }
-  const databaseUrl = env.DATABASE_URL?.trim();
-  if (databaseUrl) {
+  const url = databaseUrl(env);
+  if (url) {
     const table = env.DATABASE_TABLE?.trim() || undefined;
-    const key = `postgres:${databaseUrl}:${table || ""}`;
-    if (shared?.key !== key) shared = { key, client: new PostgresFirestore({ url: databaseUrl, table }) };
+    const key = `postgres:${url}:${table || ""}`;
+    if (shared?.key !== key) shared = { key, client: new PostgresFirestore({ url, table }) };
     return shared.client;
   }
   const account = serviceAccountFromEnv(env);

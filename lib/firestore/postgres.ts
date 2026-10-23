@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import postgres, { type JSONValue, type Sql, type TransactionSql } from "postgres";
 import {
   assertDocumentId, FirestoreError,
@@ -5,7 +6,11 @@ import {
 } from "./types";
 
 export type PostgresStoreOptions = {
-  /** postgresql:// connection string. TLS is always required. */
+  /**
+   * postgresql:// connection string. A direct connection always uses TLS; a
+   * Cloudflare Hyperdrive connection string (host *.hyperdrive.local) is
+   * plain because Hyperdrive terminates TLS to the origin itself.
+   */
   url: string;
   /** Table holding every collection; defaults to `documents`. */
   table?: string;
@@ -14,13 +19,19 @@ export type PostgresStoreOptions = {
 };
 
 type Row = { id: string; doc: unknown; update_time: string };
+type BlobRow = { bytes: Buffer };
 type Db = Sql | TransactionSql;
 type Fragment = ReturnType<Sql["unsafe"]>;
 
-const TABLE_PATTERN = /^[a-z_][a-z0-9_]{0,62}$/;
+const TABLE_PATTERN = /^[a-z_][a-z0-9_]{0,56}$/;
+const BLOB_KEY_PATTERN = /^[A-Za-z0-9._:/-]{1,512}$/;
 const RETRYABLE = new Set(["40001", "40P01"]);
 /** Microsecond ISO-8601 so every write gets a distinct, comparable update time. */
 const STAMP = `to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
+
+export function isHyperdriveUrl(url: string): boolean {
+  try { return /\.hyperdrive\.local$/i.test(new URL(url).hostname); } catch { return false; }
+}
 
 const bytesToBase64 = (bytes: Uint8Array) => {
   let binary = "";
@@ -89,25 +100,62 @@ export class PostgresFirestore implements FirestoreClient {
   constructor(options: PostgresStoreOptions) {
     this.table = options.table || "documents";
     if (!TABLE_PATTERN.test(this.table)) throw new Error(`Invalid table name: ${this.table}`);
-    this.sql = postgres(options.url, { ssl: "require", max: options.max ?? 4, connect_timeout: 15, idle_timeout: 60, max_lifetime: 60 * 30, onnotice: () => undefined });
+    const hyperdrive = isHyperdriveUrl(options.url);
+    this.sql = postgres(options.url, {
+      // The service's certificate is signed by a private CA, so a direct connection encrypts without verifying it.
+      ssl: hyperdrive ? false : "require",
+      max: options.max ?? 4, connect_timeout: 15, idle_timeout: 60, max_lifetime: 60 * 30, onnotice: () => undefined,
+    });
   }
 
-  /** Creates the table on first use; idempotent and safe to run concurrently. */
+  private get blobTable() {
+    return `${this.table}_blobs`;
+  }
+
+  /** Creates the tables on first use; idempotent and safe to run concurrently. */
   private ensure(): Promise<void> {
     if (!this.ready) {
       const table = this.sql(this.table);
       this.ready = (async () => {
         await this.sql`CREATE TABLE IF NOT EXISTS ${table} (collection text NOT NULL, id text NOT NULL, doc jsonb NOT NULL, update_time text NOT NULL, PRIMARY KEY (collection, id))`;
         await this.sql`CREATE INDEX IF NOT EXISTS ${this.sql(`${this.table}_doc_idx`)} ON ${table} USING gin (doc jsonb_path_ops)`;
+        // File bytes live beside the documents in a bytea table so a document read never parses a blob.
+        await this.sql`CREATE TABLE IF NOT EXISTS ${this.sql(this.blobTable)} (key text PRIMARY KEY, bytes bytea NOT NULL, content_type text NOT NULL, size integer NOT NULL, created_at text NOT NULL)`;
       })().catch((error) => { this.ready = null; translate(error); });
     }
     return this.ready;
   }
 
-  /** Drops the table; used by tests that run against a scratch table. */
+  /** Drops the tables; used by tests that run against a scratch table. */
   async drop(): Promise<void> {
     await this.sql`DROP TABLE IF EXISTS ${this.sql(this.table)}`;
+    await this.sql`DROP TABLE IF EXISTS ${this.sql(this.blobTable)}`;
     this.ready = null;
+  }
+
+  /** Stores file bytes under a key; a repeated key replaces the bytes. */
+  async putBlob(key: string, bytes: Uint8Array, contentType: string): Promise<void> {
+    if (!BLOB_KEY_PATTERN.test(key)) throw new FirestoreError("Invalid blob key.", "INVALID_ARGUMENT", 400);
+    await this.ensure();
+    try {
+      await this.sql`INSERT INTO ${this.sql(this.blobTable)} (key, bytes, content_type, size, created_at) VALUES (${key}, ${Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength)}, ${contentType}, ${bytes.byteLength}, ${new Date().toISOString()}) ON CONFLICT (key) DO UPDATE SET bytes = EXCLUDED.bytes, content_type = EXCLUDED.content_type, size = EXCLUDED.size, created_at = EXCLUDED.created_at`;
+    } catch (error) { translate(error); }
+  }
+
+  async getBlob(key: string): Promise<Uint8Array | null> {
+    if (!BLOB_KEY_PATTERN.test(key)) return null;
+    await this.ensure();
+    try {
+      const rows = await this.sql<BlobRow[]>`SELECT bytes FROM ${this.sql(this.blobTable)} WHERE key = ${key}`;
+      return rows.length ? Uint8Array.from(rows[0].bytes) : null;
+    } catch (error) { translate(error); }
+  }
+
+  async deleteBlobs(keys: string[]): Promise<void> {
+    const valid = keys.filter((key) => BLOB_KEY_PATTERN.test(key));
+    if (!valid.length) return;
+    await this.ensure();
+    try { await this.sql`DELETE FROM ${this.sql(this.blobTable)} WHERE key = ANY(${valid}::text[])`; } catch (error) { translate(error); }
   }
 
   async close(): Promise<void> {
