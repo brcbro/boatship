@@ -103,7 +103,7 @@ export default function PortalDashboardPage() {
       <PageHeader eyebrow={client.companyName} title={`Hello, ${firstName}`} description={waitingCount === 0 ? "Nothing is waiting on you right now." : `${waitingCount} thing${waitingCount === 1 ? "" : "s"} need${waitingCount === 1 ? "s" : ""} you this week.`} />
 
       <section aria-labelledby="next-heading" className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(16rem,0.5fr)]">
-        <div className="relative overflow-hidden rounded-[var(--radius-xl)] bg-[var(--accent)] p-6 text-[var(--on-accent)] sm:p-8">
+        <div className="relative overflow-hidden rounded-[var(--radius-xl)] bg-[var(--accent)] bg-[image:var(--accent-gradient)] p-6 text-[var(--on-accent)] sm:p-8">
           <span aria-hidden="true" className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full border-[22px] border-[var(--on-accent)]/10" />
           <p id="next-heading" className="text-xs font-bold uppercase tracking-[0.12em] opacity-80">Your next step</p>
           {pendingApprovals.length > 0 ? (

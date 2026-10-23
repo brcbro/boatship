@@ -129,7 +129,7 @@ function LoginContent() {
     <div className="grid min-h-dvh lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
       <aside className="relative hidden overflow-hidden bg-[var(--nav-bg)] p-10 text-[var(--nav-fg)] lg:flex lg:flex-col lg:justify-between" aria-hidden="true">
         <div className="flex items-center gap-3">
-          <span className="grid h-10 w-10 place-items-center rounded-[11px] bg-[var(--accent)] font-[family-name:var(--font-display)] text-[22px] font-bold leading-none text-[var(--on-accent)]">b</span>
+          <span className="grid h-10 w-10 place-items-center rounded-[11px] bg-[var(--accent)] bg-[image:var(--accent-gradient)] font-[family-name:var(--font-display)] text-[22px] font-bold leading-none text-[var(--on-accent)]">b</span>
           <Image src="/brand/boatship-logo-white.png" alt="" width={1432} height={370} className="h-6 w-auto" />
         </div>
         <div className="max-w-md">
@@ -144,7 +144,7 @@ function LoginContent() {
       <div className="w-full max-w-md">
         <div className="mb-8">
           <div className="mb-5 flex items-center gap-2.5 lg:hidden">
-            <span aria-hidden="true" className="grid h-9 w-9 place-items-center rounded-[10px] bg-[var(--accent)] font-[family-name:var(--font-display)] text-[19px] font-bold leading-none text-[var(--on-accent)]">b</span>
+            <span aria-hidden="true" className="grid h-9 w-9 place-items-center rounded-[10px] bg-[var(--accent)] bg-[image:var(--accent-gradient)] font-[family-name:var(--font-display)] text-[19px] font-bold leading-none text-[var(--on-accent)]">b</span>
             <Image src="/brand/boatship-logo-black.png" alt="Boatship" width={1428} height={366} className="show-light h-5 w-auto" />
             <Image src="/brand/boatship-logo-white.png" alt="" aria-hidden="true" width={1432} height={370} className="show-dark h-5 w-auto" />
           </div>

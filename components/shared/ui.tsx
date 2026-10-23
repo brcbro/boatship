@@ -28,7 +28,7 @@ export function buttonClasses({ variant = "primary", size = "md", className }: {
     size === "md" && "min-h-10 px-4 text-sm max-sm:min-h-11",
     size === "lg" && "min-h-12 px-5 text-[15px]",
     variant === "primary" && "bg-[var(--brand)] text-[var(--on-brand)] hover:bg-[var(--brand-strong)]",
-    variant === "accent" && "bg-[var(--accent)] text-[var(--on-accent)] shadow-[0_8px_20px_-10px_var(--accent)] hover:bg-[var(--accent-strong)]",
+    variant === "accent" && "bg-[var(--accent)] bg-[image:var(--accent-gradient)] text-[var(--on-accent)] hover:brightness-110",
     variant === "secondary" && "border border-[var(--border-strong)] bg-[var(--surface-raised)] text-[var(--ink)] hover:border-[var(--ink-faint)] hover:bg-[var(--surface-2)]",
     variant === "ghost" && "text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]",
     variant === "danger" && "bg-[var(--danger)] text-white hover:brightness-95",
@@ -172,7 +172,7 @@ export function StatTile({
     "block rounded-[var(--radius-lg)] border p-4 transition-colors",
     tone === "neutral" && "border-[var(--border)] bg-[var(--surface-raised)]",
     tone === "brand" && "border-transparent bg-[var(--brand-soft)]",
-    tone === "accent" && "border-transparent bg-[var(--accent-soft)]",
+    tone === "accent" && "border-transparent bg-[var(--accent)] bg-[image:var(--accent-gradient)] text-[var(--on-accent)] [&_p]:text-[var(--on-accent)] [&_p:first-child]:text-[var(--on-accent)]/80 [&_p:last-child]:text-[var(--on-accent)]/80",
     tone === "danger" && "border-transparent bg-[var(--danger-soft)]",
     tone === "success" && "border-transparent bg-[var(--success-soft)]",
     tone === "warning" && "border-transparent bg-[var(--warning-soft)]",
@@ -215,7 +215,7 @@ export function ProgressBar({ value, label = "Progress", tone = "brand" }: { val
   return (
     <div role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={clamped} className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--surface-2)]">
       <div
-        className={cn("h-full rounded-full transition-[width] duration-500", tone === "brand" && "bg-[var(--brand)]", tone === "accent" && "bg-[var(--accent)]", tone === "success" && "bg-[var(--success)]")}
+        className={cn("h-full rounded-full transition-[width] duration-500", tone === "brand" && "bg-[var(--brand)]", tone === "accent" && "bg-[var(--accent)] bg-[image:var(--accent-gradient)]", tone === "success" && "bg-[var(--success)]")}
         style={{ width: `${clamped}%` }}
       />
     </div>

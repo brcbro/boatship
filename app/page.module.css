@@ -7,7 +7,7 @@
 
 .header { display: flex; align-items: center; justify-content: space-between; gap: 2rem; min-height: 76px; }
 .wordmark { display: inline-flex; align-items: center; gap: .6rem; font-family: var(--font-display), sans-serif; font-size: 1.35rem; font-weight: 700; letter-spacing: -.02em; line-height: 1; color: inherit; }
-.mark { display: grid; place-items: center; width: 2.1rem; height: 2.1rem; border-radius: .6rem; background: var(--accent); color: var(--on-accent); font-family: var(--font-display), sans-serif; font-size: 1.25rem; font-weight: 700; }
+.mark { display: grid; place-items: center; width: 2.1rem; height: 2.1rem; border-radius: .6rem; background: var(--accent-gradient); color: var(--on-accent); font-family: var(--font-display), sans-serif; font-size: 1.25rem; font-weight: 700; }
 .nav { display: flex; align-items: center; gap: 1.75rem; font-size: .92rem; font-weight: 600; color: var(--ink-muted); }
 .nav a:hover { color: var(--ink); }
 .navAction { display: inline-flex; align-items: center; gap: .45rem; min-height: 2.5rem; padding: 0 1rem; border-radius: 10px; background: var(--brand); color: var(--on-brand) !important; }
@@ -20,7 +20,7 @@
 .heroCopy h1 em { font-style: normal; color: var(--brand); }
 .heroCopy > p:not(.accessNote) { margin-top: 1.5rem; max-width: 46ch; font-size: clamp(1.05rem, 1.3vw, 1.2rem); line-height: 1.6; color: var(--ink-muted); }
 .heroActions { display: flex; flex-wrap: wrap; align-items: center; gap: 1.25rem; margin-top: 2.2rem; }
-.primaryAction { display: inline-flex; align-items: center; gap: .55rem; min-height: 3.1rem; padding: 0 1.35rem; border-radius: 12px; background: var(--accent); color: var(--on-accent); font-weight: 700; font-size: .98rem; box-shadow: 0 10px 24px -12px var(--accent); }
+.primaryAction { display: inline-flex; align-items: center; gap: .55rem; min-height: 3.1rem; padding: 0 1.35rem; border-radius: 12px; background: var(--accent-gradient); color: var(--on-accent); font-weight: 700; font-size: .98rem; box-shadow: 0 10px 24px -12px var(--accent); }
 .primaryAction:hover { background: var(--accent-strong); transform: translateY(-1px); }
 .textAction { display: inline-flex; align-items: center; gap: .4rem; font-weight: 600; color: var(--ink); border-bottom: 2px solid var(--border-strong); padding-bottom: .15rem; }
 .textAction:hover { border-color: var(--brand); color: var(--brand); }
@@ -81,7 +81,7 @@
 .audiencePanels article { position: relative; padding: 2rem; border-radius: 18px; overflow: hidden; }
 .audiencePanels article:first-child { background: var(--nav-bg); color: var(--nav-fg-strong); }
 .audiencePanels article:last-child { background: var(--surface-raised); border: 1px solid var(--border); color: var(--ink); }
-.panelIcon { display: grid; place-items: center; width: 3rem; height: 3rem; border-radius: 12px; background: var(--accent); color: var(--on-accent); }
+.panelIcon { display: grid; place-items: center; width: 3rem; height: 3rem; border-radius: 12px; background: var(--accent-gradient); color: var(--on-accent); }
 .audiencePanels h3 { margin: 1.25rem 0 .5rem; font-family: var(--font-display), sans-serif; font-size: 1.6rem; font-weight: 700; letter-spacing: -.02em; }
 .audiencePanels p { margin: 0; line-height: 1.65; max-width: 40ch; opacity: .85; }
 .audiencePanels span { display: inline-block; margin-top: 1.5rem; font-family: var(--font-mono), monospace; font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; opacity: .7; }
