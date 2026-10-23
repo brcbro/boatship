@@ -2,12 +2,18 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { MemoryFirestore } from "../lib/firestore/memory.ts";
 import { RestFirestore } from "../lib/firestore/client.ts";
+import { PostgresFirestore } from "../lib/firestore/postgres.ts";
 import { FirestoreError } from "../lib/firestore/types.ts";
 import { compareValues, encodeFields, decodeFields, fieldPath } from "../lib/firestore/codec.ts";
 
 const emulator = process.env.FIRESTORE_EMULATOR_HOST?.trim();
 const backends = [["memory", () => new MemoryFirestore()]];
 if (emulator) backends.push(["emulator", () => new RestFirestore({ projectId: process.env.FIREBASE_PROJECT_ID || "demo-boatship", host: emulator.startsWith("http") ? emulator : `http://${emulator}` })]);
+// PostgreSQL runs the same contract in a scratch table that is dropped afterwards.
+const databaseUrl = process.env.DATABASE_URL?.trim();
+let scratch = null;
+if (databaseUrl) backends.push(["postgres", () => (scratch = new PostgresFirestore({ url: databaseUrl, table: `contract_test_${process.pid}`, max: 4 }))]);
+test.after(async () => { if (scratch) { await scratch.drop(); await scratch.close(); } });
 
 let run = 0;
 const col = (name) => `${name}_${process.pid}_${Date.now()}_${run++}`;

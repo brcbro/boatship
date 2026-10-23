@@ -15,6 +15,8 @@
     "deploy": "npm run build:cloudflare && wrangler deploy --config wrangler.production.toml",
     "cf:dry-run": "npm run build:cloudflare && wrangler deploy --dry-run --outdir .wrangler/dry-run",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
+    "test:e2e:postgres": "node --import tsx --env-file-if-exists=.env.local --test tests/local-flow.e2e.mjs",
+    "test:postgres": "node --import tsx --env-file-if-exists=.env.local --test tests/firestore.test.mjs",
     "test:firestore": "firebase emulators:exec --only firestore --project demo-boatship \"node --import tsx --test tests/firestore.test.mjs\"",
     "local-qa": "firebase emulators:exec --only firestore --project demo-boatship \"node --import tsx scripts/local-qa.mjs\"",
     "firestore:indexes": "node --import tsx scripts/firestore-indexes.mjs"
@@ -31,6 +33,7 @@
     "gsap": "^3.15.0",
     "lucide-react": "^1.41.0",
     "next": "^16.4.1",
+    "postgres": "^3.4.9",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-markdown": "^10.1.0",

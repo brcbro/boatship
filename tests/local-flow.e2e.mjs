@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
-import { createLocalQa, QA_PASSWORD, QA_PROJECT } from "../scripts/lib/local-qa.mjs";
+import { createLocalQa, QA_PASSWORD } from "../scripts/lib/local-qa.mjs";
 
 function loopbackUrl(value, protocols = ["http:"]) {
   const url = new URL(value);
@@ -63,14 +63,14 @@ async function waitForServer(child) {
 test("isolated migration, authorization and client delivery flows", { timeout: 600_000 }, async (t) => {
   const restoreProviders = disableProviders();
   const qa = await createLocalQa({ web: !override, port: Number(base.port || 3100) });
-  const preservedEnvironment = new Map(["FIRESTORE_EMULATOR_HOST", "FIREBASE_PROJECT_ID", "FIREBASE_SERVICE_ACCOUNT", "FIREBASE_STORAGE_BUCKET", "ALLOW_LOCAL_STORE", "NODE_ENV"].map((key) => [key, process.env[key]]));
+  const preservedEnvironment = new Map(["FIRESTORE_EMULATOR_HOST", "FIREBASE_PROJECT_ID", "FIREBASE_SERVICE_ACCOUNT", "FIREBASE_STORAGE_BUCKET", "DATABASE_URL", "DATABASE_TABLE", "ALLOW_LOCAL_STORE", "NODE_ENV"].map((key) => [key, process.env[key]]));
   t.after(async () => {
     await qa.close();
     for (const [key, value] of preservedEnvironment) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
     restoreProviders();
   });
 
-  await t.test("the emulator fixture holds file bytes as content records and references in the snapshot", async () => {
+  await t.test("the database fixture holds file bytes as content records and references in the snapshot", async () => {
     const contents = await qa.firestore.getMany("DocumentContent", ["legacy:qa_document:current", "legacy:qa_document:version:0"]);
     assert.equal(contents.size, 2);
     const current = contents.get("legacy:qa_document:current").data;
@@ -320,9 +320,9 @@ test("isolated migration, authorization and client delivery flows", { timeout: 6
     await permissions(grants);
   });
 
-  await t.test("real Firestore job helpers deduplicate, claim concurrently and recover expired final leases", async () => {
-    assert.ok(["127.0.0.1", "localhost", "[::1]"].includes(new URL(qa.host).hostname));
-    Object.assign(process.env, { FIRESTORE_EMULATOR_HOST: new URL(qa.host).host, FIREBASE_PROJECT_ID: QA_PROJECT, FIREBASE_SERVICE_ACCOUNT: "", ALLOW_LOCAL_STORE: "0", NODE_ENV: "development" });
+  await t.test("real database job helpers deduplicate, claim concurrently and recover expired final leases", async () => {
+    if (qa.host) assert.ok(["127.0.0.1", "localhost", "[::1]"].includes(new URL(qa.host).hostname));
+    Object.assign(process.env, qa.storeEnv, { ALLOW_LOCAL_STORE: "0", NODE_ENV: "development" });
     const { enqueueIntegrationEvent, drainIntegrationJobs, retryIntegrationJob } = await import("../lib/integration-jobs.ts");
     const event = { type: "task.completed", clientId: "qa_client", clientName: "Harbour", companyName: "Harbour Studio", taskTitle: "Synthetic denied event" };
     const first = await enqueueIntegrationEvent("qa_none", event, `sql:${runId}:0`);
