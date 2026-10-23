@@ -44,3 +44,14 @@ export function decodeLocalSession(token: string): AuthSession | null {
     return null;
   }
 }
+
+/** Cookie attributes for the browser session; shared by login and credential rotation. */
+export function sessionCookieOptions() {
+  return {
+    httpOnly: true,
+    sameSite: "lax" as const,
+    path: "/",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 60 * 60 * 24 * 14,
+  };
+}

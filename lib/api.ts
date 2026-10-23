@@ -20,10 +20,16 @@ export function internalErrorResponse(error: unknown) {
   );
 }
 
-export async function handleApi<T>(fn: () => Promise<T>) {
+/**
+ * Runs a handler inside one request store scope and serialises its result.
+ * A handler that needs headers or cookies on a success response may return a
+ * `Response` itself; `init` applies to the JSON responses built here.
+ */
+export async function handleApi<T>(fn: () => Promise<T>, init?: ResponseInit) {
   try {
     const data = await withRequestStoreScope(fn);
-    return jsonOk(data);
+    if (data instanceof Response) return data;
+    return jsonOk(data, init);
   } catch (err) {
     if (err instanceof Response) return err;
     return internalErrorResponse(err);

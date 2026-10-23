@@ -1,15 +1,20 @@
-import { randomBytes, randomUUID } from "crypto";
 import { handleApi, jsonError } from "@/lib/api";
+import { AccountError, inviteAccount, STAFF_INVITATION_TTL_MS } from "@/lib/accounts";
 import { requireRoles } from "@/lib/auth";
 import { appBaseUrl } from "@/lib/client-status";
-import { emailDeliveryConfigured, teamInviteEmailHtml, sendEmail } from "@/lib/email";
+import { emailDeliveryConfigured, teamInviteEmailHtml } from "@/lib/email";
 import { DEFAULT_TEAM_PERMISSIONS, effectiveStaffPermissions, parseStaffPermissions } from "@/lib/rbac";
-import { getStore } from "@/lib/store";
 import { consumeAccountAndIpLimit, consumeRateLimit } from "@/lib/rate-limit";
 import type { UserRole } from "@/types";
 
 export const runtime = "nodejs";
 
+/**
+ * Invite a staff member (admin only). The account, its email claim, the
+ * hashed setup link, the audit event and the mail intent commit together;
+ * the email is sent afterwards. A failed send is reported as such and leaves
+ * the record ready for a new invitation of the same address.
+ */
 export async function POST(req: Request) {
   return handleApi(async () => {
     const session = await requireRoles(req, ["admin"]);
@@ -41,51 +46,39 @@ export async function POST(req: Request) {
       try { explicitPermissions = parseStaffPermissions(body.permissions); }
       catch { throw jsonError("permissions must be an array of known staff permissions", 400); }
     }
+    const permissions = role === "team" ? explicitPermissions ?? [...DEFAULT_TEAM_PERMISSIONS] : undefined;
 
-    const store = await getStore();
-    const existing = await store.getUserByEmail(email);
-    if (existing && existing.role === "client") {
-      throw jsonError("A client user already exists with this email", 400);
-    }
-    if (existing && (existing.role === "admin" || existing.role === "team")) {
-      throw jsonError("A team member with this email already exists", 400);
-    }
-
-    const inviteToken = randomBytes(24).toString("hex");
-    const inviteTokenExpiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
-
-    const permissions =
-      role === "team"
-        ? explicitPermissions ?? [...DEFAULT_TEAM_PERMISSIONS]
-        : undefined;
-
-    const loginUrl = `${appBaseUrl(req)}/login?reset=${encodeURIComponent(inviteToken)}`;
-    await sendEmail({
-      to: email,
-      subject: "You're invited to Boatship",
-      senderName: "Boatship Team",
-      html: teamInviteEmailHtml({
+    let result;
+    try {
+      result = await inviteAccount({
+        actor: session,
+        email,
         name,
         role,
-        loginUrl,
-      }),
-    });
+        clientId: null,
+        permissions,
+        ttlMs: STAFF_INVITATION_TTL_MS,
+        resolveExisting: (existing) => {
+          if (existing.role === "client") throw new AccountError("A client user already exists with this email", 400, "email_conflict");
+          throw new AccountError("A team member with this email already exists", 400, "email_conflict");
+        },
+        buildEmail: ({ token }) => ({
+          to: email,
+          subject: "You're invited to Boatship",
+          senderName: "Boatship Team",
+          html: teamInviteEmailHtml({ name, role, loginUrl: `${appBaseUrl(req)}/login?reset=${encodeURIComponent(token)}` }),
+        }),
+      });
+    } catch (error) {
+      if (error instanceof AccountError) throw jsonError(error.message, error.status);
+      throw error;
+    }
 
-    const user = await store.upsertUser({
-      uid: existing?.uid || randomUUID(),
-      email,
-      name,
-      role,
-      clientId: null,
-      createdAt: existing?.createdAt || new Date().toISOString(),
-      inviteToken,
-      inviteTokenExpiresAt,
-      mustResetPassword: true,
-      password: null,
-      passwordHash: null,
-      permissions,
-    });
+    if (result.delivery.status === "failed") {
+      throw jsonError("The invitation was saved but the email could not be sent. Invite again to retry.", 502);
+    }
 
+    const { user } = result;
     return {
       user: {
         uid: user.uid,

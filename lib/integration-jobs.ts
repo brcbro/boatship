@@ -5,6 +5,7 @@ import { getStore } from "@/lib/store";
 import { canAccessClient, filterAssignedClients } from "@/lib/client-access";
 import { hasPermission } from "@/lib/rbac";
 import { isUnsafeDemoUser } from "@/lib/demo-users";
+import { accountCanAuthenticate } from "@/lib/account-status";
 import { deliverIntegrationEvent, type IntegrationEvent } from "@/lib/composio";
 import { provisionClientDriveFolder } from "@/lib/drive-provision";
 import { LocalIntegrationJobs } from "@/lib/local-integration-jobs";
@@ -118,7 +119,7 @@ async function executeJob(job: IntegrationJob): Promise<IntegrationJobOutcome> {
   const store = await getStore();
   const [actor, client] = await Promise.all([store.getUser(job.actorId), store.getClient(job.clientId)]);
   const denied = { status: "failed" as const, nextAttemptAt: new Date().toISOString(), error: "The original staff member no longer has permission for this client.", result: null };
-  if (!actor || !client || actor.mustResetPassword || isUnsafeDemoUser(actor) || (actor.role !== "admin" && actor.role !== "team")) return denied;
+  if (!actor || !client || !accountCanAuthenticate(actor) || isUnsafeDemoUser(actor) || (actor.role !== "admin" && actor.role !== "team")) return denied;
   const session: AuthSession = { uid: actor.uid, email: actor.email, name: actor.name, role: actor.role, clientId: actor.clientId, permissions: actor.permissions };
   if (!hasPermission(session, "clients.manage") || !await canAccessClient(session, job.clientId)) return denied;
 

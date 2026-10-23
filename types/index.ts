@@ -1,5 +1,12 @@
 export type UserRole = "admin" | "team" | "client";
 
+/**
+ * Account lifecycle, separate from invitation and password-reset state.
+ * `invited` accounts have no usable credential yet; `suspended` and
+ * `deactivated` accounts cannot authenticate on any path.
+ */
+export type AccountStatus = "invited" | "active" | "suspended" | "deactivated";
+
 export type StaffPermission =
   | "clients.manage"
   | "clients.view"
@@ -117,6 +124,13 @@ export interface AppUser {
   permissions?: StaffPermission[];
   digestEnabled?: boolean;
   lastDigestAt?: string | null;
+  /** Missing on records written before 2026-10-23; see `accountStatus()`. */
+  status?: AccountStatus;
+  /** Incremented on every change that must invalidate issued sessions. */
+  authzVersion?: number;
+  updatedAt?: string | null;
+  statusChangedAt?: string | null;
+  statusReason?: string | null;
 }
 
 export interface Vessel {
