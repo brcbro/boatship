@@ -94,7 +94,7 @@ The production build and Wrangler dry run passed, and Cloudflare deployed Worker
 
 ## Change log for this architecture folder
 
-- 2026-10-23: Monivo theme: the Regatta tokens were replaced with a near-black, graphite and gradient system, dark by default with a light twin, plus pill tabs, badge dots, metric markers on stat tiles and dim fields; eight commits following `docs/monivo-theme-plan.md`. Typecheck, lint, 103 unit tests and a browser pass on the local fixture in both themes passed; not deployed. Details in `ui-redesign.md` and `DESIGN.md`.
+- 2026-10-23: Monivo theme: the Regatta tokens were replaced with a near-black, graphite and gradient system, dark by default with a light twin, plus pill tabs, badge dots, metric markers on stat tiles and dim fields; eight commits following `docs/monivo-theme-plan.md`. Typecheck, lint, 103 unit tests and a browser pass on the local fixture in both themes passed; deployed as Worker version `63d20b94` with health ok, sign-in and home 200, protected routes redirecting or 401, and eleven secrets intact. Details in `ui-redesign.md` and `DESIGN.md`.
 
 - 2026-10-23: Regatta structural pass: `RecordHeader` plus query-driven `Tabs` on the client and product records (Messages and Billing tabs added to the client record), the `/tasks` Inbox replacing the approvals page, and the Hodi side drawer with `components/hodi/HodiChat.tsx` shared by the drawer and `/agent`. Typecheck, lint, 103 unit tests and a browser pass on the local QA fixture in both themes passed; deployed as Worker version `65bb755e` with anonymous smoke checks passing. Details in `ui-redesign.md`.
 

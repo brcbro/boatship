@@ -34,7 +34,7 @@ After the structural pass the user chose a near-black dashboard reference (the B
 7. A sweep removed every remaining Tailwind palette class (automations, dashboard, clients, messages, products, notification bell, the danger button), so `grep` for palette hues in `app` and `components` returns nothing.
 8. This record, `DESIGN.md` and `status.md`.
 
-Verification: typecheck, lint and the 103 unit tests after every step; a browser pass on the local QA fixture over sign-in, the public home, Today, Inbox, the client record (Overview, Tasks, Documents) with the Hodi drawer open, Products, Messages, and the portal home, tasks and documents, in dark and in the light twin. Not exercised: a page with a live chart series, and the deploy.
+Verification: typecheck, lint and the 103 unit tests after every step; a browser pass on the local QA fixture over sign-in, the public home, Today, Inbox, the client record (Overview, Tasks, Documents) with the Hodi drawer open, Products, Messages, and the portal home, tasks and documents, in dark and in the light twin. Not exercised: a page with a live chart series. Deployed to the Worker as version `63d20b94` on 2026-10-23; anonymous smoke checks passed and the eleven secrets survived; signed-in hosted flows were not exercised.
 
 ## Not done
 
