@@ -6,7 +6,7 @@ import { CheckCircle2, Eye, EyeOff, KeyRound, Laptop2, Palette, UserRound } from
 import { useAuth } from "@/components/shared/AuthProvider";
 import { Button, Card, Input, Label, PageHeader } from "@/components/shared/ui";
 import { ThemePicker } from "@/components/shared/ThemeToggle";
-import { apiFetch } from "@/lib/api-client";
+import { apiFetch, setStoredToken } from "@/lib/api-client";
 import { statusLabel } from "@/lib/utils";
 
 type Account = {
@@ -114,14 +114,22 @@ export function AccountSettings() {
     if (newPassword !== confirmPassword) { setPasswordError("The new passwords do not match."); return; }
     setPasswordBusy(true);
     try {
-      await apiFetch<{ ok: boolean }>("/api/account/password", {
+      const result = await apiFetch<{ ok: boolean; token?: string; signedOut?: number }>("/api/account/password", {
         method: "POST",
         body: JSON.stringify({ currentPassword, newPassword }),
       });
+      // The server replaced this session with a new one; keep the bearer copy in step with the cookie.
+      if (result.token) setStoredToken(result.token);
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-      setPasswordMessage("Password changed successfully.");
+      setPasswordMessage(result.signedOut ? `Password changed. ${result.signedOut === 1 ? "1 other session was" : `${result.signedOut} other sessions were`} signed out.` : "Password changed successfully.");
+      try {
+        const updated = await apiFetch<{ sessions: AccountSession[] }>("/api/account/sessions");
+        setSessions(updated.sessions);
+      } catch {
+        // The session list refresh is informational; the password change already succeeded.
+      }
     } catch (error) {
       setPasswordError(messageFor(error));
     } finally {

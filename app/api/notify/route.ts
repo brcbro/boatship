@@ -1,5 +1,5 @@
-import { randomUUID } from "crypto";
 import { handleApi, jsonError } from "@/lib/api";
+import { AccountError, CLIENT_INVITATION_TTL_MS, inviteAccount } from "@/lib/accounts";
 import { requireRoles } from "@/lib/auth";
 import { appBaseUrl } from "@/lib/client-status";
 import {
@@ -100,41 +100,41 @@ export async function POST(req: Request) {
       const to = (body.to || body.email || client.primaryContactEmail).trim().toLowerCase();
       const name = (body.name || client.name).trim();
       if (!to || !name) throw jsonError("Email and name are required", 400);
-      const existing = await store.getUserByEmail(to);
-      if (existing && (existing.role !== "client" || existing.clientId !== client.id)) {
-        throw jsonError("This email already belongs to another account", 400);
-      }
-      const inviteToken = randomUUID().replace(/-/g, "");
-      const inviteTokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-      await sendEmail({
-        to,
-        subject: `You're invited to the Boatship workspace — ${client.companyName}`,
-        html: inviteEmailHtml({
+      let result;
+      try {
+        result = await inviteAccount({
+          actor: session,
+          email: to,
           name,
-          companyName: client.companyName,
-          loginUrl: `${base}/login?reset=${encodeURIComponent(inviteToken)}`,
-        }),
-      });
-      await store.upsertUser({
-        uid: existing?.uid || randomUUID(),
-        email: to,
-        name,
-        role: "client",
-        clientId: client.id,
-        createdAt: existing?.createdAt || new Date().toISOString(),
-        inviteToken,
-        inviteTokenExpiresAt,
-        mustResetPassword: true,
-        password: null,
-        passwordHash: null,
-      });
+          role: "client",
+          clientId: client.id,
+          ttlMs: CLIENT_INVITATION_TTL_MS,
+          resolveExisting: (existing) => {
+            if (existing.role !== "client" || existing.clientId !== client.id) {
+              throw new AccountError("This email already belongs to another account", 400, "email_conflict");
+            }
+            return "reuse";
+          },
+          buildEmail: ({ token }) => ({
+            to,
+            subject: `You're invited to the Boatship workspace — ${client.companyName}`,
+            html: inviteEmailHtml({ name, companyName: client.companyName, loginUrl: `${base}/login?reset=${encodeURIComponent(token)}` }),
+          }),
+        });
+      } catch (error) {
+        if (error instanceof AccountError) throw jsonError(error.message, error.status);
+        throw error;
+      }
       await store.addActivity({
         clientId: client.id,
         actorId: session.uid,
         actorName: session.name,
         action: "notify.invite",
-        meta: { to },
+        meta: { to, delivery: result.delivery.status },
       });
+      if (result.delivery.status === "failed") {
+        throw jsonError("The invitation was saved but the email could not be sent. Invite again to retry.", 502);
+      }
       return { ok: true };
     }
 

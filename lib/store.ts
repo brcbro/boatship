@@ -41,6 +41,7 @@ import { webhookRetry } from "@/lib/webhook-retry";
 import { DEFAULT_TEAM_PERMISSIONS } from "@/lib/rbac";
 import { getRequestStoreScope } from "@/lib/store-context";
 import { forgetUserSessions } from "@/lib/session-cache";
+import { accountStatus, currentAuthzVersion, isAccountStatus } from "@/lib/account-status";
 import { applyFormSubmission, type FormSubmissionInput } from "@/lib/form-submission";
 import { applyDocumentUpload } from "@/lib/document-upload";
 
@@ -74,17 +75,23 @@ function now() {
   return new Date().toISOString();
 }
 
-type UserProfileDoc = {
+export type UserProfileDoc = {
   uid: string; email: string; name: string; role: string; clientId: string | null; createdAt: string;
   inviteToken: string | null; inviteTokenExpiresAt: string | null; mustResetPassword: boolean;
   password: string | null; passwordHash: string | null; permissions: string[]; digestEnabled: boolean; lastDigestAt: string | null;
+  /** Account foundations (2026-10-23). Absent on older documents; readers derive defaults. */
+  status?: string; authzVersion?: number; updatedAt?: string | null; statusChangedAt?: string | null; statusReason?: string | null;
 };
+
+/** Fields a partial user update may touch. Identity (`uid`, `createdAt`) is never patched. */
+export type UserFieldPatch = Partial<Omit<AppUser, "uid" | "createdAt">>;
 
 type NotificationDoc = {
   id: string; userId: string; kind: string; title: string; body: string; href: string | null; clientId: string | null; readAt: string | null; createdAt: string;
 };
 
-function userProfileData(user: AppUser): UserProfileDoc {
+/** Full document form of a user, as written by `upsertUser` and the account service. */
+export function userProfileData(user: AppUser): UserProfileDoc {
   return {
     uid: user.uid,
     email: user.email.trim().toLowerCase(),
@@ -100,10 +107,38 @@ function userProfileData(user: AppUser): UserProfileDoc {
     permissions: user.permissions ?? (user.role === "team" ? [...DEFAULT_TEAM_PERMISSIONS] : []),
     digestEnabled: user.digestEnabled ?? false,
     lastDigestAt: user.lastDigestAt ? new Date(user.lastDigestAt).toISOString() : null,
+    status: accountStatus(user),
+    authzVersion: currentAuthzVersion(user),
+    updatedAt: user.updatedAt ?? null,
+    statusChangedAt: user.statusChangedAt ?? null,
+    statusReason: user.statusReason ?? null,
   };
 }
 
-function appUserFromProfile(user: UserProfileDoc): AppUser {
+/** Partial-document form of a user patch: only the submitted fields, normalised like the full codec. */
+export function userProfilePatch(patch: UserFieldPatch): Partial<UserProfileDoc> {
+  const doc: Partial<UserProfileDoc> = {};
+  if ("email" in patch && patch.email !== undefined) doc.email = patch.email.trim().toLowerCase();
+  if ("name" in patch && patch.name !== undefined) doc.name = patch.name;
+  if ("role" in patch && patch.role !== undefined) doc.role = patch.role;
+  if ("clientId" in patch) doc.clientId = patch.clientId ?? null;
+  if ("inviteToken" in patch) doc.inviteToken = patch.inviteToken ?? null;
+  if ("inviteTokenExpiresAt" in patch) doc.inviteTokenExpiresAt = patch.inviteTokenExpiresAt ? new Date(patch.inviteTokenExpiresAt).toISOString() : null;
+  if ("mustResetPassword" in patch) doc.mustResetPassword = patch.mustResetPassword ?? false;
+  if ("password" in patch) doc.password = patch.password ?? null;
+  if ("passwordHash" in patch) doc.passwordHash = patch.passwordHash ?? null;
+  if ("permissions" in patch && patch.permissions !== undefined) doc.permissions = patch.permissions;
+  if ("digestEnabled" in patch) doc.digestEnabled = patch.digestEnabled ?? false;
+  if ("lastDigestAt" in patch) doc.lastDigestAt = patch.lastDigestAt ? new Date(patch.lastDigestAt).toISOString() : null;
+  if ("status" in patch && patch.status !== undefined) doc.status = patch.status;
+  if ("authzVersion" in patch && patch.authzVersion !== undefined) doc.authzVersion = patch.authzVersion;
+  if ("statusChangedAt" in patch) doc.statusChangedAt = patch.statusChangedAt ?? null;
+  if ("statusReason" in patch) doc.statusReason = patch.statusReason ?? null;
+  doc.updatedAt = patch.updatedAt ?? now();
+  return doc;
+}
+
+export function appUserFromProfile(user: UserProfileDoc): AppUser {
   return {
     uid: user.uid,
     email: user.email,
@@ -119,6 +154,11 @@ function appUserFromProfile(user: UserProfileDoc): AppUser {
     permissions: user.permissions as NonNullable<AppUser["permissions"]>,
     digestEnabled: user.digestEnabled,
     lastDigestAt: user.lastDigestAt ?? null,
+    status: isAccountStatus(user.status) ? user.status : undefined,
+    authzVersion: Number.isSafeInteger(user.authzVersion) ? user.authzVersion : undefined,
+    updatedAt: user.updatedAt ?? null,
+    statusChangedAt: user.statusChangedAt ?? null,
+    statusReason: user.statusReason ?? null,
   };
 }
 
@@ -421,6 +461,15 @@ export interface DataStore {
   getUserByInviteToken(token: string): Promise<AppUser | null>;
   listUsers(): Promise<AppUser[]>;
   upsertUser(user: AppUser): Promise<AppUser>;
+  /**
+   * Replaces only the named fields. Use this for every change made while
+   * other fields may change concurrently (profile saves, digest stamps,
+   * permission edits), so a stale whole-user object never overwrites a
+   * credential, status or permission written in between. Rejects an unknown uid.
+   */
+  updateUserFields(uid: string, patch: UserFieldPatch): Promise<AppUser>;
+  /** After a transaction wrote the profile document directly: drop memoised sessions and refresh secondary copies. */
+  syncUserProfile(uid: string): Promise<AppUser | null>;
   deleteUser(uid: string): Promise<void>;
 
   listClients(filter?: {
@@ -683,6 +732,20 @@ class LocalStore implements DataStore {
       else data.users.push(user);
       return user;
     });
+  }
+
+  async updateUserFields(uid: string, patch: UserFieldPatch) {
+    return this.mutate((data) => {
+      const idx = data.users.findIndex((u) => u.uid === uid);
+      if (idx < 0) throw new Error(`User ${uid} does not exist`);
+      const next: AppUser = { ...data.users[idx], ...patch, uid, createdAt: data.users[idx].createdAt, updatedAt: patch.updatedAt ?? now() };
+      data.users[idx] = next;
+      return next;
+    });
+  }
+
+  async syncUserProfile(uid: string) {
+    return this.getUser(uid);
   }
 
   async deleteUser(uid: string) {
@@ -1510,7 +1573,7 @@ const SLICE_KEYS = Object.keys(emptyStore()) as Array<keyof StoreData>;
 type SliceDoc = { json: string; version: number };
 type MetaDoc = { version: number; updatedAt: string };
 
-const USER_PROFILES = new Collection<UserProfileDoc>("UserProfile");
+export const USER_PROFILES = new Collection<UserProfileDoc>("UserProfile");
 const NOTIFICATIONS = new Collection<NotificationDoc>("NotificationRecord");
 
 function sliceId(key: string) {
@@ -1664,6 +1727,27 @@ class FirestoreStore extends LocalStore {
   override async upsertUser(user: AppUser) {
     forgetUserSessions(user.uid);
     await this.upsertProfile(user);
+    await this.syncLegacySnapshot(() => super.upsertUser(user));
+    return user;
+  }
+
+  override async updateUserFields(uid: string, patch: UserFieldPatch) {
+    forgetUserSessions(uid);
+    // A partial document update: concurrent writers of other fields are never
+    // overwritten, and the storage client rejects a missing document.
+    await USER_PROFILES.update(uid, userProfilePatch(patch));
+    const profile = await USER_PROFILES.get(uid);
+    if (!profile) throw new Error(`User ${uid} does not exist`);
+    const user = appUserFromProfile(profile);
+    await this.syncLegacySnapshot(() => super.upsertUser(user));
+    return user;
+  }
+
+  override async syncUserProfile(uid: string) {
+    forgetUserSessions(uid);
+    const profile = await USER_PROFILES.get(uid);
+    if (!profile) return null;
+    const user = appUserFromProfile(profile);
     await this.syncLegacySnapshot(() => super.upsertUser(user));
     return user;
   }
