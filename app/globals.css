@@ -1,27 +1,166 @@
 @import "tailwindcss";
 
+/*
+  Regatta — the Boatship visual system.
+  Bone canvas, white panels, a cobalt navigation rail and signal orange for the
+  single most important action on a screen. Dark theme keeps the same bones on a
+  deep navy canvas. Every colour below is a token; components never use literals.
+*/
 :root {
+  color-scheme: light;
+
+  /* Canvas and surfaces */
+  --background: #f7f5ef;
+  --surface: #fbfaf6;
+  --surface-raised: #ffffff;
+  --surface-2: #efece3;
+  --surface-muted: #efece3;
+  --border: #dedacd;
+  --border-strong: #c9c3b1;
+
+  /* Text */
+  --ink: #121826;
+  --ink-muted: #5c6170;
+  --ink-faint: #8a8f9e;
+  --foreground: var(--ink);
+
+  /* Brand cobalt: navigation, links, selected states, standard primary actions */
+  --brand: #1e3fd6;
+  --brand-strong: #1634b8;
+  --brand-soft: #dce3ff;
+  --on-brand: #ffffff;
+
+  /* Signal orange: one headline action per screen, brand mark */
+  --accent: #ff5a1f;
+  --accent-strong: #e64a12;
+  --accent-soft: #ffe4d8;
+  --on-accent: #16100c;
+
+  /* Status */
+  --danger: #c8321e;
+  --danger-soft: #fbe3df;
+  --success: #1f8a5a;
+  --success-soft: #dcf2e7;
+  --warning: #b5730a;
+  --warning-soft: #fbeccb;
+  --info: #1e3fd6;
+  --info-soft: #dce3ff;
+
+  /* Navigation rail */
+  --nav-bg: #1e3fd6;
+  --nav-bg-deep: #1634b8;
+  --nav-fg: #dbe2ff;
+  --nav-fg-strong: #ffffff;
+  --nav-active: rgba(255, 255, 255, 0.16);
+  --nav-hover: rgba(255, 255, 255, 0.09);
+  --nav-border: rgba(255, 255, 255, 0.14);
+
+  /* Misc */
+  --focus-ring: #ff5a1f;
+  --scrim: rgba(18, 24, 38, 0.52);
+  --shadow-card: 0 1px 2px rgba(18, 24, 38, 0.05), 0 8px 24px -16px rgba(18, 24, 38, 0.18);
+  --shadow-pop: 0 24px 64px -24px rgba(18, 24, 38, 0.35), 0 2px 6px rgba(18, 24, 38, 0.08);
+  --scrollbar: rgba(18, 24, 38, 0.26);
   --color-white: #fff;
-  --background: #f3ebe0;
-  --foreground: #141414;
-  --brand: #141414;
-  --brand-strong: #000000;
-  --accent: #1a1a1a;
-  --accent-soft: #ebe2d6;
-  --ink: #141414;
-  --ink-muted: #6b635a;
-  --border: #d9cfc3;
-  --surface: #faf6f0;
-  --surface-2: #ebe2d6;
-  --surface-raised: #fffdf9;
-  --danger: #8b1e1e;
-  --success: #1f4d2e;
-  --warning: #7a5a12;
+
+  --show-light: block;
+  --show-dark: none;
+
+  /* Shape */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
 }
 
-html {
-  min-width: 320px;
-  scroll-behavior: smooth;
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #0f1320;
+  --surface: #131828;
+  --surface-raised: #161b2c;
+  --surface-2: #1d2338;
+  --surface-muted: #1d2338;
+  --border: #283049;
+  --border-strong: #38425f;
+  --ink: #eef0f7;
+  --ink-muted: #98a0b6;
+  --ink-faint: #6b7390;
+  --brand: #6f8cff;
+  --brand-strong: #8ba2ff;
+  --brand-soft: #1f2b5e;
+  --on-brand: #0a0e1c;
+  --accent: #ff7a4a;
+  --accent-strong: #ff9068;
+  --accent-soft: #3a2316;
+  --on-accent: #16100c;
+  --danger: #ff6b5b;
+  --danger-soft: #3d1a16;
+  --success: #4cc38a;
+  --success-soft: #11301f;
+  --warning: #f0b454;
+  --warning-soft: #3a2a0c;
+  --info: #8ba2ff;
+  --info-soft: #1f2b5e;
+  --nav-bg: #0a0e1c;
+  --nav-bg-deep: #070a14;
+  --nav-fg: #b6c0e6;
+  --nav-fg-strong: #ffffff;
+  --nav-active: rgba(111, 140, 255, 0.22);
+  --nav-hover: rgba(255, 255, 255, 0.06);
+  --nav-border: rgba(255, 255, 255, 0.08);
+  --focus-ring: #ff9068;
+  --scrim: rgba(3, 5, 12, 0.7);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -16px rgba(0, 0, 0, 0.6);
+  --shadow-pop: 0 24px 64px -24px rgba(0, 0, 0, 0.8), 0 2px 6px rgba(0, 0, 0, 0.4);
+  --scrollbar: rgba(238, 240, 247, 0.22);
+  --show-light: none;
+  --show-dark: block;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --background: #0f1320;
+    --surface: #131828;
+    --surface-raised: #161b2c;
+    --surface-2: #1d2338;
+    --surface-muted: #1d2338;
+    --border: #283049;
+    --border-strong: #38425f;
+    --ink: #eef0f7;
+    --ink-muted: #98a0b6;
+    --ink-faint: #6b7390;
+    --brand: #6f8cff;
+    --brand-strong: #8ba2ff;
+    --brand-soft: #1f2b5e;
+    --on-brand: #0a0e1c;
+    --accent: #ff7a4a;
+    --accent-strong: #ff9068;
+    --accent-soft: #3a2316;
+    --on-accent: #16100c;
+    --danger: #ff6b5b;
+    --danger-soft: #3d1a16;
+    --success: #4cc38a;
+    --success-soft: #11301f;
+    --warning: #f0b454;
+    --warning-soft: #3a2a0c;
+    --info: #8ba2ff;
+    --info-soft: #1f2b5e;
+    --nav-bg: #0a0e1c;
+    --nav-bg-deep: #070a14;
+    --nav-fg: #b6c0e6;
+    --nav-fg-strong: #ffffff;
+    --nav-active: rgba(111, 140, 255, 0.22);
+    --nav-hover: rgba(255, 255, 255, 0.06);
+    --nav-border: rgba(255, 255, 255, 0.08);
+    --focus-ring: #ff9068;
+    --scrim: rgba(3, 5, 12, 0.7);
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -16px rgba(0, 0, 0, 0.6);
+    --shadow-pop: 0 24px 64px -24px rgba(0, 0, 0, 0.8), 0 2px 6px rgba(0, 0, 0, 0.4);
+    --scrollbar: rgba(238, 240, 247, 0.22);
+    --show-light: none;
+    --show-dark: block;
+  }
 }
 
 @theme inline {
@@ -29,16 +168,24 @@ html {
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
   --font-display: var(--font-display);
+  --font-mono: var(--font-mono);
+}
+
+html {
+  min-width: 320px;
+  scroll-behavior: smooth;
 }
 
 body {
   min-height: 100dvh;
-  background:
-    radial-gradient(900px 480px at 0% 0%, rgba(255, 252, 245, 0.9), transparent 55%),
-    radial-gradient(700px 420px at 100% 10%, rgba(210, 196, 176, 0.35), transparent 50%),
-    var(--background);
+  background: var(--background);
   color: var(--foreground);
+  font-feature-settings: "ss01", "cv11";
   text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 button,
@@ -55,33 +202,32 @@ a[href] {
   cursor: pointer;
 }
 
-.reference-home {
-  border: 0;
-  display: block;
-  height: 100vh;
-  overflow: hidden;
-  width: 100%;
-}
-
 @layer base {
   a {
     color: inherit;
     text-decoration: none;
   }
-}
-
-* {
-  box-sizing: border-box;
+  h1, h2, h3 {
+    text-wrap: balance;
+  }
+  .tabular, table, td, th {
+    font-variant-numeric: tabular-nums;
+  }
+  /* Anything set in the display face reads as a title: bold and tight by default. */
+  [class*="var(--font-display)"] {
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
 }
 
 ::selection {
-  background: var(--accent);
-  color: white;
+  background: var(--brand);
+  color: var(--on-brand);
 }
 
-:where(a, button, input, textarea, select):focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--accent) 68%, white);
-  outline-offset: 3px;
+:where(a, button, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 @media (max-width: 639px) {
@@ -92,36 +238,38 @@ a[href] {
   }
 }
 
+/* Display type helper: Bricolage for titles only. */
+.display {
+  font-family: var(--font-display), system-ui, sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.02;
+}
+
+/* Theme-dependent assets such as the two logo files. */
+.show-light { display: var(--show-light) !important; }
+.show-dark { display: var(--show-dark) !important; }
+
+.mono {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Motion: short fades instead of staggered rises. */
 .page-enter {
-  animation: page-enter 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: page-enter 140ms ease-out both;
 }
 
 .stagger-grid > * {
-  animation: rise-in 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: page-enter 160ms ease-out both;
 }
 
-.stagger-grid > *:nth-child(2) { animation-delay: 45ms; }
-.stagger-grid > *:nth-child(3) { animation-delay: 90ms; }
-.stagger-grid > *:nth-child(4) { animation-delay: 135ms; }
-.stagger-grid > *:nth-child(5) { animation-delay: 180ms; }
-.stagger-grid > *:nth-child(6) { animation-delay: 225ms; }
-
 .agent-message-enter {
-  animation: agent-message-enter 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: page-enter 140ms ease-out both;
 }
 
 @keyframes page-enter {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes rise-in {
-  from { opacity: 0; transform: translateY(12px) scale(0.985); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-@keyframes agent-message-enter {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(3px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -134,44 +282,38 @@ a[href] {
   }
 }
 
-/* Quiet, consistent scrollbars: visible when needed without heavy browser chrome. */
+/* Scrollbars */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(20, 20, 20, 0.28) transparent;
+  scrollbar-color: var(--scrollbar) transparent;
 }
-
-*::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-
-*::-webkit-scrollbar-track {
-  background: transparent;
-}
-
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
 *::-webkit-scrollbar-thumb {
-  background: rgba(20, 20, 20, 0.22);
+  background: var(--scrollbar);
   background-clip: padding-box;
   border: 3px solid transparent;
   border-radius: 999px;
 }
+*::-webkit-scrollbar-corner { background: transparent; }
 
-*::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(20, 20, 20, 0.42);
-}
-
-*::-webkit-scrollbar-corner {
-  background: transparent;
-}
-
-/* Themed native select fallback */
+/* Themed native select */
 select.boatship-select {
   appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23141414' d='M2.5 4.5 6 8l3.5-3.5'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='none' stroke='%238a8f9e' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' d='M2.5 4.5 6 8l3.5-3.5'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 0.75rem center;
   padding-right: 2.25rem;
 }
+
+.reference-home {
+  border: 0;
+  display: block;
+  height: 100vh;
+  overflow: hidden;
+  width: 100%;
+}
+
 @media (min-width: 768px) {
   .hodi-history-rail {
     flex: 0 0 16rem;

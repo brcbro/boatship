@@ -7,6 +7,8 @@ import { Search } from "lucide-react";
 import { useAuth } from "@/components/shared/AuthProvider";
 import { apiFetch } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
+import { Kbd } from "@/components/shared/ui";
+import { NAV_GROUPS, SETTINGS_ITEMS } from "@/components/admin/navigation";
 
 type SearchResult = {
   type: "client" | "task" | "document" | "vessel";
@@ -19,26 +21,27 @@ type SearchResult = {
 type NavLink = { href: string; label: string };
 
 const ADMIN_LINKS: NavLink[] = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/clients", label: "Clients" },
-  { href: "/calendar", label: "Calendar" },
-  { href: "/messages", label: "Messages" },
-  { href: "/team", label: "Team" },
-  { href: "/forms", label: "Forms" },
-  { href: "/integrations", label: "Integrations" },
-  { href: "/webhooks", label: "Webhooks" },
-  { href: "/workload", label: "Workload" },
-  { href: "/agent", label: "Hodi chat" },
-  { href: "/hodi", label: "Hodi work queue" },
+  ...NAV_GROUPS.flatMap((group) => group.items.map((item) => ({ href: item.href, label: item.label }))),
+  ...SETTINGS_ITEMS.map((item) => ({ href: item.href, label: item.href === "/settings" ? "Settings" : `Settings · ${item.label}` })),
 ];
 
 const CLIENT_LINKS: NavLink[] = [
-  { href: "/portal", label: "Dashboard" },
+  { href: "/portal", label: "Home" },
   { href: "/portal/tasks", label: "Tasks" },
   { href: "/portal/documents", label: "Documents" },
-  { href: "/portal/forms", label: "Forms" },
   { href: "/portal/messages", label: "Messages" },
+  { href: "/portal/engagements", label: "Engagements" },
+  { href: "/portal/forms", label: "Forms" },
+  { href: "/portal/approvals", label: "Approvals" },
+  { href: "/portal/account", label: "Account" },
 ];
+
+const OPEN_EVENT = "boatship:command-palette";
+
+/** Opens the palette from anywhere (the top-strip search button uses this). */
+export function openCommandPalette() {
+  window.dispatchEvent(new CustomEvent(OPEN_EVENT));
+}
 
 function typeLabel(type: SearchResult["type"]) {
   if (type === "client") return "Client";
@@ -93,8 +96,18 @@ export function CommandPalette({ variant }: { variant: "admin" | "client" }) {
         setActive(0);
       }
     }
+    function onOpen() {
+      setOpen(true);
+      setQ("");
+      setResults([]);
+      setActive(0);
+    }
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener(OPEN_EVENT, onOpen);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener(OPEN_EVENT, onOpen);
+    };
   }, []);
 
   useEffect(() => {
@@ -172,14 +185,14 @@ export function CommandPalette({ variant }: { variant: "admin" | "client" }) {
       <button
         type="button"
         aria-label="Close command palette"
-        className="absolute inset-0 bg-[rgba(20,20,20,0.45)] backdrop-blur-[2px]"
+        className="absolute inset-0 bg-[var(--scrim)] backdrop-blur-[2px]"
         onClick={close}
       />
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Command palette"
-        className="relative z-10 w-full max-w-xl overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface-raised)] shadow-[0_24px_80px_rgba(20,20,20,0.22)]"
+        className="relative z-10 w-full max-w-xl overflow-hidden rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface-raised)] shadow-[var(--shadow-pop)]"
         onKeyDown={onKeyDown}
       >
         <div className="flex items-center gap-3 border-b border-[var(--border)] px-4 py-3">
@@ -192,12 +205,10 @@ export function CommandPalette({ variant }: { variant: "admin" | "client" }) {
               setActive(0);
             }}
             placeholder="Search or jump to…"
-            className="min-w-0 flex-1 bg-transparent text-sm text-[var(--ink)] outline-none placeholder:text-[var(--ink-muted)]"
+            className="min-w-0 flex-1 bg-transparent text-sm text-[var(--ink)] outline-none placeholder:text-[var(--ink-faint)]"
             aria-label="Search"
           />
-          <kbd className="hidden rounded border border-[var(--border)] px-1.5 py-0.5 text-[10px] text-[var(--ink-muted)] sm:inline">
-            Esc
-          </kbd>
+          <span className="hidden sm:inline"><Kbd>Esc</Kbd></span>
         </div>
 
         <div className="max-h-[min(60vh,420px)] overflow-y-auto py-2">
@@ -208,7 +219,7 @@ export function CommandPalette({ variant }: { variant: "admin" | "client" }) {
           ) : (
             <ul className="px-2">
               {filteredLinks.length > 0 ? (
-                <li className="px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-[var(--ink-muted)]">
+                <li className="px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--ink-faint)]">
                   Navigate
                 </li>
               ) : null}
@@ -219,7 +230,7 @@ export function CommandPalette({ variant }: { variant: "admin" | "client" }) {
                 return (
                   <li key={item.id}>
                     {showSearchHeader ? (
-                      <div className="px-2 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wide text-[var(--ink-muted)]">
+                      <div className="px-2 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--ink-faint)]">
                         Results
                       </div>
                     ) : null}
@@ -231,10 +242,10 @@ export function CommandPalette({ variant }: { variant: "admin" | "client" }) {
                       }}
                       onMouseEnter={() => setActive(idx)}
                       className={cn(
-                        "flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition",
+                        "flex w-full items-center justify-between gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-left text-sm transition-colors",
                         idx === Math.min(active, items.length - 1)
-                          ? "bg-[var(--surface-2)] text-[var(--ink)]"
-                          : "text-[var(--ink)] hover:bg-[var(--surface-2)]/70"
+                          ? "bg-[var(--brand-soft)] text-[var(--ink)]"
+                          : "text-[var(--ink)] hover:bg-[var(--surface-2)]"
                       )}
                     >
                       <span className="min-w-0">

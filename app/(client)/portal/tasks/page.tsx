@@ -94,7 +94,7 @@ function PortalTasksPageInner() {
       />
 
       {error ? (
-        <p role="alert" className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+        <p role="alert" className="mb-4 rounded-[var(--radius-sm)] border border-[var(--danger)]/30 bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger)]">
           {error}
         </p>
       ) : null}

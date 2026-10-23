@@ -181,7 +181,7 @@ export function IntakeWizard({ token, users, templates, defaultAssigneeId }: { t
       <div className="flex items-center gap-2 text-xs font-medium text-[var(--ink-muted)]" aria-label={`Step ${step} of 3`}>
         {["Service", "Project brief", "Launch plan"].map((label, index) => (
           <div key={label} className="flex items-center gap-2" aria-current={step === index + 1 ? "step" : undefined}>
-            <span className={`grid h-6 w-6 place-items-center rounded-full ${step >= index + 1 ? "bg-[var(--brand)] text-white" : "bg-[var(--surface-2)]"}`}>{index + 1}</span>
+            <span className={`grid h-6 w-6 place-items-center rounded-full ${step >= index + 1 ? "bg-[var(--brand)] text-[var(--on-brand)]" : "bg-[var(--surface-2)]"}`}>{index + 1}</span>
             <span className="hidden sm:inline">{label}</span>
             {index < 2 ? <span className="h-px w-6 bg-[var(--border)] sm:w-12" aria-hidden="true" /> : null}
           </div>
@@ -194,7 +194,7 @@ export function IntakeWizard({ token, users, templates, defaultAssigneeId }: { t
           <p className="mt-1 text-sm text-[var(--ink-muted)]">Choose the service so Boatship can start the right playbook.</p>
           <div className="mt-5 grid gap-3 sm:grid-cols-2" role="group" aria-label="Service">
             {services.map((item) => (
-              <button type="button" key={item.id} aria-pressed={service === item.id} onClick={() => updateDraft({ service: item.id })} className={`rounded-lg border p-4 text-left transition ${service === item.id ? "border-[var(--brand)] bg-[var(--surface-2)]" : "border-[var(--border)] hover:border-[var(--brand)]/50"}`}>
+              <button type="button" key={item.id} aria-pressed={service === item.id} onClick={() => updateDraft({ service: item.id })} className={`rounded-[var(--radius-md)] border p-4 text-left transition ${service === item.id ? "border-[var(--brand)] bg-[var(--surface-2)]" : "border-[var(--border)] hover:border-[var(--brand)]/50"}`}>
                 <p className="font-medium text-[var(--ink)]">{item.title}</p>
                 <p className="mt-1 text-sm text-[var(--ink-muted)]">{item.description}</p>
               </button>

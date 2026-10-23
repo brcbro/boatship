@@ -242,12 +242,12 @@ function DocumentsPageInner() {
       />
 
       {error ? (
-        <p role="alert" className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+        <p role="alert" className="mb-4 rounded-[var(--radius-sm)] border border-[var(--danger)]/30 bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger)]">
           {error}
         </p>
       ) : null}
       {success ? (
-        <p role="status" className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+        <p role="status" className="mb-4 rounded-[var(--radius-sm)] border border-[var(--success)]/30 bg-[var(--success-soft)] px-3 py-2 text-sm text-[var(--success)]">
           {success}
         </p>
       ) : null}

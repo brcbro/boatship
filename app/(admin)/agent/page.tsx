@@ -119,7 +119,7 @@ function AgentMarkdown({ text }: { text: string }) {
           ) : <>{label}</>;
         },
         table: ({ children }) => (
-          <div className="my-3 max-w-full overflow-x-auto rounded-lg border border-[var(--border)]">
+          <div className="my-3 max-w-full overflow-x-auto rounded-[var(--radius-md)] border border-[var(--border)]">
             <table className="min-w-full border-collapse text-left text-xs">{children}</table>
           </div>
         ),
@@ -128,7 +128,7 @@ function AgentMarkdown({ text }: { text: string }) {
         ),
         td: ({ children }) => <td className="border-b border-[var(--border)] px-3 py-2 align-top last:border-b-0">{children}</td>,
         code: ({ children }) => <code className="break-words rounded bg-[var(--surface-2)] px-1 py-0.5 text-xs">{children}</code>,
-        pre: ({ children }) => <pre className="my-2 max-w-full overflow-x-auto rounded-lg bg-[var(--surface-2)] p-3 text-xs">{children}</pre>,
+        pre: ({ children }) => <pre className="my-2 max-w-full overflow-x-auto rounded-[var(--radius-md)] bg-[var(--surface-2)] p-3 text-xs">{children}</pre>,
         ul: ({ children }) => <ul className="my-2 list-disc space-y-1 pl-5">{children}</ul>,
         ol: ({ children }) => <ol className="my-2 list-decimal space-y-1 pl-5">{children}</ol>,
       }}
@@ -468,7 +468,7 @@ export default function AgentPage() {
           {mobileHistoryOpen ? <button type="button" className="absolute inset-0 md:hidden" aria-label="Close chat history" onClick={() => setMobileHistoryOpen(false)} /> : null}
           <div ref={historyDrawerRef} role={mobileHistoryOpen ? "dialog" : undefined} aria-modal={mobileHistoryOpen ? true : undefined} aria-label={mobileHistoryOpen ? "Chat history" : undefined} className="relative flex h-full w-[min(19rem,85vw)] flex-col border-r border-[var(--border)] bg-[var(--surface-raised)] md:w-full">
           <div className="p-3">
-            <div className="mb-2 flex items-center justify-between md:hidden"><span className="font-medium">Chats</span><button ref={historyCloseRef} type="button" onClick={() => setMobileHistoryOpen(false)} className="rounded-lg px-3 py-2 text-sm">Close</button></div>
+            <div className="mb-2 flex items-center justify-between md:hidden"><span className="font-medium">Chats</span><button ref={historyCloseRef} type="button" onClick={() => setMobileHistoryOpen(false)} className="rounded-[var(--radius-md)] px-3 py-2 text-sm">Close</button></div>
             <Button type="button" className="w-full" onClick={() => void newChat()} disabled={busy || !token}>
               <Plus className="h-4 w-4" /> New chat
             </Button>
@@ -483,7 +483,7 @@ export default function AgentPage() {
                   onClick={() => selectSession(session.id)}
                   disabled={busy}
                   aria-current={session.id === activeSessionId ? "page" : undefined}
-                  className={`w-full rounded-xl px-3 py-2.5 text-left text-sm transition duration-200 ${session.id === activeSessionId ? "bg-[var(--surface-2)] font-medium text-[var(--ink)] shadow-[inset_2px_0_0_var(--brand)]" : "text-[var(--ink-muted)] hover:bg-[var(--surface)] hover:text-[var(--ink)]"}`}
+                  className={`w-full rounded-[var(--radius-lg)] px-3 py-2.5 text-left text-sm transition duration-200 ${session.id === activeSessionId ? "bg-[var(--surface-2)] font-medium text-[var(--ink)] shadow-[inset_2px_0_0_var(--brand)]" : "text-[var(--ink-muted)] hover:bg-[var(--surface)] hover:text-[var(--ink)]"}`}
                 >
                   <span className="block truncate">{session.title}</span>
                   <span className="mt-0.5 block text-xs font-normal text-[var(--ink-muted)]">{new Date(session.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
@@ -497,8 +497,8 @@ export default function AgentPage() {
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-[var(--surface)]">
           <header className="relative z-30 flex shrink-0 items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--surface)] px-4 py-3 sm:px-6">
             <div className="flex min-w-0 items-center gap-3">
-              <button ref={historyTriggerRef} type="button" aria-label="Open chat history" onClick={() => setMobileHistoryOpen(true)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[var(--ink)] hover:bg-[var(--surface-2)] md:hidden"><PanelLeft className="h-5 w-5" /></button>
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--brand)] text-white shadow-[0_6px_16px_rgba(20,20,20,0.14)]" aria-hidden="true">
+              <button ref={historyTriggerRef} type="button" aria-label="Open chat history" onClick={() => setMobileHistoryOpen(true)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-[var(--ink)] hover:bg-[var(--surface-2)] md:hidden"><PanelLeft className="h-5 w-5" /></button>
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--brand)] text-[var(--on-brand)] shadow-[0_6px_16px_rgba(20,20,20,0.14)]" aria-hidden="true">
                 <Bot className="h-5 w-5" />
               </span>
               <div className="min-w-0">
@@ -511,22 +511,22 @@ export default function AgentPage() {
             </div>
             <div className="flex items-center gap-1.5">
               <details className="group relative">
-                <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 rounded-lg px-2.5 text-sm font-medium text-[var(--ink-muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--ink)]">
+                <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 rounded-[var(--radius-md)] px-2.5 text-sm font-medium text-[var(--ink-muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--ink)]">
                   <PlugZap className="h-4 w-4" aria-hidden="true" />
                   <span className="hidden sm:inline">{connectedConnectorCount} apps</span>
                   <span className="sr-only">Connected apps</span>
                 </summary>
-                <div className="absolute right-0 z-40 mt-2 max-h-[min(26rem,calc(100dvh-7rem))] w-64 overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-2 shadow-[0_16px_40px_rgba(20,20,20,0.14)]">
+                <div className="absolute right-0 z-40 mt-2 max-h-[min(26rem,calc(100dvh-7rem))] w-64 overflow-y-auto rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-raised)] p-2 shadow-[0_16px_40px_rgba(20,20,20,0.14)]">
                   {connectedConnectors.length ? connectedConnectors.map((connector) => (
-                    <div key={connector.slug} className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 text-sm">
+                    <div key={connector.slug} className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] px-2 py-2 text-sm">
                       <span className="flex min-w-0 items-center gap-2 truncate text-[var(--ink)]"><span className={`h-2 w-2 shrink-0 rounded-full ${connector.connected ? "bg-[var(--success)]" : "bg-[var(--border)]"}`} /><span className="truncate">{connector.name}</span></span>
                       <span className="shrink-0 text-xs text-[var(--ink-muted)]">On</span>
                     </div>
                   )) : <p className="px-2 py-3 text-sm text-[var(--ink-muted)]">No connected apps</p>}
-                  <Link href="/integrations" className="mt-1 flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-[var(--brand)] hover:bg-[var(--surface-2)]"><HardDrive className="h-4 w-4" /> Manage apps</Link>
+                  <Link href="/integrations" className="mt-1 flex items-center gap-2 rounded-[var(--radius-md)] px-2 py-2 text-sm font-medium text-[var(--brand)] hover:bg-[var(--surface-2)]"><HardDrive className="h-4 w-4" /> Manage apps</Link>
                 </div>
               </details>
-              {activeSessionId ? <button type="button" aria-label="Delete chat" title="Delete chat" onClick={() => setConfirmDelete(true)} disabled={busy} className="flex h-9 items-center gap-1.5 rounded-lg px-2 text-sm text-[var(--ink-muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--danger)] disabled:opacity-50"><Trash2 className="h-4 w-4" /><span className="hidden sm:inline">Delete</span></button> : null}
+              {activeSessionId ? <button type="button" aria-label="Delete chat" title="Delete chat" onClick={() => setConfirmDelete(true)} disabled={busy} className="flex h-9 items-center gap-1.5 rounded-[var(--radius-md)] px-2 text-sm text-[var(--ink-muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--danger)] disabled:opacity-50"><Trash2 className="h-4 w-4" /><span className="hidden sm:inline">Delete</span></button> : null}
             </div>
           </header>
           {historyError ? <div role="alert" className="flex items-center justify-between gap-3 border-b border-[var(--danger)]/30 bg-[var(--danger)]/5 px-4 py-2 text-sm text-[var(--danger)]"><span>{historyError}</span><button type="button" onClick={() => { void loadSessions(); setHistoryReload((current) => current + 1); }} className="shrink-0 font-medium underline underline-offset-2">Retry</button></div> : null}
@@ -571,7 +571,7 @@ export default function AgentPage() {
           {messages.length === 0 ? (
             <div className="mx-auto flex h-full max-w-xl flex-col justify-center space-y-6 py-8">
               <div className="space-y-2 text-center agent-message-enter">
-                <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--brand)] text-white shadow-[0_10px_24px_rgba(20,20,20,0.14)]">
+                <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--brand)] text-[var(--on-brand)] shadow-[0_10px_24px_rgba(20,20,20,0.14)]">
                   <Bot className="h-6 w-6" />
                 </span>
                 <h1 className="font-[family-name:var(--font-display)] text-3xl tracking-[-0.02em] text-[var(--ink)]">What can I help with?</h1>
@@ -584,7 +584,7 @@ export default function AgentPage() {
                     type="button"
                     disabled={!status?.ready || busy}
                     onClick={() => runSuggestion(s)}
-                    className="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-3.5 py-3 text-left text-sm leading-snug text-[var(--ink)] transition duration-200 hover:-translate-y-0.5 hover:border-[var(--brand)]/40 hover:shadow-[0_8px_18px_rgba(20,20,20,0.06)] disabled:opacity-50"
+                    className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-raised)] px-3.5 py-3 text-left text-sm leading-snug text-[var(--ink)] transition duration-200 hover:-translate-y-0.5 hover:border-[var(--brand)]/40 hover:shadow-[0_8px_18px_rgba(20,20,20,0.06)] disabled:opacity-50"
                   >
                     {s}
                   </button>
@@ -605,7 +605,7 @@ export default function AgentPage() {
                   key={m.id}
                   className={
                     m.role === "user"
-                      ? "agent-message-enter max-w-[88%] self-end rounded-2xl rounded-br-md bg-[var(--brand)] px-4 py-3 text-sm leading-relaxed text-white shadow-[0_8px_20px_rgba(20,20,20,0.09)] sm:max-w-[78%]"
+                      ? "agent-message-enter max-w-[88%] self-end rounded-[var(--radius-lg)] rounded-br-md bg-[var(--brand)] px-4 py-3 text-sm leading-relaxed text-[var(--on-brand)] shadow-[0_8px_20px_rgba(20,20,20,0.09)] sm:max-w-[78%]"
                       : "agent-message-enter w-full max-w-3xl self-start space-y-3 text-sm leading-7 text-[var(--ink)]"
                   }
                 >
@@ -613,7 +613,7 @@ export default function AgentPage() {
                     m.role === "assistant" ? <AgentMarkdown text={text} /> : <p className="break-words whitespace-pre-wrap">{text}</p>
                   ) : null}
                   {reasoningParts.length > 0 || toolParts.length > 0 ? (
-                    <details className="group rounded-xl border border-[var(--border)] bg-[var(--surface-raised)]/70 text-[var(--ink)]">
+                    <details className="group rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-raised)]/70 text-[var(--ink)]">
                       <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs font-medium marker:hidden">
                         <Wrench className="h-3.5 w-3.5 text-[var(--ink-muted)]" />
                         Hodi activity
@@ -627,7 +627,7 @@ export default function AgentPage() {
                         <ChevronDown className="ml-auto h-4 w-4 text-[var(--ink-muted)] transition group-open:rotate-180" />
                       </summary>
                       <div className="space-y-3 border-t border-[var(--border)] px-3 py-3">
-                        {reasoningParts.length > 0 ? <p className="rounded-lg bg-[var(--surface)]/70 px-2.5 py-2 text-xs leading-relaxed text-[var(--ink-muted)]">Hodi reviewed the available workspace context before responding.</p> : null}
+                        {reasoningParts.length > 0 ? <p className="rounded-[var(--radius-md)] bg-[var(--surface)]/70 px-2.5 py-2 text-xs leading-relaxed text-[var(--ink-muted)]">Hodi reviewed the available workspace context before responding.</p> : null}
                         {toolParts.map((part, index) => (
                           <div key={part.toolCallId || `${part.type}-${index}`} className="rounded border border-[var(--border)] bg-[var(--surface)]/70 p-2.5">
                             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -643,12 +643,12 @@ export default function AgentPage() {
                     </details>
                   ) : null}
                   {text ? (
-                    <div className={`flex items-center gap-1 ${m.role === "user" ? "justify-end text-white/80" : "text-[var(--ink-muted)]"}`}>
-                      <button type="button" onClick={() => void copyMessage(m.id, text)} className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium transition hover:bg-black/5 hover:text-[var(--ink)]" title="Copy message">
+                    <div className={`flex items-center gap-1 ${m.role === "user" ? "justify-end text-[var(--on-brand)]/80" : "text-[var(--ink-muted)]"}`}>
+                      <button type="button" onClick={() => void copyMessage(m.id, text)} className="inline-flex h-7 items-center gap-1 rounded-[var(--radius-sm)] px-2 text-[11px] font-medium transition hover:bg-[var(--surface-2)] hover:text-[var(--ink)]" title="Copy message">
                         {copiedMessageId === m.id ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}{copiedMessageId === m.id ? "Copied" : "Copy"}
                       </button>
-                      {m.role === "user" ? <button type="button" onClick={() => editAndResend(text)} disabled={busy} className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium transition hover:bg-white/15 disabled:opacity-50" title="Edit message"><Pencil className="h-3.5 w-3.5" />Edit</button> : <>
-                        <button type="button" onClick={improveResponse} disabled={busy} className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium transition hover:bg-[var(--surface-2)] hover:text-[var(--ink)] disabled:opacity-50" title="Ask Hodi to improve this response"><RotateCcw className="h-3.5 w-3.5" />Improve</button>
+                      {m.role === "user" ? <button type="button" onClick={() => editAndResend(text)} disabled={busy} className="inline-flex h-7 items-center gap-1 rounded-[var(--radius-sm)] px-2 text-[11px] font-medium transition hover:bg-[var(--on-brand)]/15 disabled:opacity-50" title="Edit message"><Pencil className="h-3.5 w-3.5" />Edit</button> : <>
+                        <button type="button" onClick={improveResponse} disabled={busy} className="inline-flex h-7 items-center gap-1 rounded-[var(--radius-sm)] px-2 text-[11px] font-medium transition hover:bg-[var(--surface-2)] hover:text-[var(--ink)] disabled:opacity-50" title="Ask Hodi to improve this response"><RotateCcw className="h-3.5 w-3.5" />Improve</button>
                       </>}
                     </div>
                   ) : null}
@@ -658,7 +658,7 @@ export default function AgentPage() {
             </div>
           )}
           {proposals.length > 0 ? <section className="mx-auto mt-6 max-w-3xl space-y-3" aria-label="Hodi actions awaiting approval">
-            {proposals.map((proposal) => <div key={proposal.id} className="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-4 shadow-sm">
+            {proposals.map((proposal) => <div key={proposal.id} className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-raised)] p-4 shadow-sm">
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--ink-muted)]">Review action</p>
               <h2 className="mt-1 font-medium text-[var(--ink)]">{proposal.preview.title}</h2>
               {proposal.preview.changes?.length ? <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-[var(--ink-muted)]">{proposal.preview.changes.map((change, index) => <li key={`${index}-${change}`}>{change}</li>)}</ul> : null}
@@ -677,7 +677,7 @@ export default function AgentPage() {
             </p>
           ) : null}
           {error ? (
-            <p className="rounded-md border border-[var(--danger)]/30 bg-[var(--danger)]/5 px-3 py-2 text-sm text-[var(--danger)]">
+            <p className="rounded-[var(--radius-sm)] border border-[var(--danger)]/30 bg-[var(--danger)]/5 px-3 py-2 text-sm text-[var(--danger)]">
               {error.message}
             </p>
           ) : null}
@@ -711,7 +711,7 @@ export default function AgentPage() {
                   void onSubmit(e);
                 }
               }}
-              className="block h-12 min-h-12 max-h-[112px] resize-none overflow-y-auto rounded-2xl border-[var(--border)] bg-[var(--surface-raised)] py-3 pl-4 pr-14"
+              className="block h-12 min-h-12 max-h-[112px] resize-none overflow-y-auto rounded-[var(--radius-lg)] border-[var(--border)] bg-[var(--surface-raised)] py-3 pl-4 pr-14"
             />
             {busy ? (
               <button
@@ -719,7 +719,7 @@ export default function AgentPage() {
                 onClick={() => void stop()}
                 aria-label="Stop generating"
                 title="Stop generating"
-                className="absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-xl bg-[var(--ink)] text-white transition hover:scale-105 hover:bg-[var(--brand-strong)]"
+                className="absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--ink)] text-white transition hover:scale-105 hover:bg-[var(--brand-strong)]"
               >
                 <CircleStop className="h-4 w-4" />
               </button>
@@ -729,7 +729,7 @@ export default function AgentPage() {
                 disabled={!status?.ready || !activeSessionId || !input.trim()}
                 aria-label="Send message"
                 title="Send message"
-                className="absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-xl bg-[var(--brand)] text-white transition hover:scale-105 hover:bg-[var(--brand-strong)] disabled:cursor-not-allowed disabled:bg-[var(--surface-2)] disabled:text-[var(--ink-muted)]"
+                className="absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--brand)] text-[var(--on-brand)] transition hover:scale-105 hover:bg-[var(--brand-strong)] disabled:cursor-not-allowed disabled:bg-[var(--surface-2)] disabled:text-[var(--ink-muted)]"
               >
                 <ArrowUp className="h-4 w-4" />
               </button>

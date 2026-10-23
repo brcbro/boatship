@@ -1,18 +1,24 @@
-import { Source_Serif_4, DM_Sans } from "next/font/google";
+import { Bricolage_Grotesque, Figtree, Space_Mono } from "next/font/google";
 import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/components/shared/AuthProvider";
 
-const display = Source_Serif_4({
+const display = Bricolage_Grotesque({
   variable: "--font-display",
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
+  weight: ["500", "700", "800"],
 });
 
-const sans = DM_Sans({
+const sans = Figtree({
   variable: "--font-sans",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
+});
+
+const mono = Space_Mono({
+  variable: "--font-mono",
+  subsets: ["latin"],
+  weight: ["400", "700"],
 });
 
 export const metadata: Metadata = {
@@ -43,10 +49,14 @@ export const metadata: Metadata = {
   },
 };
 
+/* Applies the stored theme before first paint so there is no flash. "system" leaves the attribute off. */
+const themeInit = `(function(){try{var t=localStorage.getItem("boatship-theme");if(t==="dark"||t==="light"){document.documentElement.setAttribute("data-theme",t)}}catch(e){}})();`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${display.variable} ${sans.variable} h-full`}>
+    <html lang="en" className={`${display.variable} ${sans.variable} ${mono.variable} h-full`} suppressHydrationWarning>
       <body className="min-h-full font-[family-name:var(--font-sans)] antialiased">
+        <script dangerouslySetInnerHTML={{ __html: themeInit }} />
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

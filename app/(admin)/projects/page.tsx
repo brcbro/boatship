@@ -73,8 +73,8 @@ export default function ProjectsOperationsPage() {
   }
   return <div className="space-y-6">
     <PageHeader title="Project operations" description="Milestones, approvals, workload signals, and evidence-based health in one view." />
-    {error ? <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p> : null}
-    {notice ? <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{notice}</p> : null}
+    {error ? <p role="alert" className="rounded-[var(--radius-md)] border border-[var(--danger)]/30 bg-[var(--danger-soft)] px-4 py-3 text-sm text-[var(--danger)]">{error}</p> : null}
+    {notice ? <p role="status" className="rounded-[var(--radius-md)] border border-[var(--success)]/30 bg-[var(--success-soft)] px-4 py-3 text-sm text-[var(--success)]">{notice}</p> : null}
     <section aria-label="Project operations filters" className="flex flex-wrap items-end gap-3">
       <div className="w-full sm:max-w-xs"><Label htmlFor="operations-client">Client account</Label><Select id="operations-client" value={clientId} onChange={(event) => chooseClient(event.target.value)} disabled={saving}><option value="">All client accounts</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.companyName}</option>)}</Select></div>
       <div className="w-full sm:max-w-xs"><Label htmlFor="operations-scope">Show work for</Label><Select id="operations-scope" value={scope} onChange={(event) => setScope(event.target.value)} disabled={loadingEngagements || saving}><option value="all">All engagements and account work</option><option value="account">Account-wide work</option>{engagements.map((engagement) => <option key={engagement.id} value={engagement.id}>{engagement.name}</option>)}</Select></div>

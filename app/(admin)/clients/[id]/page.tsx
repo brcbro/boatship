@@ -758,7 +758,7 @@ export default function ClientDetailPage() {
   return (
     <div>
       <div className="mb-4">
-        <Link href="/clients" className="text-sm text-[var(--accent)] hover:underline">
+        <Link href="/clients" className="text-sm text-[var(--brand)] hover:underline">
           ← Back to clients
         </Link>
       </div>
@@ -804,10 +804,10 @@ export default function ClientDetailPage() {
       />
 
       {message ? (
-        <p role="status" className="mb-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{message}</p>
+        <p role="status" className="mb-4 rounded-[var(--radius-sm)] bg-[var(--success-soft)] px-3 py-2 text-sm text-[var(--success)]">{message}</p>
       ) : null}
       {error ? (
-        <p role="alert" className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>
+        <p role="alert" className="mb-4 rounded-[var(--radius-sm)] bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger)]">{error}</p>
       ) : null}
 
       <ClientWorkspaceNav active={tab} onChange={(next) => setTab(next as Tab)} />
@@ -831,7 +831,7 @@ export default function ClientDetailPage() {
                 />
               </div>
               {client.pauseReason || client.pausedAt ? (
-                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                <div className="rounded-[var(--radius-sm)] border border-[var(--warning)]/30 bg-[var(--warning-soft)] px-3 py-2 text-sm text-[var(--warning)]">
                   <p className="font-medium">Paused</p>
                   {client.pauseReason ? <p className="mt-0.5">{client.pauseReason}</p> : null}
                   {client.pausedAt ? (
@@ -870,7 +870,7 @@ export default function ClientDetailPage() {
                       href={client.driveFolderUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[var(--accent)] underline-offset-2 hover:underline"
+                      className="text-[var(--brand)] underline-offset-2 hover:underline"
                     >
                       Open in Drive
                     </a>
@@ -1123,7 +1123,7 @@ export default function ClientDetailPage() {
                             <span
                               className={
                                 new Date(doc.expiresAt).getTime() < documentCheckedAt
-                                  ? "text-[var(--danger,#b91c1c)]"
+                                  ? "text-[var(--danger)]"
                                   : undefined
                               }
                             >
@@ -1308,7 +1308,7 @@ export default function ClientDetailPage() {
 
                   {reviewingTemplate?.fields?.length ||
                   Object.keys(reviewingForm.responses || {}).length > 0 ? (
-                    <div className="space-y-2 rounded-md border border-[var(--border)] bg-[var(--surface-2)]/40 p-3">
+                    <div className="space-y-2 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-2)]/40 p-3">
                       <p className="text-xs font-medium uppercase tracking-wide text-[var(--ink-muted)]">
                         Responses
                       </p>

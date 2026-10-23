@@ -222,12 +222,12 @@ export default function WebhooksPage() {
       />
 
       {error ? (
-        <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+        <p className="rounded-[var(--radius-sm)] border border-[var(--danger)]/30 bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger)]">
           {error}
         </p>
       ) : null}
       {message ? (
-        <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+        <p className="rounded-[var(--radius-sm)] border border-[var(--success)]/30 bg-[var(--success-soft)] px-3 py-2 text-sm text-[var(--success)]">
           {message}
         </p>
       ) : null}
@@ -278,7 +278,7 @@ export default function WebhooksPage() {
                     key={event}
                     type="button"
                     onClick={() => toggleEvent(event)}
-                    className={`rounded-md border px-2.5 py-1 text-xs font-medium transition ${
+                    className={`rounded-[var(--radius-sm)] border px-2.5 py-1 text-xs font-medium transition ${
                       on
                         ? "border-[var(--brand)] bg-[var(--brand)]/10 text-[var(--brand)]"
                         : "border-[var(--border)] text-[var(--ink-muted)] hover:bg-[var(--surface-2)]"

@@ -380,7 +380,7 @@ export default function ClientsPage() {
       </Card>
 
       {message ? (
-        <p className="mb-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{message}</p>
+        <p className="mb-4 rounded-[var(--radius-sm)] bg-[var(--success-soft)] px-3 py-2 text-sm text-[var(--success)]">{message}</p>
       ) : null}
 
       {selected.size > 0 ? (
@@ -514,7 +514,7 @@ export default function ClientsPage() {
                     <td className="px-5 py-3 font-medium text-[var(--ink)]">
                       <Link
                         href={`/clients/${c.id}`}
-                        className="hover:text-[var(--accent)] hover:underline"
+                        className="hover:text-[var(--brand)] hover:underline"
                         onClick={(e) => e.stopPropagation()}
                       >
                         {c.name}
@@ -568,7 +568,7 @@ export default function ClientsPage() {
                       <Link
                         href={`/clients/${c.id}`}
                         onClick={(e) => e.stopPropagation()}
-                        className="text-[var(--accent)] hover:underline"
+                        className="text-[var(--brand)] hover:underline"
                       >
                         View
                       </Link>
@@ -623,7 +623,7 @@ export default function ClientsPage() {
             />
           </div>
           {importResult ? (
-            <div className="rounded-md bg-[var(--surface-2)] px-3 py-2 text-sm">
+            <div className="rounded-[var(--radius-sm)] bg-[var(--surface-2)] px-3 py-2 text-sm">
               <p>
                 Created <strong>{importResult.created}</strong> client(s).
                 {importResult.errors.length
@@ -631,7 +631,7 @@ export default function ClientsPage() {
                   : ""}
               </p>
               {importResult.errors.length ? (
-                <ul className="mt-2 max-h-32 space-y-1 overflow-y-auto text-xs text-red-700">
+                <ul className="mt-2 max-h-32 space-y-1 overflow-y-auto text-xs text-[var(--danger)]">
                   {importResult.errors.map((e) => (
                     <li key={`${e.row}-${e.error}`}>
                       Row {e.row}: {e.error}

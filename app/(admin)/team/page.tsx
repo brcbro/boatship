@@ -183,10 +183,10 @@ export default function TeamPage() {
       />
 
       {message ? (
-        <p className="mb-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{message}</p>
+        <p className="mb-4 rounded-[var(--radius-sm)] bg-[var(--success-soft)] px-3 py-2 text-sm text-[var(--success)]">{message}</p>
       ) : null}
       {error ? (
-        <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>
+        <p className="mb-4 rounded-[var(--radius-sm)] bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger)]">{error}</p>
       ) : null}
 
       <div className="mb-8 grid gap-6 lg:grid-cols-2">
@@ -224,7 +224,7 @@ export default function TeamPage() {
                     </div>
                   </div>
                   {editingUid === u.uid ? (
-                    <div className="mt-4 space-y-3 rounded-lg bg-[var(--surface-2)] p-3">
+                    <div className="mt-4 space-y-3 rounded-[var(--radius-md)] bg-[var(--surface-2)] p-3">
                       <PermissionCheckboxes value={editPerms} onChange={setEditPerms} />
                       <p className="text-xs text-[var(--ink-muted)]">
                         {editPerms.length === 0 ? "No capabilities selected. This member cannot access client work, reviews, analytics, or integrations." : "Only selected capabilities are granted. Client assignment and admin-only controls still apply."}
@@ -316,7 +316,7 @@ export default function TeamPage() {
           )}
 
           {inviteResult ? (
-            <div className="mt-5 rounded-lg bg-[var(--surface-2)] p-3 text-sm">
+            <div className="mt-5 rounded-[var(--radius-md)] bg-[var(--surface-2)] p-3 text-sm">
               <p>
                 Invite sent to <strong>{inviteResult.email}</strong>
               </p>

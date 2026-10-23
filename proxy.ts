@@ -12,7 +12,7 @@ const PUBLIC_PATHS = [
 ];
 
 const ADMIN_PATHS = [
-  "/dashboard", "/clients", "/team", "/workload", "/projects",
+  "/dashboard", "/settings", "/clients", "/team", "/workload", "/projects",
   "/products", "/workspace", "/calendar", "/messages", "/templates",
   "/forms", "/analytics", "/accounting", "/integrations", "/webhooks",
   "/mcp", "/compliance", "/hodi", "/automations", "/agent",

@@ -111,7 +111,7 @@ function ApprovalsContent() {
       {clientId ? <div className="mb-5 flex flex-wrap items-end gap-3"><div className="w-full sm:max-w-md"><Label htmlFor="approval-context">Show approvals for</Label><Select id="approval-context" value={scope} onChange={(event) => setScope(event.target.value)}><option value="all">All engagements and account decisions</option><option value="account">Account-wide decisions</option>{engagements.map((engagement) => <option key={engagement.id} value={engagement.id}>{engagement.name}</option>)}{scope !== "all" && scope !== "account" && !engagements.some((engagement) => engagement.id === scope) ? <option value={scope}>Historical engagement</option> : null}</Select></div>{scope !== "all" && scope !== "account" ? <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={includeAccountWide} onChange={(event) => setIncludeAccountWide(event.target.checked)} />Include account-wide decisions</label> : null}</div> : null}
 
       {error ? (
-        <div role="alert" className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--danger)]/25 bg-[var(--danger)]/5 px-4 py-3 text-sm text-[var(--danger)]">
+        <div role="alert" className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-lg)] border border-[var(--danger)]/25 bg-[var(--danger)]/5 px-4 py-3 text-sm text-[var(--danger)]">
           <span>{error}</span>
           <Button type="button" size="sm" variant="secondary" onClick={() => void load()}>Try again</Button>
         </div>
@@ -147,7 +147,7 @@ function ApprovalsContent() {
                     <p className="mt-1 text-sm text-[var(--ink-muted)]">{approval.engagementId ? engagement?.name || "Historical engagement" : "Account-wide decision"}</p>
                     {closed && pending ? <p className="mt-3 text-sm text-[var(--ink-muted)]">This engagement has ended. Contact your team about this pending decision.</p> : null}
                     {pending ? <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--ink-muted)]">Need to see the item before deciding? <Link href="/portal/messages" className="font-semibold text-[var(--brand)] underline underline-offset-2">Ask your team to share it</Link>.</p> : null}
-                    {approval.reviewNote ? <p className="mt-3 rounded-lg bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--ink)]"><span className="font-semibold">Your change request:</span> {approval.reviewNote}</p> : null}
+                    {approval.reviewNote ? <p className="mt-3 rounded-[var(--radius-md)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--ink)]"><span className="font-semibold">Your change request:</span> {approval.reviewNote}</p> : null}
                   </div>
                   {pending && !closed ? (
                     <div className="grid shrink-0 gap-2 sm:flex">

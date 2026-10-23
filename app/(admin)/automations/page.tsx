@@ -9,7 +9,7 @@ const SESSION_KEY = "boatship-hodi-automation-rules";
 const authorityStyle: Record<HodiAutomationRule["authority"], string> = {
   Observe: "bg-sky-50 text-sky-700 ring-sky-200",
   Draft: "bg-violet-50 text-violet-700 ring-violet-200",
-  "Internal autopilot": "bg-amber-50 text-amber-800 ring-amber-200",
+  "Internal autopilot": "bg-[var(--warning-soft)] text-amber-800 ring-amber-200",
   "External approved": "bg-rose-50 text-rose-700 ring-rose-200",
 };
 
@@ -75,14 +75,14 @@ export default function AutomationsPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-8">
-      <section className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface-raised)] shadow-sm">
-        <div className="grid gap-6 bg-[radial-gradient(circle_at_top_right,_rgba(14,116,144,.14),_transparent_36%),linear-gradient(135deg,#062c34,#0b4f58)] px-6 py-8 text-white md:grid-cols-[1fr_auto] md:px-9 md:py-10">
+      <section className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-raised)] shadow-sm">
+        <div className="grid gap-6 bg-[var(--nav-bg)] px-6 py-8 text-[var(--nav-fg-strong)] md:grid-cols-[1fr_auto] md:px-9 md:py-10">
           <div>
             <div className="mb-3 flex items-center gap-2 text-sm font-medium text-cyan-100"><Sparkles className="h-4 w-4" /> Hodi automation</div>
             <h1 className="font-[family-name:var(--font-display)] text-3xl tracking-tight md:text-4xl">Run a client work check.</h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-cyan-50/85">Choose a rule, run it manually, and review the result. Rule selection is temporary; scheduled background runs are not active.</p>
           </div>
-          <div className="self-end rounded-xl border border-white/15 bg-white/10 px-5 py-4 backdrop-blur">
+          <div className="self-end rounded-[var(--radius-lg)] border border-white/15 bg-white/10 px-5 py-4 backdrop-blur">
             <p className="text-xs font-medium uppercase tracking-[0.16em] text-cyan-100">Selected this session</p>
             <p className="mt-1 text-3xl font-semibold">{enabledCount}<span className="text-base font-normal text-cyan-100"> / {rules.length}</span></p>
           </div>
@@ -100,11 +100,11 @@ export default function AutomationsPage() {
           <div className="grid gap-4 md:grid-cols-2">
             {rules.map((rule) => {
               const isEnabled = enabled.includes(rule.id);
-              return <article key={rule.id} className="flex flex-col rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-5 shadow-sm">
+              return <article key={rule.id} className="flex flex-col rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-raised)] p-5 shadow-sm">
                 <div className="flex items-start justify-between gap-4">
                   <div><h3 className="font-semibold text-[var(--ink)]">{rule.name}</h3><p className="mt-2 text-sm leading-6 text-[var(--ink-muted)]">{rule.description}</p></div>
                   <button type="button" onClick={() => toggleRule(rule.id)} aria-pressed={isEnabled} className={`relative h-7 w-12 shrink-0 rounded-full transition ${isEnabled ? "bg-[var(--brand)]" : "bg-slate-200"}`}>
-                    <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition ${isEnabled ? "left-6" : "left-1"}`} />
+                    <span className={`absolute top-1 h-5 w-5 rounded-full bg-[var(--surface-raised)] shadow transition ${isEnabled ? "left-6" : "left-1"}`} />
                     <span className="sr-only">{isEnabled ? "Deselect" : "Select"} {rule.name} for this session</span>
                   </button>
                 </div>
@@ -113,23 +113,23 @@ export default function AutomationsPage() {
                   <span className="inline-flex items-center gap-1 rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[var(--ink-muted)]"><Clock3 className="h-3.5 w-3.5" />{rule.schedule}</span>
                 </div>
                 <p className="mt-4 text-xs leading-5 text-[var(--ink-muted)]">{rule.output}</p>
-                <button type="button" onClick={() => void runRule(rule.id)} disabled={running === rule.id} className="mt-5 inline-flex items-center justify-center gap-2 rounded-lg border border-[var(--brand)] px-3 py-2 text-sm font-medium text-[var(--brand)] transition hover:bg-[var(--surface-2)] disabled:cursor-wait disabled:opacity-60"><Play className="h-4 w-4" />{running === rule.id ? "Preparing..." : "Run review now"}</button>
+                <button type="button" onClick={() => void runRule(rule.id)} disabled={running === rule.id} className="mt-5 inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--brand)] px-3 py-2 text-sm font-medium text-[var(--brand)] transition hover:bg-[var(--surface-2)] disabled:cursor-wait disabled:opacity-60"><Play className="h-4 w-4" />{running === rule.id ? "Preparing..." : "Run review now"}</button>
               </article>;
             })}
           </div>
         </div>
 
-        <aside className="h-fit rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-5 shadow-sm lg:sticky lg:top-6">
+        <aside className="h-fit rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-raised)] p-5 shadow-sm lg:sticky lg:top-6">
           <div className="flex items-center gap-2"><Bot className="h-5 w-5 text-[var(--brand)]" /><h2 className="font-semibold text-[var(--ink)]">Run a focused check</h2></div>
           <label className="mt-5 block text-sm font-medium text-[var(--ink)]" htmlFor="automation-client">Client or project</label>
-          <input id="automation-client" value={clientName} onChange={(event) => setClientName(event.target.value)} placeholder="e.g. Website launch" className="mt-2 w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5 text-sm outline-none transition focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15" />
+          <input id="automation-client" value={clientName} onChange={(event) => setClientName(event.target.value)} placeholder="e.g. Website launch" className="mt-2 w-full rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2.5 text-sm outline-none transition focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15" />
           <p className="mt-3 text-xs leading-5 text-[var(--ink-muted)]">Optional. Add a client name so the review result is easy to identify.</p>
           <div className="mt-6 border-t border-[var(--border)] pt-5"><p className="text-sm font-medium text-[var(--ink)]">Authority levels</p><div className="mt-3 space-y-3 text-xs leading-5 text-[var(--ink-muted)]"><p><strong className="text-[var(--ink)]">Observe:</strong> inspect and report.</p><p><strong className="text-[var(--ink)]">Draft:</strong> prepare content for review.</p><p><strong className="text-[var(--ink)]">Internal autopilot:</strong> propose internal work; review remains required.</p><p><strong className="text-[var(--ink)]">External approved:</strong> only send after a separate explicit approval.</p></div></div>
         </aside>
       </section>
 
-      {error ? <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p> : null}
-      {review ? <section className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-6 shadow-sm"><div className="flex items-start gap-3"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" /><div><p className="text-sm font-medium text-emerald-800">{review.status === "observed" ? "Check complete" : "Ready for review"}</p><h2 className="mt-1 text-xl font-semibold text-[var(--ink)]">{review.title}</h2><p className="mt-2 text-sm leading-6 text-[var(--ink-muted)]">{review.summary}</p><p className="mt-4 text-sm font-medium text-[var(--ink)]">Evidence Hodi would check</p><ul className="mt-2 flex flex-wrap gap-2">{review.evidence.map((item) => <li key={item} className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs text-emerald-800">{item}</li>)}</ul><p className="mt-4 text-sm text-[var(--ink)]"><strong>Next step:</strong> {review.nextStep}</p><p className="mt-3 text-xs text-[var(--ink-muted)]">No external action has been sent. Generated {new Date(review.generatedAt).toLocaleString()}.</p></div></div></section> : null}
+      {error ? <p role="alert" className="rounded-[var(--radius-md)] border border-[var(--danger)]/30 bg-[var(--danger-soft)] px-4 py-3 text-sm text-[var(--danger)]">{error}</p> : null}
+      {review ? <section className="rounded-[var(--radius-lg)] border border-[var(--success)]/30 bg-[var(--success-soft)]/50 p-6 shadow-sm"><div className="flex items-start gap-3"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" /><div><p className="text-sm font-medium text-[var(--success)]">{review.status === "observed" ? "Check complete" : "Ready for review"}</p><h2 className="mt-1 text-xl font-semibold text-[var(--ink)]">{review.title}</h2><p className="mt-2 text-sm leading-6 text-[var(--ink-muted)]">{review.summary}</p><p className="mt-4 text-sm font-medium text-[var(--ink)]">Evidence Hodi would check</p><ul className="mt-2 flex flex-wrap gap-2">{review.evidence.map((item) => <li key={item} className="rounded-full border border-[var(--success)]/30 bg-[var(--surface-raised)] px-3 py-1 text-xs text-[var(--success)]">{item}</li>)}</ul><p className="mt-4 text-sm text-[var(--ink)]"><strong>Next step:</strong> {review.nextStep}</p><p className="mt-3 text-xs text-[var(--ink-muted)]">No external action has been sent. Generated {new Date(review.generatedAt).toLocaleString()}.</p></div></div></section> : null}
     </div>
   );
 }

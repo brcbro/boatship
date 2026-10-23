@@ -205,7 +205,7 @@ function AdminMessagesInner() {
       />
 
       {error ? (
-        <p role="alert" className="mb-4 rounded-md border border-[var(--danger)]/30 bg-[var(--danger)]/5 px-3 py-2 text-sm text-[var(--danger)]">
+        <p role="alert" className="mb-4 rounded-[var(--radius-sm)] border border-[var(--danger)]/30 bg-[var(--danger)]/5 px-3 py-2 text-sm text-[var(--danger)]">
           {error}
         </p>
       ) : null}
@@ -252,7 +252,7 @@ function AdminMessagesInner() {
           <Card className="flex min-h-[min(46rem,calc(100vh-15rem))] flex-col overflow-hidden p-0">
             <div className="flex flex-col gap-4 border-b border-[var(--border)] bg-[var(--surface)]/45 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex min-w-0 items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--brand)] text-sm font-semibold text-white" aria-hidden="true">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--brand)] text-sm font-semibold text-[var(--on-brand)]" aria-hidden="true">
                   {(selected?.name || "C").slice(0, 1).toUpperCase()}
                 </div>
                 <div className="min-w-0">
@@ -260,8 +260,8 @@ function AdminMessagesInner() {
                   <p className="truncate text-sm text-[var(--ink-muted)]">{selected?.name || "Client conversation"}</p>
                 </div>
               </div>
-              <span className="inline-flex shrink-0 items-center gap-2 self-start rounded-full border border-emerald-600/15 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-700 sm:self-auto">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+              <span className="inline-flex shrink-0 items-center gap-2 self-start rounded-full border border-emerald-600/15 bg-[var(--success-soft)] px-2.5 py-1 text-xs font-medium text-[var(--success)] sm:self-auto">
+                <span className="h-1.5 w-1.5 rounded-full bg-[var(--success)]" aria-hidden="true" />
                 {liveConnected ? "Live updates" : "Checking for updates"}
               </span>
             </div>
@@ -271,7 +271,7 @@ function AdminMessagesInner() {
                 <p className="py-12 text-center text-sm text-[var(--ink-muted)]">Loading conversation…</p>
               ) : messages.length === 0 ? (
                 <div className="mx-auto flex max-w-sm flex-col items-center py-12 text-center">
-                  <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--accent-soft)] text-[var(--brand)]"><MessageSquareText className="h-5 w-5" aria-hidden="true" /></div>
+                  <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--brand-soft)] text-[var(--brand)]"><MessageSquareText className="h-5 w-5" aria-hidden="true" /></div>
                   <p className="font-medium text-[var(--ink)]">Start a useful conversation</p>
                   <p className="mt-1 text-sm leading-6 text-[var(--ink-muted)]">Ask for the one detail or decision that will move this work forward.</p>
                 </div>
@@ -288,7 +288,7 @@ function AdminMessagesInner() {
                         {!mine && newAuthor ? <div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--surface-2)] text-[10px] font-semibold text-[var(--ink-muted)]" aria-hidden="true">{m.authorName.slice(0, 1).toUpperCase()}</div> : !mine ? <div className="w-7 shrink-0" /> : null}
                         <div className={cn("max-w-[min(85%,38rem)]", mine ? "items-end" : "items-start")}>
                           {newAuthor ? <p className={cn("mb-1 px-1 text-xs font-medium text-[var(--ink-muted)]", mine && "text-right")}>{mine ? "You" : m.authorName}{!mine && m.authorRole === "client" ? " · Client" : ""}</p> : null}
-                          <div className={cn("rounded-2xl px-3.5 py-2.5 text-sm leading-6 shadow-sm", mine ? "rounded-tr-md bg-[var(--brand)] text-white" : "rounded-tl-md border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--ink)]")}>
+                          <div className={cn("rounded-[var(--radius-lg)] px-3.5 py-2.5 text-sm leading-6 shadow-sm", mine ? "rounded-tr-md bg-[var(--brand)] text-[var(--on-brand)]" : "rounded-tl-md border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--ink)]")}>
                             <p className="whitespace-pre-wrap break-words">{m.body}</p>
                           </div>
                           <p className={cn("mt-1 px-1 text-[11px] text-[var(--ink-muted)]", mine && "text-right")}>{m.engagementId ? engagements.find((item) => item.id === m.engagementId)?.name || "Engagement" : "Account-wide"} · {formatDateTime(m.createdAt)}</p>
@@ -318,7 +318,7 @@ function AdminMessagesInner() {
               <div className="mt-5"><div className="mb-2 flex items-center justify-between text-sm"><span className="text-[var(--ink-muted)]">Account task completion</span><span className="font-semibold tabular-nums text-[var(--ink)]">{selected?.progress || 0}%</span></div><ProgressBar value={selected?.progress || 0} /><p className="mt-2 text-xs text-[var(--ink-muted)]">{selected?.completedTasks || 0} of {selected?.totalTasks || 0} tasks complete</p></div>
               <dl className="mt-5 space-y-3 border-t border-[var(--border)] pt-4 text-sm"><div className="flex items-start justify-between gap-3"><dt className="text-[var(--ink-muted)]">Onboarding stage</dt><dd className="text-right font-medium text-[var(--ink)]">{statusLabel(selected?.pipelineStage || "intake")}</dd></div><div className="flex items-start justify-between gap-3"><dt className="text-[var(--ink-muted)]">Owner</dt><dd className="text-right font-medium text-[var(--ink)]">{selected?.assignedTeamMemberName || "Unassigned"}</dd></div></dl>
             </Card>
-            <Card className="p-5"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--ink-muted)]">Conversation pulse</p><div className="mt-4 space-y-4"><div className="flex items-center gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--surface-2)] text-[var(--brand)]"><UserRound className="h-4 w-4" aria-hidden="true" /></div><div><p className="text-sm font-medium text-[var(--ink)]">{conversationMeta?.clientMessages || 0} client message{conversationMeta?.clientMessages === 1 ? "" : "s"}</p><p className="text-xs text-[var(--ink-muted)]">in this conversation</p></div></div><div className="flex items-center gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--surface-2)] text-[var(--brand)]"><CheckCheck className="h-4 w-4" aria-hidden="true" /></div><div><p className="text-sm font-medium text-[var(--ink)]">{conversationMeta ? "Thread active" : "No thread yet"}</p><p className="text-xs text-[var(--ink-muted)]">{conversationMeta ? `Last activity ${formatDate(conversationMeta.latest.createdAt)}` : "Send the opening note"}</p></div></div></div></Card>
+            <Card className="p-5"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--ink-muted)]">Conversation pulse</p><div className="mt-4 space-y-4"><div className="flex items-center gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--surface-2)] text-[var(--brand)]"><UserRound className="h-4 w-4" aria-hidden="true" /></div><div><p className="text-sm font-medium text-[var(--ink)]">{conversationMeta?.clientMessages || 0} client message{conversationMeta?.clientMessages === 1 ? "" : "s"}</p><p className="text-xs text-[var(--ink-muted)]">in this conversation</p></div></div><div className="flex items-center gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--surface-2)] text-[var(--brand)]"><CheckCheck className="h-4 w-4" aria-hidden="true" /></div><div><p className="text-sm font-medium text-[var(--ink)]">{conversationMeta ? "Thread active" : "No thread yet"}</p><p className="text-xs text-[var(--ink-muted)]">{conversationMeta ? `Last activity ${formatDate(conversationMeta.latest.createdAt)}` : "Send the opening note"}</p></div></div></div></Card>
             {selected?.tags?.length ? <Card className="p-5"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--ink-muted)]">Client labels</p><div className="mt-3 flex flex-wrap gap-1.5">{selected.tags.map((tag) => <span key={tag} className="rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-xs font-medium text-[var(--ink-muted)]">{tag}</span>)}</div></Card> : null}
           </aside>
         </div>

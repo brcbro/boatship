@@ -126,20 +126,35 @@ function LoginContent() {
         : "Your workspace for client accounts, engagements, and delivery.";
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-10">
+    <div className="grid min-h-dvh lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+      <aside className="relative hidden overflow-hidden bg-[var(--nav-bg)] p-10 text-[var(--nav-fg)] lg:flex lg:flex-col lg:justify-between" aria-hidden="true">
+        <div className="flex items-center gap-3">
+          <span className="grid h-10 w-10 place-items-center rounded-[11px] bg-[var(--accent)] font-[family-name:var(--font-display)] text-[22px] font-extrabold leading-none text-[var(--on-accent)]">b</span>
+          <Image src="/brand/boatship-logo-white.png" alt="" width={1432} height={370} className="h-6 w-auto" />
+        </div>
+        <div className="max-w-md">
+          <p className="font-[family-name:var(--font-display)] text-[clamp(2.4rem,4vw,3.6rem)] font-extrabold leading-[0.98] tracking-[-0.03em] text-[var(--nav-fg-strong)]">Every client, every next step, one place.</p>
+          <p className="mt-5 text-[15px] leading-7 text-[var(--nav-fg)]">Teams run onboarding and delivery here. Clients sign in to the same workspace and see exactly what is waiting for them.</p>
+        </div>
+        <p className="font-[family-name:var(--font-mono)] text-xs uppercase tracking-[0.12em] text-[var(--nav-fg)]/70">Boatship · Client OS</p>
+        <span className="pointer-events-none absolute -bottom-32 -right-24 h-[26rem] w-[26rem] rounded-full border-[28px] border-[var(--accent)]/25" />
+        <span className="pointer-events-none absolute -bottom-10 -right-6 h-[14rem] w-[14rem] rounded-full border-[18px] border-[var(--nav-fg-strong)]/12" />
+      </aside>
+      <div className="flex items-center justify-center px-4 py-10 sm:px-8">
       <div className="w-full max-w-md">
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--brand)] p-3 shadow-lg shadow-slate-900/10">
-            <Image src="/brand/boatship-b-white.png" alt="Boatship" width={56} height={56} className="h-full w-full object-contain" />
+        <div className="mb-8">
+          <div className="mb-5 flex items-center gap-2.5 lg:hidden">
+            <span aria-hidden="true" className="grid h-9 w-9 place-items-center rounded-[10px] bg-[var(--accent)] font-[family-name:var(--font-display)] text-[19px] font-extrabold leading-none text-[var(--on-accent)]">b</span>
+            <Image src="/brand/boatship-logo-black.png" alt="Boatship" width={1428} height={366} className="show-light h-5 w-auto" />
+            <Image src="/brand/boatship-logo-white.png" alt="" aria-hidden="true" width={1432} height={370} className="show-dark h-5 w-auto" />
           </div>
-          <h1 className="font-[family-name:var(--font-display)] text-4xl text-[var(--brand)]">
-            {title}
+          <h1 className="font-[family-name:var(--font-display)] text-[2.4rem] font-extrabold leading-[1.02] tracking-[-0.03em] text-[var(--ink)]">
+            {mode === "login" ? "Sign in" : title}
           </h1>
-          <p className="mt-2 text-sm text-[var(--ink-muted)]">{subtitle}</p>
-          <Link href="/" className="mt-4 inline-flex min-h-11 items-center text-sm font-medium text-[var(--ink-muted)] underline underline-offset-4 hover:text-[var(--ink)]">Back to Boatship home</Link>
+          <p className="mt-2 text-sm leading-6 text-[var(--ink-muted)]">{subtitle}</p>
         </div>
 
-        <Card>
+        <Card className="p-6">
           {mode === "login" ? (
             <form onSubmit={onLogin} className="space-y-4">
               <div>
@@ -154,7 +169,7 @@ function LoginContent() {
                 />
               </div>
               <div>
-                <div className="flex items-center justify-between gap-3"><Label htmlFor="password">Password</Label><button type="button" className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md px-2 text-sm font-medium text-[var(--ink-muted)] underline underline-offset-2 hover:text-[var(--ink)]" onClick={() => setShowPassword((value) => !value)} aria-controls="password" aria-pressed={showPassword} aria-label={showPassword ? "Hide password" : "Show password"}>{showPassword ? "Hide" : "Show"}</button></div>
+                <div className="flex items-center justify-between gap-3"><Label htmlFor="password">Password</Label><button type="button" className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-[var(--radius-sm)] px-2 text-sm font-medium text-[var(--ink-muted)] underline underline-offset-2 hover:text-[var(--ink)]" onClick={() => setShowPassword((value) => !value)} aria-controls="password" aria-pressed={showPassword} aria-label={showPassword ? "Hide password" : "Show password"}>{showPassword ? "Hide" : "Show"}</button></div>
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
@@ -164,14 +179,14 @@ function LoginContent() {
                   required
                 />
               </div>
-              {error ? <p role="alert" className="text-sm text-red-700">{error}</p> : null}
-              {success ? <p role="status" className="text-sm text-emerald-700">{success}</p> : null}
+              {error ? <p role="alert" className="text-sm text-[var(--danger)]">{error}</p> : null}
+              {success ? <p role="status" className="text-sm text-[var(--success)]">{success}</p> : null}
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Signing in…" : "Sign in"}
               </Button>
               <button
                 type="button"
-                className="min-h-11 w-full rounded-md px-3 text-center text-sm text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
+                className="min-h-11 w-full rounded-[var(--radius-md)] px-3 text-center text-sm text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
                 onClick={() => {
                   setError("");
                   setSuccess("");
@@ -196,14 +211,14 @@ function LoginContent() {
                   required
                 />
               </div>
-              {error ? <p role="alert" className="text-sm text-red-700">{error}</p> : null}
-              {success ? <p role="status" className="text-sm text-emerald-700">{success}</p> : null}
+              {error ? <p role="alert" className="text-sm text-[var(--danger)]">{error}</p> : null}
+              {success ? <p role="status" className="text-sm text-[var(--success)]">{success}</p> : null}
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Sending…" : "Send reset link"}
               </Button>
               <button
                 type="button"
-                className="min-h-11 w-full rounded-md px-3 text-center text-sm text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
+                className="min-h-11 w-full rounded-[var(--radius-md)] px-3 text-center text-sm text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
                 onClick={() => {
                   setError("");
                   setSuccess("");
@@ -218,7 +233,7 @@ function LoginContent() {
           {mode === "reset" ? (
             <form onSubmit={onReset} className="space-y-4">
               <div>
-                <div className="flex items-center justify-between gap-3"><Label htmlFor="new-password">New password</Label><button type="button" className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md px-2 text-sm font-medium text-[var(--ink-muted)] underline underline-offset-2 hover:text-[var(--ink)]" onClick={() => setShowPassword((value) => !value)} aria-controls="new-password confirm-password" aria-pressed={showPassword} aria-label={showPassword ? "Hide passwords" : "Show passwords"}>{showPassword ? "Hide" : "Show"}</button></div>
+                <div className="flex items-center justify-between gap-3"><Label htmlFor="new-password">New password</Label><button type="button" className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-[var(--radius-sm)] px-2 text-sm font-medium text-[var(--ink-muted)] underline underline-offset-2 hover:text-[var(--ink)]" onClick={() => setShowPassword((value) => !value)} aria-controls="new-password confirm-password" aria-pressed={showPassword} aria-label={showPassword ? "Hide passwords" : "Show passwords"}>{showPassword ? "Hide" : "Show"}</button></div>
                 <Input
                   id="new-password"
                   type={showPassword ? "text" : "password"}
@@ -241,14 +256,14 @@ function LoginContent() {
                   minLength={8}
                 />
               </div>
-              {error ? <p role="alert" className="text-sm text-red-700">{error}</p> : null}
-              {success ? <p role="status" className="text-sm text-emerald-700">{success}</p> : null}
+              {error ? <p role="alert" className="text-sm text-[var(--danger)]">{error}</p> : null}
+              {success ? <p role="status" className="text-sm text-[var(--success)]">{success}</p> : null}
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Saving…" : "Set password"}
               </Button>
               <button
                 type="button"
-                className="min-h-11 w-full rounded-md px-3 text-center text-sm text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
+                className="min-h-11 w-full rounded-[var(--radius-md)] px-3 text-center text-sm text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
                 onClick={() => {
                   setError("");
                   setSuccess("");
@@ -261,11 +276,13 @@ function LoginContent() {
           ) : null}
 
           {mode === "login" ? (
-            <p className="mt-6 text-center text-xs text-[var(--ink-muted)]">
+            <p className="mt-6 text-center text-xs leading-5 text-[var(--ink-muted)]">
               Use the account created by your workspace administrator, or request a password reset.
             </p>
           ) : null}
         </Card>
+        <Link href="/" className="mt-6 inline-flex min-h-11 items-center text-sm font-medium text-[var(--ink-muted)] underline underline-offset-4 hover:text-[var(--ink)]">Back to Boatship home</Link>
+      </div>
       </div>
     </div>
   );
@@ -275,7 +292,7 @@ export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center px-4 py-10">
+        <div className="flex min-h-dvh items-center justify-center px-4 py-10">
           <p className="text-sm text-[var(--ink-muted)]">Loading…</p>
         </div>
       }

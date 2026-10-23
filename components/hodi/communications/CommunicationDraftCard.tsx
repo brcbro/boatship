@@ -66,7 +66,7 @@ export function CommunicationDraftCard({ plan, onChange, onApprove, approving = 
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--ink-muted)]">Hodi communication draft</p>
           <h3 className="mt-1 font-semibold text-[var(--ink)]">{plan.client.companyName}</h3>
         </div>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-[#f3ead2] px-3 py-1 text-xs font-medium text-[var(--ink)]">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--warning-soft)] px-3 py-1 text-xs font-medium text-[var(--ink)]">
           {approved ? <CheckCircle2 className="h-3.5 w-3.5 text-[var(--success)]" /> : <ShieldAlert className="h-3.5 w-3.5 text-[var(--warning)]" />}
           {approved ? "Approved for handoff" : "Approval required"}
         </span>
@@ -76,7 +76,7 @@ export function CommunicationDraftCard({ plan, onChange, onApprove, approving = 
         <label className="grid gap-1.5 text-sm font-medium text-[var(--ink)]">
           Channel
           <span className="relative">
-            <select value={channel} onChange={(event) => update({ channel: event.target.value as HodiCommunicationChannel })} className="w-full appearance-none rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 pr-9 text-sm font-normal text-[var(--ink)]">
+            <select value={channel} onChange={(event) => update({ channel: event.target.value as HodiCommunicationChannel })} className="w-full appearance-none rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 pr-9 text-sm font-normal text-[var(--ink)]">
               {(Object.keys(channelLabels) as HodiCommunicationChannel[]).map((item) => <option key={item} value={item}>{channelLabels[item]}</option>)}
             </select>
             <ChannelIcon className="pointer-events-none absolute right-3 top-2.5 h-4 w-4 text-[var(--ink-muted)]" />
@@ -84,14 +84,14 @@ export function CommunicationDraftCard({ plan, onChange, onApprove, approving = 
         </label>
         <label className="grid gap-1.5 text-sm font-medium text-[var(--ink)]">
           Recipient
-          <input value={recipient} onChange={(event) => update({ recipient: event.target.value })} className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm font-normal text-[var(--ink)]" />
+          <input value={recipient} onChange={(event) => update({ recipient: event.target.value })} className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm font-normal text-[var(--ink)]" />
         </label>
       </div>
 
       {channel === "email" ? (
         <label className="grid gap-1.5 text-sm font-medium text-[var(--ink)]">
           Subject
-          <input value={subject} onChange={(event) => update({ subject: event.target.value })} className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm font-normal text-[var(--ink)]" />
+          <input value={subject} onChange={(event) => update({ subject: event.target.value })} className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm font-normal text-[var(--ink)]" />
         </label>
       ) : null}
 
@@ -104,11 +104,11 @@ export function CommunicationDraftCard({ plan, onChange, onApprove, approving = 
           onPointerDown={handleBodyPointerDown}
           onPointerUp={handleBodyPointerUp}
           rows={8}
-          className="max-h-[28rem] min-h-[12rem] resize-y rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm font-normal leading-6 text-[var(--ink)]"
+          className="max-h-[28rem] min-h-[12rem] resize-y rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm font-normal leading-6 text-[var(--ink)]"
         />
       </label>
 
-      <div className="flex gap-2 rounded-lg border border-[var(--warning)]/30 bg-[#f3ead2]/60 p-3 text-sm text-[var(--ink)]">
+      <div className="flex gap-2 rounded-[var(--radius-md)] border border-[var(--warning)]/30 bg-[var(--warning-soft)]/60 p-3 text-sm text-[var(--ink)]">
         <Unplug className="mt-0.5 h-4 w-4 shrink-0 text-[var(--warning)]" />
         <div><p className="font-medium">{plan.connection.required}</p><p className="mt-1 text-[var(--ink-muted)]">{plan.fallback}</p></div>
       </div>
