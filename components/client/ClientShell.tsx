@@ -201,7 +201,7 @@ function TabLink({ item, pathname }: { item: Item; pathname: string }) {
       aria-current={active ? "page" : undefined}
       className={cn("relative flex min-h-12 flex-col items-center justify-center gap-1 rounded-[var(--radius-md)] px-1 text-[11px] font-semibold transition-colors", active ? "text-[var(--brand)]" : "text-[var(--ink-muted)]")}
     >
-      {active ? <span aria-hidden="true" className="absolute top-0 h-[3px] w-6 rounded-b-full bg-[var(--accent)]" /> : null}
+      {active ? <span aria-hidden="true" className="absolute top-0 h-[3px] w-6 rounded-b-full bg-[var(--brand)]" /> : null}
       <Icon className="h-5 w-5" aria-hidden="true" strokeWidth={active ? 2.25 : 1.9} />
       <span>{item.label}</span>
     </Link>

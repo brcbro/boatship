@@ -59,7 +59,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   }, [open]);
 
   useEffect(() => {
-    setCollapsed(localStorage.getItem("boatship-sidebar-collapsed") === "true");
+    setCollapsed(localStorage.getItem("boatship-sidebar-collapsed") !== "false");
   }, []);
 
   function toggleSidebar() {
@@ -100,7 +100,6 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           active ? "bg-[var(--nav-active)] text-[var(--nav-fg-strong)]" : "text-[var(--nav-fg)] hover:bg-[var(--nav-hover)] hover:text-[var(--nav-fg-strong)]"
         )}
       >
-        {active ? <span aria-hidden="true" className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-[var(--accent)]" /> : null}
         <Icon className="h-4 w-4 shrink-0" aria-hidden="true" strokeWidth={active ? 2.25 : 1.9} />
         {compact ? <span className="sr-only">{item.label}</span> : <span className="truncate">{item.label}</span>}
       </Link>
@@ -152,7 +151,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           {compact ? <span className="sr-only">Settings</span> : "Settings"}
         </Link>
         <div className={cn("mt-2 flex items-center gap-2 rounded-[var(--radius-md)] px-1 py-1", compact && "justify-center")}>
-          <span aria-hidden="true" className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--accent)] bg-[image:var(--accent-gradient)] font-[family-name:var(--font-display)] text-[13px] font-bold text-[var(--on-accent)]">
+          <span aria-hidden="true" className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--nav-active)] font-[family-name:var(--font-display)] text-[13px] font-bold text-[var(--nav-fg-strong)]">
             {(session?.name || "S").trim().charAt(0).toUpperCase()}
           </span>
           {compact ? null : (
@@ -180,11 +179,15 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       </a>
 
       {/* Desktop rail */}
-      <aside className={cn("hidden shrink-0 flex-col bg-[var(--nav-bg)] py-4 text-[var(--nav-fg)] transition-[width] duration-200 lg:flex lg:overflow-y-auto lg:overscroll-contain", collapsed ? "w-[4.25rem] px-2.5" : "w-[15.5rem] px-3")}>
-        <div className={cn("mb-6 flex items-center", collapsed ? "justify-center" : "justify-between pl-2")}>
-          {collapsed ? null : (
+      <aside className={cn("hidden shrink-0 flex-col border-r border-[var(--nav-border)] bg-[var(--nav-bg)] py-4 text-[var(--nav-fg)] transition-[width] duration-200 lg:flex lg:overflow-y-auto lg:overscroll-contain", collapsed ? "w-[4.25rem] px-2.5" : "w-[15.5rem] px-3")}>
+        <div className={cn("mb-6 flex items-center", collapsed ? "flex-col gap-2" : "justify-between pl-2")}>
+          {collapsed ? (
+            <Link href="/dashboard" className="grid h-9 w-9 place-items-center rounded-full bg-[var(--accent)] bg-[image:var(--accent-gradient)]" aria-label="Boatship home">
+              <Image src="/brand/boatship-b-white.png" width={64} height={64} alt="" aria-hidden="true" className="h-4 w-4 object-contain" />
+            </Link>
+          ) : (
             <Link href="/dashboard" className="flex items-center gap-2.5" aria-label="Boatship home">
-              <Image src="/brand/boatship-logo-white.png" width={1432} height={370} alt="Boatship" className="h-6 w-auto max-w-[8.5rem] object-contain" />
+              <Image src="/brand/boatship-logo-black.png" width={1428} height={366} alt="Boatship" className="show-light h-6 w-auto max-w-[8.5rem] object-contain" /><Image src="/brand/boatship-logo-white.png" width={1432} height={370} alt="" aria-hidden="true" className="show-dark h-6 w-auto max-w-[8.5rem] object-contain" />
             </Link>
           )}
           <button type="button" onClick={toggleSidebar} aria-label={collapsed ? "Expand navigation" : "Collapse navigation"} title={collapsed ? "Expand navigation" : "Collapse navigation"} className="grid h-9 w-9 place-items-center rounded-[var(--radius-md)] text-[var(--nav-fg)] hover:bg-[var(--nav-hover)] hover:text-[var(--nav-fg-strong)]">
@@ -215,14 +218,14 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           <button
             type="button"
             onClick={() => openCommandPalette()}
-            className="ml-auto flex h-10 w-10 items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--ink-muted)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--ink)] sm:ml-0 sm:w-auto sm:min-w-[18rem] sm:justify-start sm:px-3 lg:max-w-[26rem] lg:flex-1"
+            className="ml-auto flex h-10 w-10 items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-2)] text-sm text-[var(--ink-muted)] transition-colors hover:bg-[var(--border)] hover:text-[var(--ink)] sm:w-auto sm:min-w-[18rem] sm:justify-start sm:px-3 lg:w-[22rem]"
             aria-label="Search or jump to a page"
           >
             <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span className="hidden flex-1 text-left sm:inline">Search clients, tasks, documents…</span>
             <span className="hidden items-center gap-1 sm:inline-flex"><Kbd>⌘</Kbd><Kbd>K</Kbd></span>
           </button>
-          <div className="ml-auto flex items-center gap-1">
+          <div className="flex items-center gap-1">
             {isAgentWorkspace ? null : <HodiDrawerButton open={hodiOpen} onClick={() => setHodiOpen((value) => !value)} buttonRef={hodiButtonRef} />}
             <ThemeToggle />
             <NotificationBell tone="light" />
@@ -235,7 +238,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             <button type="button" aria-label="Close menu overlay" className="absolute inset-0 bg-[var(--scrim)]" onClick={() => setOpen(false)} />
             <aside id="admin-mobile-menu" ref={drawerRef} role="dialog" aria-modal="true" aria-label="Navigation menu" className="absolute inset-y-0 left-0 flex w-[min(18rem,calc(100vw-3rem))] flex-col overflow-y-auto bg-[var(--nav-bg)] px-3 py-4 text-[var(--nav-fg)] shadow-[var(--shadow-pop)]">
               <div className="mb-6 flex items-center justify-between pl-2">
-                <Image src="/brand/boatship-logo-white.png" width={1432} height={370} alt="Boatship" className="h-6 w-auto max-w-[8rem] object-contain" />
+                <Image src="/brand/boatship-logo-black.png" width={1428} height={366} alt="Boatship" className="show-light h-6 w-auto max-w-[8rem] object-contain" /><Image src="/brand/boatship-logo-white.png" width={1432} height={370} alt="" aria-hidden="true" className="show-dark h-6 w-auto max-w-[8rem] object-contain" />
                 <button ref={closeButtonRef} type="button" aria-label="Close" className="grid h-10 w-10 place-items-center rounded-[var(--radius-md)] hover:bg-[var(--nav-hover)]" onClick={() => setOpen(false)}>
                   <X className="h-5 w-5" />
                 </button>
