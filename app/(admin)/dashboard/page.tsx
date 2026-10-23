@@ -246,14 +246,14 @@ export default function DashboardPage() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-0 text-left text-sm sm:min-w-[640px]">
-              <thead className="bg-[var(--surface-2)] text-xs uppercase tracking-wide text-[var(--ink-muted)]">
+              <thead className="text-[11px] uppercase tracking-[0.08em] text-[var(--ink-faint)]">
                 <tr>
-                  <th className="px-4 py-2.5 font-medium">Name</th>
-                  <th className="hidden px-4 py-2.5 font-medium sm:table-cell">Company</th>
-                  <th className="px-4 py-2.5 font-medium">Status</th>
-                  <th className="hidden px-4 py-2.5 font-medium md:table-cell">Onboarding health</th>
-                  <th className="px-4 py-2.5 font-medium">Progress</th>
-                  <th className="hidden px-4 py-2.5 font-medium sm:table-cell">Updated</th>
+                  <th className="px-4 py-2.5 font-semibold">Name</th>
+                  <th className="hidden px-4 py-2.5 font-semibold sm:table-cell">Company</th>
+                  <th className="px-4 py-2.5 font-semibold">Status</th>
+                  <th className="hidden px-4 py-2.5 font-semibold md:table-cell">Onboarding health</th>
+                  <th className="px-4 py-2.5 font-semibold">Progress</th>
+                  <th className="hidden px-4 py-2.5 font-semibold sm:table-cell">Updated</th>
                 </tr>
               </thead>
               <tbody>

@@ -474,9 +474,9 @@ export default function ClientsPage() {
         <Card className="overflow-hidden p-0">
           <div className="overflow-x-auto">
             <table className="w-full min-w-0 text-left text-sm sm:min-w-[680px] lg:min-w-[900px]">
-              <thead className="bg-[var(--surface-2)] text-[var(--ink-muted)]">
+              <thead className="text-[11px] uppercase tracking-[0.08em] text-[var(--ink-faint)]">
                 <tr>
-                  <th className="px-5 py-3 font-medium">
+                  <th className="px-5 py-3 font-semibold">
                     <input
                       type="checkbox"
                       checked={allSelected}
@@ -485,16 +485,16 @@ export default function ClientsPage() {
                       onClick={(e) => e.stopPropagation()}
                     />
                   </th>
-                  <th className="px-5 py-3 font-medium">Name</th>
-                  <th className="hidden px-5 py-3 font-medium sm:table-cell">Company</th>
-                  <th className="px-5 py-3 font-medium">Onboarding status</th>
-                  <th className="hidden px-5 py-3 font-medium xl:table-cell">Onboarding health</th>
-                  <th className="hidden px-5 py-3 font-medium lg:table-cell">Tags</th>
-                  <th className="hidden px-5 py-3 font-medium md:table-cell">Assignee</th>
-                  <th className="hidden px-5 py-3 font-medium lg:table-cell">Vessels</th>
-                  <th className="hidden px-5 py-3 font-medium sm:table-cell">All task progress</th>
-                  <th className="hidden px-5 py-3 font-medium lg:table-cell">Updated</th>
-                  <th className="px-5 py-3 font-medium" />
+                  <th className="px-5 py-3 font-semibold">Name</th>
+                  <th className="hidden px-5 py-3 font-semibold sm:table-cell">Company</th>
+                  <th className="px-5 py-3 font-semibold">Onboarding status</th>
+                  <th className="hidden px-5 py-3 font-semibold xl:table-cell">Onboarding health</th>
+                  <th className="hidden px-5 py-3 font-semibold lg:table-cell">Tags</th>
+                  <th className="hidden px-5 py-3 font-semibold md:table-cell">Assignee</th>
+                  <th className="hidden px-5 py-3 font-semibold lg:table-cell">Vessels</th>
+                  <th className="hidden px-5 py-3 font-semibold sm:table-cell">All task progress</th>
+                  <th className="hidden px-5 py-3 font-semibold lg:table-cell">Updated</th>
+                  <th className="px-5 py-3 font-semibold" />
                 </tr>
               </thead>
               <tbody>

@@ -839,6 +839,7 @@ function ClientDetailInner() {
         }
       >
         <Tabs
+          variant="pills"
           ariaLabel="Client record sections"
           pathname={`/clients/${id}?tab=${tab}`}
           items={TABS.map(([value, label]) => ({ href: `/clients/${id}?tab=${value}`, label, exact: true, count: value === "forms" ? forms.filter((form) => form.status === "submitted").length || undefined : value === "documents" ? documents.filter((document) => document.status === "pending_review").length || undefined : undefined }))}
@@ -1488,15 +1489,15 @@ function ClientDetailInner() {
               <Card className="hidden overflow-hidden p-0 sm:block">
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[720px] text-left text-sm">
-                  <thead className="bg-[var(--surface-2)] text-[var(--ink-muted)]">
+                  <thead className="text-[11px] uppercase tracking-[0.08em] text-[var(--ink-faint)]">
                     <tr>
-                      <th className="px-5 py-3 font-medium">Name</th>
-                      <th className="px-5 py-3 font-medium">IMO</th>
-                      <th className="px-5 py-3 font-medium">Flag</th>
-                      <th className="px-5 py-3 font-medium">Type</th>
-                      <th className="px-5 py-3 font-medium">Class society</th>
-                      <th className="px-5 py-3 font-medium">Notes</th>
-                      <th className="px-5 py-3 font-medium" />
+                      <th className="px-5 py-3 font-semibold">Name</th>
+                      <th className="px-5 py-3 font-semibold">IMO</th>
+                      <th className="px-5 py-3 font-semibold">Flag</th>
+                      <th className="px-5 py-3 font-semibold">Type</th>
+                      <th className="px-5 py-3 font-semibold">Class society</th>
+                      <th className="px-5 py-3 font-semibold">Notes</th>
+                      <th className="px-5 py-3 font-semibold" />
                     </tr>
                   </thead>
                   <tbody>

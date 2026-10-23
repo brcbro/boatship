@@ -358,11 +358,11 @@ export default function AnalyticsPage() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-0 text-left text-sm">
-              <thead className="bg-[var(--surface-2)] text-[var(--ink-muted)]">
+              <thead className="text-[11px] uppercase tracking-[0.08em] text-[var(--ink-faint)]">
                 <tr>
-                  <th className="px-5 py-3 font-medium">Task</th>
-                  <th className="hidden px-5 py-3 font-medium sm:table-cell">Client</th>
-                  <th className="px-5 py-3 font-medium">Due</th>
+                  <th className="px-5 py-3 font-semibold">Task</th>
+                  <th className="hidden px-5 py-3 font-semibold sm:table-cell">Client</th>
+                  <th className="px-5 py-3 font-semibold">Due</th>
                 </tr>
               </thead>
               <tbody>

@@ -194,7 +194,7 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold leading-5 tracking-[0.01em]",
+        "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold leading-5 tracking-[0.01em] before:h-1.5 before:w-1.5 before:shrink-0 before:rounded-full before:bg-current before:content-['']",
         tone === "neutral" && "bg-[var(--surface-2)] text-[var(--ink-muted)]",
         tone === "success" && "bg-[var(--success-soft)] text-[var(--success)]",
         tone === "warning" && "bg-[var(--warning-soft)] text-[var(--warning)]",
@@ -274,11 +274,12 @@ export function SectionHeading({ title, action, id, className }: { title: ReactN
 
 export type TabItem = { href: string; label: string; count?: number; exact?: boolean };
 
-/** Horizontal link tabs for record pages. Underline marks the current one. */
-export function Tabs({ items, pathname, ariaLabel }: { items: TabItem[]; pathname: string; ariaLabel: string }) {
+/** Horizontal link tabs. `underline` marks the current one with a rule; `pills` sets it as a filled pill on a track (record pages). */
+export function Tabs({ items, pathname, ariaLabel, variant = "underline" }: { items: TabItem[]; pathname: string; ariaLabel: string; variant?: "underline" | "pills" }) {
+  const pills = variant === "pills";
   return (
-    <nav aria-label={ariaLabel} className="-mx-1 overflow-x-auto">
-      <ul className="flex min-w-max gap-1 border-b border-[var(--border)] px-1">
+    <nav aria-label={ariaLabel} className={cn("overflow-x-auto", pills ? "pb-3" : "-mx-1")}>
+      <ul className={cn("flex min-w-max", pills ? "gap-1 rounded-full bg-[var(--surface-2)] p-1" : "gap-1 border-b border-[var(--border)] px-1")}>
         {items.map((item) => {
           const active = item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (
@@ -289,12 +290,14 @@ export function Tabs({ items, pathname, ariaLabel }: { items: TabItem[]; pathnam
                 scroll={false}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "-mb-px inline-flex min-h-11 items-center gap-2 border-b-2 px-3 text-sm font-semibold transition-colors",
-                  active ? "border-[var(--accent)] text-[var(--ink)]" : "border-transparent text-[var(--ink-muted)] hover:border-[var(--border-strong)] hover:text-[var(--ink)]"
+                  "inline-flex items-center gap-2 text-sm font-semibold transition-colors",
+                  pills
+                    ? cn("min-h-9 rounded-full px-3.5", active ? "bg-[var(--brand)] text-[var(--on-brand)]" : "text-[var(--ink-muted)] hover:bg-[var(--brand-soft)] hover:text-[var(--ink)]")
+                    : cn("-mb-px min-h-11 border-b-2 px-3", active ? "border-[var(--accent)] text-[var(--ink)]" : "border-transparent text-[var(--ink-muted)] hover:border-[var(--border-strong)] hover:text-[var(--ink)]")
                 )}
               >
                 {item.label}
-                {typeof item.count === "number" ? <span className="rounded-full bg-[var(--surface-2)] px-1.5 text-[11px] tabular-nums text-[var(--ink-muted)]">{item.count}</span> : null}
+                {typeof item.count === "number" ? <span className={cn("rounded-full px-1.5 text-[11px] tabular-nums", pills && active ? "bg-[var(--on-brand)]/15 text-[var(--on-brand)]" : "bg-[var(--surface-raised)] text-[var(--ink-muted)]")}>{item.count}</span> : null}
               </Link>
             </li>
           );
