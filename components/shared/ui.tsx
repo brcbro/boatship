@@ -145,12 +145,18 @@ export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElemen
   return <div className={cn("rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-raised)] p-5 shadow-[var(--shadow-card)]", className)} {...props} />;
 }
 
-/** A compact figure with a label. Use only when the figures are the point of the screen. */
+/**
+ * A compact figure with a label. Use only when the figures are the point of the screen.
+ * `marker` is a small colour block that identifies the metric (chart series 1 to 4), never its state;
+ * `delta` is the change line under the figure, green up or red down.
+ */
 export function StatTile({
   label,
   value,
   detail,
   tone = "neutral",
+  marker,
+  delta,
   href,
   className,
 }: {
@@ -158,13 +164,24 @@ export function StatTile({
   value: ReactNode;
   detail?: ReactNode;
   tone?: "neutral" | "brand" | "accent" | "danger" | "success" | "warning";
+  marker?: 1 | 2 | 3 | 4;
+  delta?: { value: ReactNode; direction: "up" | "down" | "flat" };
   href?: string;
   className?: string;
 }) {
   const body = (
     <>
-      <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--ink-muted)]">{label}</p>
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--ink-muted)]">{label}</p>
+        {marker ? <span aria-hidden="true" className={cn("mt-0.5 h-2.5 w-2.5 shrink-0 rounded-[3px]", marker === 1 && "bg-[var(--chart-1)]", marker === 2 && "bg-[var(--chart-2)]", marker === 3 && "bg-[var(--chart-3)]", marker === 4 && "bg-[var(--chart-4)]")} /> : null}
+      </div>
       <p className="mt-2 font-[family-name:var(--font-display)] text-[2rem] font-bold leading-none tracking-[-0.02em] tabular-nums text-[var(--ink)]">{value}</p>
+      {delta ? (
+        <p className={cn("mt-2 inline-flex items-center gap-1 text-xs font-semibold tabular-nums", delta.direction === "up" && "text-[var(--success)]", delta.direction === "down" && "text-[var(--danger)]", delta.direction === "flat" && "text-[var(--ink-muted)]")}>
+          <span aria-hidden="true">{delta.direction === "up" ? "↑" : delta.direction === "down" ? "↓" : "→"}</span>
+          {delta.value}
+        </p>
+      ) : null}
       {detail ? <p className="mt-2 text-xs text-[var(--ink-muted)]">{detail}</p> : null}
     </>
   );

@@ -9,6 +9,7 @@ import {
   Card,
   EmptyState,
   PageHeader,
+  StatTile,
 } from "@/components/shared/ui";
 import { apiFetch } from "@/lib/api-client";
 import { formatDateTime, statusLabel } from "@/lib/utils";
@@ -233,48 +234,13 @@ export default function AnalyticsPage() {
       ) : null}
 
       <div className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Card>
-          <p className="text-sm text-[var(--ink-muted)]">Total clients</p>
-          <p className="mt-2 font-[family-name:var(--font-display)] text-3xl">
-            {analytics?.totalClients ?? 0}
-          </p>
-        </Card>
-        <Card>
-          <p className="text-sm text-[var(--ink-muted)]">Active engagements</p>
-          <p className="mt-2 font-[family-name:var(--font-display)] text-3xl">
-            {analytics?.activeEngagements ?? 0}
-          </p>
-        </Card>
-        <Card>
-          <p className="text-sm text-[var(--ink-muted)]">Overdue tasks</p>
-          <p className="mt-2 font-[family-name:var(--font-display)] text-3xl">
-            {analytics?.overdueTasks ?? 0}
-          </p>
-        </Card>
-        <Card>
-          <p className="text-sm text-[var(--ink-muted)]">Approx. onboarding days</p>
-          <p className="mt-2 font-[family-name:var(--font-display)] text-3xl">
-            {analytics?.avgOnboardingDays ?? 0}
-          </p>
-        </Card>
-        <Card>
-          <p className="text-sm text-[var(--ink-muted)]">Team members</p>
-          <p className="mt-2 font-[family-name:var(--font-display)] text-3xl">
-            {analytics?.teamCount ?? "—"}
-          </p>
-        </Card>
-        <Card>
-          <p className="text-sm text-[var(--ink-muted)]">Avg tasks completed</p>
-          <p className="mt-2 font-[family-name:var(--font-display)] text-3xl">
-            {analytics?.avgTasksCompleted ?? 0}
-          </p>
-        </Card>
-        <Card>
-          <p className="text-sm text-[var(--ink-muted)]">Docs pending review</p>
-          <p className="mt-2 font-[family-name:var(--font-display)] text-3xl">
-            {analytics?.documentsPendingReview ?? 0}
-          </p>
-        </Card>
+        <StatTile label="Total clients" marker={1} value={analytics?.totalClients ?? 0} />
+        <StatTile label="Active engagements" marker={2} value={analytics?.activeEngagements ?? 0} />
+        <StatTile label="Overdue tasks" marker={4} value={analytics?.overdueTasks ?? 0} delta={analytics?.overdueTasks ? { value: "needs attention", direction: "down" } : { value: "nothing overdue", direction: "up" }} />
+        <StatTile label="Approx. onboarding days" marker={3} value={analytics?.avgOnboardingDays ?? 0} />
+        <StatTile label="Team members" marker={1} value={analytics?.teamCount ?? "—"} />
+        <StatTile label="Avg tasks completed" marker={2} value={analytics?.avgTasksCompleted ?? 0} />
+        <StatTile label="Docs pending review" marker={3} value={analytics?.documentsPendingReview ?? 0} />
       </div>
 
       <div className="mb-8 grid gap-6 lg:grid-cols-3">
