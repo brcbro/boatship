@@ -264,8 +264,8 @@ export default function AccountingPage() {
       </span>
     </Card>
 
-    {error ? <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p> : null}
-    {notice ? <p aria-live="polite" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{notice}</p> : null}
+    {error ? <p role="alert" className="rounded-[var(--radius-lg)] border border-[var(--danger)]/30 bg-[var(--danger-soft)] px-4 py-3 text-sm text-[var(--danger)]">{error}</p> : null}
+    {notice ? <p aria-live="polite" className="rounded-[var(--radius-lg)] border border-[var(--success)]/30 bg-[var(--success-soft)] px-4 py-3 text-sm text-[var(--success)]">{notice}</p> : null}
 
     <section aria-label="Monthly accounting summary" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {[
@@ -276,13 +276,13 @@ export default function AccountingPage() {
       ].map(({ label, value, icon: Icon }) => <Card key={label} className="p-5">
         <div className="flex items-start justify-between">
           <p className="text-sm text-[var(--ink-muted)]">{label}</p>
-          <Icon className="h-5 w-5 text-[var(--accent)]" aria-hidden="true" />
+          <Icon className="h-5 w-5 text-[var(--brand)]" aria-hidden="true" />
         </div>
         <p className="mt-3 font-[family-name:var(--font-display)] text-2xl font-semibold tabular-nums text-[var(--ink)]">{money.format(value)}</p>
       </Card>)}
     </section>
 
-    {draft ? <Card className="border-[var(--accent)]/35 p-5 sm:p-6">
+    {draft ? <Card className="border-[var(--brand)]/35 p-5 sm:p-6">
       <div className="mb-5 flex items-center justify-between gap-3">
         <div>
           <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--ink)]">{draft.editingId ? "Edit ledger entry" : "New expense"}</h2>
@@ -315,9 +315,9 @@ export default function AccountingPage() {
               {[
                 { value: "equal" as const, title: "Split equally", detail: "Divide it evenly between selected people", Icon: Equal },
                 { value: "specific" as const, title: "One person", detail: "Assign the full bill to a specific person", Icon: UserRound },
-              ].map(({ value, title, detail, Icon }) => <label key={value} className={`flex min-h-20 cursor-pointer items-start gap-3 rounded-xl border p-4 transition ${draft.splitMode === value ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border)] bg-[var(--surface-raised)] hover:border-[var(--accent)]/50"}`}>
+              ].map(({ value, title, detail, Icon }) => <label key={value} className={`flex min-h-20 cursor-pointer items-start gap-3 rounded-[var(--radius-lg)] border p-4 transition ${draft.splitMode === value ? "border-[var(--brand)] bg-[var(--brand-soft)]" : "border-[var(--border)] bg-[var(--surface-raised)] hover:border-[var(--brand)]/50"}`}>
                 <input type="radio" name="split-mode" value={value} checked={draft.splitMode === value} onChange={() => setDraft({ ...draft, splitMode: value })} className="mt-1" />
-                <Icon className="mt-0.5 h-5 w-5 shrink-0 text-[var(--accent)]" aria-hidden="true" />
+                <Icon className="mt-0.5 h-5 w-5 shrink-0 text-[var(--brand)]" aria-hidden="true" />
                 <span><span className="block font-medium text-[var(--ink)]">{title}</span><span className="mt-1 block text-xs text-[var(--ink-muted)]">{detail}</span></span>
               </label>)}
             </div>
@@ -327,7 +327,7 @@ export default function AccountingPage() {
         {draft.splitMode === "equal" ? <fieldset>
           <legend className="mb-2 text-sm font-medium text-[var(--ink)]">Who is included?</legend>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {people.map((person) => <label key={person.uid} className="flex min-h-12 cursor-pointer items-center gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 transition hover:border-[var(--accent)]/50">
+            {people.map((person) => <label key={person.uid} className="flex min-h-12 cursor-pointer items-center gap-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 transition hover:border-[var(--brand)]/50">
               <input type="checkbox" checked={draft.participantIds.includes(person.uid)} onChange={() => toggleParticipant(person.uid)} />
               <span className="min-w-0"><span className="block truncate text-sm font-medium text-[var(--ink)]">{person.name}</span>{previewAmounts.has(person.uid) ? <span className="block text-xs tabular-nums text-[var(--ink-muted)]">{money.format(previewAmounts.get(person.uid) || 0)} each</span> : null}</span>
             </label>)}
@@ -342,7 +342,7 @@ export default function AccountingPage() {
 
         {activePersonIds.length > 0 && Number(draft.amount) > 0 ? <fieldset>
           <legend className="mb-2 text-sm font-medium text-[var(--ink)]">Payment status</legend>
-          <div className="overflow-hidden rounded-xl border border-[var(--border)]">
+          <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border)]">
             {activePersonIds.map((personId) => {
               const person = people.find((item) => item.uid === personId);
               const payer = personId === draft.paidById;
@@ -381,7 +381,7 @@ export default function AccountingPage() {
           <div className="border-t border-[var(--border)] bg-[var(--surface)]/50 px-5 py-3">
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{entry.splits.map((allocation) => {
               const settled = allocation.paidAmount >= allocation.amount;
-              return <div key={allocation.id} className="rounded-lg bg-[var(--surface-raised)] px-3 py-2 text-sm"><div className="flex items-center justify-between gap-2"><span className="font-medium text-[var(--ink)]">{allocation.personName}</span><Badge tone={settled ? "success" : "warning"}>{settled ? "Settled" : "Owes"}</Badge></div><p className="mt-1 tabular-nums text-[var(--ink-muted)]">{money.format(allocation.amount)}</p></div>;
+              return <div key={allocation.id} className="rounded-[var(--radius-md)] bg-[var(--surface-raised)] px-3 py-2 text-sm"><div className="flex items-center justify-between gap-2"><span className="font-medium text-[var(--ink)]">{allocation.personName}</span><Badge tone={settled ? "success" : "warning"}>{settled ? "Settled" : "Owes"}</Badge></div><p className="mt-1 tabular-nums text-[var(--ink-muted)]">{money.format(allocation.amount)}</p></div>;
             })}</div>
           </div>
         </Card>)}

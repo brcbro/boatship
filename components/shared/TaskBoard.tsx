@@ -289,13 +289,13 @@ export function TaskBoard({
             aria-label={task.status === "completed" ? `Reopen ${task.title}` : blocked ? `Complete ${task.title}. Waiting on ${waitingOn.join(", ")}` : `Complete ${task.title}`}
             title={task.status === "completed" ? `Reopen ${task.title}` : blocked ? `Complete ${waitingOn.join(", ")} first` : `Mark ${task.title} complete`}
             onClick={(e) => void toggleComplete(task, e)}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md disabled:cursor-not-allowed sm:h-9 sm:w-9"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-sm)] disabled:cursor-not-allowed sm:h-9 sm:w-9"
           >
             <span
             className={cn(
               "flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border transition",
               task.status === "completed"
-                ? "border-[var(--brand)] bg-[var(--brand)] text-white"
+                ? "border-[var(--brand)] bg-[var(--brand)] text-[var(--on-brand)]"
                 : blocked
                   ? "cursor-not-allowed border-[var(--border)] bg-[var(--surface-2)] opacity-60"
                   : "border-[var(--border)] bg-[var(--surface-raised)] hover:border-[var(--ink)]"
@@ -334,13 +334,13 @@ export function TaskBoard({
             {completedCount}/{tasks.length} done
           </span>
           <span className="text-[var(--border)]">·</span>
-          <div className="inline-flex rounded-md border border-[var(--border)] bg-[var(--surface-raised)] p-0.5">
+          <div className="inline-flex rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-raised)] p-0.5">
             <button
               type="button"
               className={cn(
                 "min-h-9 rounded px-2.5 py-1 text-xs font-medium transition max-sm:min-h-11",
                 viewMode === "list"
-                  ? "bg-[var(--brand)] text-white"
+                  ? "bg-[var(--brand)] text-[var(--on-brand)]"
                   : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
               )}
               onClick={() => setViewMode("list")}
@@ -352,7 +352,7 @@ export function TaskBoard({
               className={cn(
                 "min-h-9 rounded px-2.5 py-1 text-xs font-medium transition max-sm:min-h-11",
                 viewMode === "kanban"
-                  ? "bg-[var(--brand)] text-white"
+                  ? "bg-[var(--brand)] text-[var(--on-brand)]"
                   : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
               )}
               onClick={() => setViewMode("kanban")}
@@ -361,13 +361,13 @@ export function TaskBoard({
             </button>
           </div>
           {viewMode === "list" ? (
-            <div className="inline-flex rounded-md border border-[var(--border)] bg-[var(--surface-raised)] p-0.5">
+            <div className="inline-flex rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-raised)] p-0.5">
               <button
                 type="button"
                 className={cn(
                   "min-h-9 rounded px-2.5 py-1 text-xs font-medium transition max-sm:min-h-11",
                   groupBy === "section"
-                    ? "bg-[var(--brand)] text-white"
+                    ? "bg-[var(--brand)] text-[var(--on-brand)]"
                     : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
                 )}
                 onClick={() => setGroupBy("section")}
@@ -379,7 +379,7 @@ export function TaskBoard({
                 className={cn(
                   "min-h-9 rounded px-2.5 py-1 text-xs font-medium transition max-sm:min-h-11",
                   groupBy === "status"
-                    ? "bg-[var(--brand)] text-white"
+                    ? "bg-[var(--brand)] text-[var(--on-brand)]"
                     : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
                 )}
                 onClick={() => setGroupBy("status")}
@@ -424,7 +424,7 @@ export function TaskBoard({
           {kanbanColumns.map((col) => (
             <section
               key={col.status}
-              className="flex w-[82vw] max-w-80 shrink-0 snap-start flex-col rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/50 sm:w-64"
+              className="flex w-[82vw] max-w-80 shrink-0 snap-start flex-col rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-2)]/50 sm:w-64"
             >
               <header className="flex items-center justify-between gap-2 border-b border-[var(--border)] px-2.5 py-2">
                 <span className="text-xs font-semibold uppercase tracking-wide text-[var(--ink)]">
@@ -446,7 +446,7 @@ export function TaskBoard({
                           type="button"
                           onClick={() => setOpenId(task.id)}
                           className={cn(
-                            "w-full rounded-md border border-[var(--border)] bg-[var(--surface-raised)] p-2.5 text-left transition hover:border-[var(--ink-muted)]",
+                            "w-full rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-raised)] p-2.5 text-left transition hover:border-[var(--ink-muted)]",
                             openId === task.id && "ring-1 ring-[var(--brand)]"
                           )}
                         >
@@ -486,7 +486,7 @@ export function TaskBoard({
             return (
               <section
                 key={group.key}
-                className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-raised)]"
+                className="overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-raised)]"
               >
                 <button
                   type="button"
@@ -752,7 +752,7 @@ export function TaskDetailModal({
       {!task ? null : (
         <div className="space-y-4">
           {blocked ? (
-            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            <p className="rounded-[var(--radius-sm)] border border-[var(--warning)]/30 bg-[var(--warning-soft)] px-3 py-2 text-sm text-[var(--warning)]">
               Blocked by incomplete dependencies
               {incompleteDeps.length
                 ? `: ${incompleteDeps.map((d) => d.title).join(", ")}`
@@ -806,7 +806,7 @@ export function TaskDetailModal({
                   }}
                 />
               ) : (
-                <p className="rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--ink)]">
+                <p className="rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--ink)]">
                   {formatDate(task.dueDate)}
                 </p>
               )}
@@ -872,7 +872,7 @@ export function TaskDetailModal({
                     id={`${fieldId}-dependencies`}
                     multiple
                     disabled={busy || !canEdit}
-                    className="mt-1 min-h-[5.5rem] w-full rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-2 py-1.5 text-sm text-[var(--ink)]"
+                    className="mt-1 min-h-[5.5rem] w-full rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-raised)] px-2 py-1.5 text-sm text-[var(--ink)]"
                     value={task.dependsOnTaskIds || []}
                     onChange={(e) => {
                       const selected = Array.from(e.target.selectedOptions).map((o) => o.value);
@@ -919,7 +919,7 @@ export function TaskDetailModal({
                 }}
               />
             ) : (
-              <p className="whitespace-pre-wrap rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--ink)]">
+              <p className="whitespace-pre-wrap rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--ink)]">
                 {task.description || "No description."}
               </p>
             )}
@@ -955,7 +955,7 @@ export function TaskDetailModal({
             {(task.subtasks?.length || 0) === 0 ? (
               <p className="mb-2 text-sm text-[var(--ink-muted)]">No subtasks yet.</p>
             ) : (
-              <ul className="mb-2 divide-y divide-[var(--border)] rounded-md border border-[var(--border)]">
+              <ul className="mb-2 divide-y divide-[var(--border)] rounded-[var(--radius-sm)] border border-[var(--border)]">
                 {task.subtasks.map((sub) => (
                   <li key={sub.id}>
                     <button
@@ -968,7 +968,7 @@ export function TaskDetailModal({
                         className={cn(
                           "flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border",
                           sub.completed
-                            ? "border-[var(--brand)] bg-[var(--brand)] text-white"
+                            ? "border-[var(--brand)] bg-[var(--brand)] text-[var(--on-brand)]"
                             : "border-[var(--border)] bg-[var(--surface-raised)]"
                         )}
                       >

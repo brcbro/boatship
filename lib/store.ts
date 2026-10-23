@@ -40,6 +40,7 @@ import { bumpRedisCacheVersion } from "@/lib/redis-cache";
 import { webhookRetry } from "@/lib/webhook-retry";
 import { DEFAULT_TEAM_PERMISSIONS } from "@/lib/rbac";
 import { getRequestStoreScope } from "@/lib/store-context";
+import { forgetUserSessions } from "@/lib/session-cache";
 import { applyFormSubmission, type FormSubmissionInput } from "@/lib/form-submission";
 import { applyDocumentUpload } from "@/lib/document-upload";
 
@@ -1533,9 +1534,51 @@ function serializeSlice(key: keyof StoreData, value: unknown): string {
   return json;
 }
 
-/** Reads one slice without loading the whole store (authorization hot path). */
+type SnapshotSlices = Map<string, DocSnapshot<SliceDoc>>;
+type SnapshotCache = { version: number; slices: SnapshotSlices };
+
+/**
+ * Per-runtime-instance copy of the slice documents, keyed by the client so
+ * tests that swap clients never share state. Only the raw JSON is cached:
+ * every request still parses its own copy, so callers may mutate what the
+ * store returns exactly as before. A request costs one meta read; the slices
+ * are fetched again only when the meta version moved, and then only those
+ * written since the cached version.
+ */
+const snapshotCaches = new WeakMap<object, SnapshotCache>();
+
+function rememberSnapshot(client: object, version: number, slices: SnapshotSlices) {
+  const current = snapshotCaches.get(client);
+  if (current && current.version >= version) return;
+  snapshotCaches.set(client, { version, slices });
+}
+
+/** Removes the cached slices for the active client; tests use it between fixtures. */
+export function resetSnapshotCache() {
+  snapshotCaches.delete(getFirestore());
+}
+
+async function loadSlices(reader: FirestoreReader): Promise<{ meta: DocSnapshot<MetaDoc> | null; slices: SnapshotSlices }> {
+  const client = getFirestore();
+  const meta = await reader.get<MetaDoc>(SNAPSHOT_COLLECTION, SNAPSHOT_META_ID);
+  const cached = snapshotCaches.get(client);
+  if (meta && cached && cached.version === meta.data.version) return { meta, slices: cached.slices };
+  if (meta && cached) {
+    const changed = await reader.query<SliceDoc>({ collection: SNAPSHOT_COLLECTION, where: [{ field: "version", op: ">", value: cached.version }] });
+    const slices: SnapshotSlices = new Map(cached.slices);
+    for (const doc of changed) if (doc.id !== SNAPSHOT_META_ID) slices.set(doc.id, doc);
+    rememberSnapshot(client, meta.data.version, slices);
+    return { meta, slices };
+  }
+  const slices = await reader.getMany<SliceDoc>(SNAPSHOT_COLLECTION, SLICE_KEYS.map(sliceId));
+  if (meta) rememberSnapshot(client, meta.data.version, slices);
+  return { meta, slices };
+}
+
+/** Reads one slice without parsing the whole store (authorization hot path). */
 export async function readSnapshotSlice<K extends keyof StoreData>(key: K): Promise<StoreData[K]> {
-  const doc = await getFirestore().get<SliceDoc>(SNAPSHOT_COLLECTION, sliceId(key));
+  const { slices } = await loadSlices(getFirestore());
+  const doc = slices.get(sliceId(key));
   if (!doc) return emptyStore()[key];
   return JSON.parse(doc.data.json) as StoreData[K];
 }
@@ -1619,12 +1662,14 @@ class FirestoreStore extends LocalStore {
   }
 
   override async upsertUser(user: AppUser) {
+    forgetUserSessions(user.uid);
     await this.upsertProfile(user);
     await this.syncLegacySnapshot(() => super.upsertUser(user));
     return user;
   }
 
   override async deleteUser(uid: string) {
+    forgetUserSessions(uid);
     await deleteWhere(NOTIFICATIONS.name, [{ field: "userId", op: "==", value: uid }]);
     await USER_PROFILES.delete(uid);
     await this.syncLegacySnapshot(() => super.deleteUser(uid));
@@ -1683,12 +1728,8 @@ class FirestoreStore extends LocalStore {
     return super.mutateProjectOps(fn);
   }
 
-  private async loadSnapshot(reader: FirestoreReader): Promise<{ data: StoreData; meta: DocSnapshot<MetaDoc> | null; slices: Map<string, DocSnapshot<SliceDoc>> }> {
-    const ids = [SNAPSHOT_META_ID, ...SLICE_KEYS.map(sliceId)];
-    const docs = await reader.getMany<SliceDoc & MetaDoc>(SNAPSHOT_COLLECTION, ids);
-    const meta = (docs.get(SNAPSHOT_META_ID) as DocSnapshot<MetaDoc> | undefined) || null;
-    const slices = docs as Map<string, DocSnapshot<SliceDoc>>;
-    slices.delete(SNAPSHOT_META_ID);
+  private async loadSnapshot(reader: FirestoreReader): Promise<{ data: StoreData; meta: DocSnapshot<MetaDoc> | null; slices: SnapshotSlices }> {
+    const { meta, slices } = await loadSlices(reader);
     return { data: parseSlices(slices), meta, slices };
   }
 
@@ -1710,10 +1751,16 @@ class FirestoreStore extends LocalStore {
       await ensureSeed(data);
       const result = await fn(data);
       const version = (meta?.data.version ?? 0) + 1;
-      for (const write of this.sliceWrites(slices, data, version)) tx.write(write);
+      const writes = this.sliceWrites(slices, data, version);
+      for (const write of writes) tx.write(write);
       tx.write({ set: { collection: SNAPSHOT_COLLECTION, id: SNAPSHOT_META_ID, data: { version, updatedAt: now() } } });
-      return { result, data };
+      return { result, data, version, writes, slices };
     }, { attempts: 12 });
+    // The committed slices are the newest state this instance knows, so the
+    // next request skips the slice reads unless another writer moved on.
+    const next: SnapshotSlices = new Map(committed.slices);
+    for (const write of committed.writes) if ("set" in write) next.set(write.set.id, { id: write.set.id, data: write.set.data as SliceDoc, updateTime: "" });
+    rememberSnapshot(getFirestore(), committed.version, next);
     this.cache = committed.data;
     await bumpRedisCacheVersion();
     return committed.result;

@@ -381,10 +381,10 @@ export default function TemplatesPage() {
       />
 
       {message ? (
-        <p className="mb-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{message}</p>
+        <p className="mb-4 rounded-[var(--radius-sm)] bg-[var(--success-soft)] px-3 py-2 text-sm text-[var(--success)]">{message}</p>
       ) : null}
       {error ? (
-        <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>
+        <p className="mb-4 rounded-[var(--radius-sm)] bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger)]">{error}</p>
       ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
@@ -395,7 +395,7 @@ export default function TemplatesPage() {
                 <button
                   type="button"
                   onClick={() => selectTemplate(t)}
-                  className={`w-full rounded-md px-3 py-2.5 text-left text-sm transition ${
+                  className={`w-full rounded-[var(--radius-sm)] px-3 py-2.5 text-left text-sm transition ${
                     !creating && selectedId === t.id
                       ? "bg-[var(--surface-2)] font-medium text-[var(--ink)]"
                       : "text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
@@ -479,7 +479,7 @@ export default function TemplatesPage() {
                 </div>
 
                 {taskList.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--ink-muted)]">
+                  <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--ink-muted)]">
                     No tasks yet.
                     {canEdit ? " Add a task to get started." : ""}
                   </div>
@@ -496,7 +496,7 @@ export default function TemplatesPage() {
                             {group.items.length}
                           </span>
                         </div>
-                        <ul className="overflow-hidden rounded-lg border border-[var(--border)]">
+                        <ul className="overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)]">
                           {group.items.map(({ task, index }, rowIdx) => {
                             const formName = task.formTemplateId
                               ? formNameById.get(task.formTemplateId)
@@ -603,7 +603,7 @@ export default function TemplatesPage() {
               <Button
                 type="button"
                 variant="ghost"
-                className="mr-auto text-[var(--danger)] hover:bg-[#f3e0e0] hover:text-[var(--danger)]"
+                className="mr-auto text-[var(--danger)] hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]"
                 onClick={() => {
                   if (modalIndex !== null) removeTaskRow(modalIndex);
                 }}
@@ -711,7 +711,7 @@ export default function TemplatesPage() {
             </div>
 
             <div className="md:col-span-2">
-              <label className="flex cursor-pointer items-center gap-2.5 rounded-md border border-[var(--border)] bg-[var(--surface)]/50 px-3 py-2.5">
+              <label className="flex cursor-pointer items-center gap-2.5 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface)]/50 px-3 py-2.5">
                 <input
                   type="checkbox"
                   className="h-4 w-4 accent-[var(--brand)]"

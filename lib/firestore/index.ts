@@ -1,20 +1,39 @@
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { serviceAccountFromEnv, sharedTokenProvider } from "@/lib/google-auth";
 import { RestFirestore } from "./client";
+import { PostgresFirestore } from "./postgres";
 import type { FirestoreClient, FsData, Precondition, QuerySpec, Where, OrderBy, DocSnapshot } from "./types";
 
 export * from "./types";
 export { MemoryFirestore } from "./memory";
 export { RestFirestore } from "./client";
+export { PostgresFirestore } from "./postgres";
 
 let override: FirestoreClient | null = null;
 let shared: { key: string; client: FirestoreClient } | null = null;
 
 /**
- * Hosted persistence is Firestore whenever Firebase credentials (or the
- * emulator) are configured. ALLOW_LOCAL_STORE keeps the file-based demo.
+ * Hosted persistence is PostgreSQL (DATABASE_URL, the ClickHouse Cloud
+ * Postgres service) or, for the emulator-backed tests and as a fallback,
+ * Firestore. ALLOW_LOCAL_STORE keeps the file-based demo.
  */
 export function isHostedStore(env: Record<string, string | undefined> = process.env): boolean {
-  return Boolean(override) || Boolean(env.FIRESTORE_EMULATOR_HOST?.trim()) || Boolean(env.FIREBASE_SERVICE_ACCOUNT?.trim());
+  return Boolean(override) || Boolean(env.FIRESTORE_EMULATOR_HOST?.trim()) || Boolean(databaseUrl(env)) || Boolean(env.FIREBASE_SERVICE_ACCOUNT?.trim());
+}
+
+/**
+ * On Cloudflare the HYPERDRIVE binding supplies the connection string
+ * (Hyperdrive pools connections and terminates TLS to the origin, whose
+ * certificate is privately signed). Elsewhere DATABASE_URL connects directly.
+ */
+export function databaseUrl(env: Record<string, string | undefined> = process.env): string | undefined {
+  if (env === process.env) {
+    try {
+      const binding = (getCloudflareContext().env as { HYPERDRIVE?: { connectionString?: string } }).HYPERDRIVE;
+      if (binding?.connectionString) return binding.connectionString;
+    } catch { /* Not running under OpenNext (next dev, tests, scripts). */ }
+  }
+  return env.DATABASE_URL?.trim() || undefined;
 }
 
 export function isLocalDemoStore(env: Record<string, string | undefined> = process.env): boolean {
@@ -31,8 +50,15 @@ export function getFirestore(env: Record<string, string | undefined> = process.e
     if (shared?.key !== key) shared = { key, client: new RestFirestore({ projectId, database, host: emulator.startsWith("http") ? emulator : `http://${emulator}` }) };
     return shared.client;
   }
+  const url = databaseUrl(env);
+  if (url) {
+    const table = env.DATABASE_TABLE?.trim() || undefined;
+    const key = `postgres:${url}:${table || ""}`;
+    if (shared?.key !== key) shared = { key, client: new PostgresFirestore({ url, table }) };
+    return shared.client;
+  }
   const account = serviceAccountFromEnv(env);
-  if (!account) throw new Error("Firestore is not configured. Set FIREBASE_SERVICE_ACCOUNT (and FIREBASE_CLIENT_EMAIL for a bare key), or ALLOW_LOCAL_STORE=1 for the local demo.");
+  if (!account) throw new Error("The database is not configured. Set DATABASE_URL (PostgreSQL), FIREBASE_SERVICE_ACCOUNT for Firestore, or ALLOW_LOCAL_STORE=1 for the local demo.");
   const key = `hosted:${account.projectId}:${account.clientEmail}:${database}`;
   if (shared?.key !== key) shared = { key, client: new RestFirestore({ projectId: account.projectId, database, tokens: sharedTokenProvider(account) }) };
   return shared.client;

@@ -9,6 +9,7 @@ import {
   SESSION_COOKIE,
   encodeLocalSession,
 } from "@/lib/session";
+import { cacheSession, forgetSession, forgetUserSessions, getCachedSession } from "@/lib/session-cache";
 
 export { SESSION_COOKIE, encodeLocalSession };
 
@@ -31,7 +32,9 @@ export async function createDatabaseSession(session: AuthSession) {
 
 export async function revokeDatabaseSession(token: string | null | undefined) {
   if (!token) return;
-  await AUTH_SESSIONS.delete(tokenHash(token));
+  const hash = tokenHash(token);
+  forgetSession(hash);
+  await AUTH_SESSIONS.delete(hash);
 }
 
 /** Active sessions for a user, newest first. */
@@ -44,12 +47,19 @@ export async function listDatabaseSessions(userId: string) {
 export async function revokeOtherDatabaseSessions(userId: string, keepTokenHash?: string | null) {
   const records = await AUTH_SESSIONS.find([{ field: "userId", op: "==", value: userId }]);
   const targets = records.filter((record) => record.tokenHash !== keepTokenHash);
-  for (const record of targets) await AUTH_SESSIONS.delete(record.tokenHash);
+  for (const record of targets) {
+    forgetSession(record.tokenHash);
+    await AUTH_SESSIONS.delete(record.tokenHash);
+  }
   return targets.length;
 }
 
 async function getDatabaseSession(token: string): Promise<AuthSession | null> {
-  const record = await AUTH_SESSIONS.get(tokenHash(token));
+  const hash = tokenHash(token);
+  const cached = getCachedSession(hash);
+  if (cached) return cached;
+
+  const record = await AUTH_SESSIONS.get(hash);
   if (!record) return null;
   if (new Date(record.expiresAt).getTime() <= Date.now()) {
     await revokeDatabaseSession(token);
@@ -58,7 +68,7 @@ async function getDatabaseSession(token: string): Promise<AuthSession | null> {
 
   const user = await (await getStore()).getUser(record.userId);
   if (!user || user.mustResetPassword || isUnsafeDemoUser(user)) return null;
-  return {
+  const session: AuthSession = {
     uid: user.uid,
     email: user.email,
     name: user.name,
@@ -66,6 +76,13 @@ async function getDatabaseSession(token: string): Promise<AuthSession | null> {
     clientId: user.clientId,
     permissions: user.permissions,
   };
+  cacheSession(hash, session);
+  return session;
+}
+
+/** Call after a user's role, permissions, password or existence changed. */
+export function invalidateUserSessions(userId: string) {
+  forgetUserSessions(userId);
 }
 
 export async function verifyIdToken(idToken: string): Promise<AuthSession | null> {

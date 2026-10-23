@@ -26,7 +26,7 @@ const ALLOWED_TYPES = new Set([
   "image/jpg",
   "image/webp",
 ]);
-const MAX_BYTES = 10 * 1024 * 1024;
+const MAX_BYTES = 25 * 1024 * 1024;
 type Engagement = { id: string; name: string; status: string };
 
 function docStatusTone(status: string): "neutral" | "success" | "warning" | "danger" | "info" {
@@ -62,7 +62,7 @@ function validateFile(file: File): string | null {
     return "File type must be pdf, png, jpg, jpeg, or webp.";
   }
   if (file.size > MAX_BYTES) {
-    return "File size must be 10MB or less.";
+    return "File size must be 25MB or less.";
   }
   return null;
 }
@@ -242,12 +242,12 @@ function DocumentsPageInner() {
       />
 
       {error ? (
-        <p role="alert" className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+        <p role="alert" className="mb-4 rounded-[var(--radius-sm)] border border-[var(--danger)]/30 bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger)]">
           {error}
         </p>
       ) : null}
       {success ? (
-        <p role="status" className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+        <p role="status" className="mb-4 rounded-[var(--radius-sm)] border border-[var(--success)]/30 bg-[var(--success-soft)] px-3 py-2 text-sm text-[var(--success)]">
           {success}
         </p>
       ) : null}
@@ -279,7 +279,7 @@ function DocumentsPageInner() {
               required
             />
             <p id="document-file-help" className="mt-1 text-xs text-[var(--ink-muted)]">
-              Accepted: pdf, png, jpg, jpeg, webp · Max 10MB
+              Accepted: pdf, png, jpg, jpeg, webp · Max 25MB
             </p>
           </div>
 

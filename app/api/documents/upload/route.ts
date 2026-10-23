@@ -4,7 +4,7 @@ import { requireSession } from "@/lib/auth";
 import { canAccessClient } from "@/lib/client-access";
 import { getStore } from "@/lib/store";
 import { documentMetadata } from "@/lib/document-response";
-import { decodeDocumentUpload, DocumentInputError, DOCUMENT_MAX_BYTES } from "@/lib/document-files";
+import { decodeDocumentUpload, DocumentInputError, DOCUMENT_MAX_BYTES, DOCUMENT_MAX_LABEL } from "@/lib/document-files";
 import { saveDocumentContent, removeUnreferencedDocumentContent } from "@/lib/document-content";
 import { validateResourceEngagement } from "@/lib/engagement-resources";
 
@@ -13,7 +13,7 @@ export const runtime = "nodejs";
 export async function POST(req: Request) {
   return handleApi(async () => {
     const session = await requireSession(req);
-    if (Number(req.headers.get("content-length")) > Math.ceil(DOCUMENT_MAX_BYTES / 3) * 4 + 8192) throw jsonError("File size must be 10MB or less", 413);
+    if (Number(req.headers.get("content-length")) > Math.ceil(DOCUMENT_MAX_BYTES / 3) * 4 + 8192) throw jsonError(`File size must be ${DOCUMENT_MAX_LABEL} or less`, 413);
     const body = await req.json().catch(() => null) as Record<string, unknown> | null;
     if (!body || typeof body !== "object" || Array.isArray(body)) throw jsonError("Provide a valid file upload.", 400);
     if (typeof body.clientId !== "string" || !body.clientId.trim()) throw jsonError("clientId is required", 400);

@@ -7,7 +7,8 @@ import { withRequestStoreScope } from "../lib/store-context.ts";
 process.env.ALLOW_LOCAL_STORE = "0";
 process.env.NODE_ENV = "test";
 
-const { getStore, readSnapshotSlice } = await import("../lib/store.ts");
+const { getStore, readSnapshotSlice, resetSnapshotCache } = await import("../lib/store.ts");
+const { clearSessionCache } = await import("../lib/session-cache.ts");
 const { consumeRateLimit } = await import("../lib/rate-limit.ts");
 const { createDatabaseSession, verifyIdToken, revokeOtherDatabaseSessions, listDatabaseSessions } = await import("../lib/auth.ts");
 const { ENGAGEMENTS } = await import("../lib/engagements.ts");
@@ -15,8 +16,63 @@ const { ENGAGEMENTS } = await import("../lib/engagements.ts");
 function fresh() {
   const db = new MemoryFirestore();
   setFirestoreForTests(db);
+  resetSnapshotCache();
+  clearSessionCache();
   return db;
 }
+
+/** Counts slice fetches so the tests can show when the cache is used. */
+function countingDb() {
+  const db = fresh();
+  const counts = { getMany: 0, query: 0 };
+  const getMany = db.getMany.bind(db);
+  const query = db.query.bind(db);
+  db.getMany = async (collection, ids) => { if (collection === "StoreSnapshot") counts.getMany += 1; return getMany(collection, ids); };
+  db.query = async (spec) => { if (spec.collection === "StoreSnapshot") counts.query += 1; return query(spec); };
+  return { db, counts };
+}
+
+test("the snapshot is cached per instance by meta version and refreshed only for changed slices", async () => {
+  const { db, counts } = countingDb();
+  const client = await withRequestStoreScope(async () => (await getStore()).createClient({ name: "Cache", companyName: "Cache Co", primaryContactEmail: "c@example.com", templateId: null, assignedTeamMemberId: null }));
+  const after = { ...counts };
+  // A later request with nothing committed in between reads only the meta document.
+  const again = await withRequestStoreScope(async () => (await getStore()).getClient(client.id));
+  assert.equal(again?.name, "Cache");
+  assert.deepEqual(counts, after, "no slice fetch while the meta version is unchanged");
+  assert.equal((await readSnapshotSlice("clients")).length, 1);
+  assert.deepEqual(counts, after, "slice reads come from the cache too");
+
+  // A write from another instance (direct to the collection) bumps the version, and only that slice is fetched.
+  const meta = await db.get("StoreSnapshot", "main");
+  const version = meta.data.version + 1;
+  const tasks = JSON.stringify([{ id: "t_external", clientId: client.id, title: "External", status: "todo", order: 1, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" }]);
+  await db.commit([
+    { set: { collection: "StoreSnapshot", id: "main:tasks", data: { json: tasks, version } } },
+    { set: { collection: "StoreSnapshot", id: "main", data: { version, updatedAt: new Date().toISOString() } } },
+  ]);
+  const seen = await withRequestStoreScope(async () => (await getStore()).listTasks(client.id));
+  assert.equal(seen.map((task) => task.id).join(","), "t_external");
+  assert.equal(counts.getMany, after.getMany, "the full slice set is not reloaded");
+  assert.equal(counts.query, after.query + 1, "one query fetches the slices written since the cached version");
+  // Mutating what a request returned never leaks into the next request.
+  seen[0].title = "Changed locally";
+  const fresh2 = await withRequestStoreScope(async () => (await getStore()).listTasks(client.id));
+  assert.equal(fresh2[0].title, "External");
+});
+
+test("verified sessions are memoised briefly and dropped when the user or session changes", async () => {
+  fresh();
+  const store = await getStore();
+  await store.upsertUser({ uid: "m1", email: "m@example.com", name: "M", role: "team", clientId: null, createdAt: new Date().toISOString(), permissions: ["clients.view"] });
+  const token = await createDatabaseSession({ uid: "m1", email: "m@example.com", name: "M", role: "team", clientId: null, permissions: ["clients.view"] });
+  assert.equal((await verifyIdToken(token))?.role, "team");
+  await store.upsertUser({ uid: "m1", email: "m@example.com", name: "M", role: "admin", clientId: null, createdAt: new Date().toISOString(), permissions: [] });
+  assert.equal((await verifyIdToken(token))?.role, "admin", "a user change is visible on the next verification");
+  const { revokeDatabaseSession } = await import("../lib/auth.ts");
+  await revokeDatabaseSession(token);
+  assert.equal(await verifyIdToken(token), null, "a revoked session is not served from the memo");
+});
 
 test("the hosted store persists slices with a version and reads them back fresh per request", async () => {
   const db = fresh();

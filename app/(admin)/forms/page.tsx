@@ -303,10 +303,10 @@ export default function FormsAdminPage() {
       />
 
       {message ? (
-        <p className="mb-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{message}</p>
+        <p className="mb-4 rounded-[var(--radius-sm)] bg-[var(--success-soft)] px-3 py-2 text-sm text-[var(--success)]">{message}</p>
       ) : null}
       {error && !modalOpen ? (
-        <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>
+        <p className="mb-4 rounded-[var(--radius-sm)] bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger)]">{error}</p>
       ) : null}
 
       {templates.length === 0 ? (
@@ -408,7 +408,7 @@ export default function FormsAdminPage() {
         }
       >
         {error && modalOpen ? (
-          <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>
+          <p className="mb-4 rounded-[var(--radius-sm)] bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger)]">{error}</p>
         ) : null}
 
         <form id="form-template-editor" onSubmit={(e) => void onSave(e)} className="space-y-4">
@@ -509,7 +509,7 @@ export default function FormsAdminPage() {
                   {editor.fields.map((field, index) => (
                     <li
                       key={field.uid}
-                      className="rounded-md border border-[var(--border)] bg-[var(--surface-2)]/40 p-3"
+                      className="rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-2)]/40 p-3"
                     >
                       <div className="mb-2 flex items-center justify-between gap-2">
                         <span className="text-xs font-medium text-[var(--ink-muted)]">

@@ -10,7 +10,7 @@ import type { DocumentRecord, DocumentVersion } from "@/types";
 const localDirectory = path.join(process.cwd(), ".data", "document-content");
 const relational = () => isHostedStore();
 
-/** Firestore caps a document at 1 MiB; larger files need the object store. */
+/** Only the Firestore fallback stores bytes inline; it caps a document at 1 MiB. */
 const INLINE_BYTES_LIMIT = 900_000;
 
 export type DocumentContentDoc = {
@@ -19,8 +19,9 @@ export type DocumentContentDoc = {
 export const DOCUMENT_CONTENT = new Collection<DocumentContentDoc>("DocumentContent");
 
 /**
- * Hosted bytes live in Firebase Storage when its secrets are configured and
- * inline in the DocumentContent document otherwise (small files only). The
+ * Hosted bytes live in the object store (the PostgreSQL blob table, or
+ * Firebase Storage for the Firestore fallback) and inline in the
+ * DocumentContent document only when neither exists (small files only). The
  * document is the ownership record either way, so reads always authorize
  * through the database before touching the object.
  */
@@ -29,7 +30,7 @@ export async function saveDocumentContent(documentId: string, clientId: string, 
   if (relational()) {
     const objects = getDocumentObjectStore();
     const objectKey = objects ? documentObjectKey(clientId, documentId, id) : null;
-    if (!objects && bytes.length > INLINE_BYTES_LIMIT) throw new Error("Files over 900 KB need Firebase Storage. Set FIREBASE_STORAGE_BUCKET.");
+    if (!objects && bytes.length > INLINE_BYTES_LIMIT) throw new Error("Files over 900 KB need an object store: PostgreSQL (DATABASE_URL) or Firebase Storage (FIREBASE_STORAGE_BUCKET).");
     if (objects && objectKey) await objects.put(objectKey, bytes, contentType);
     try {
       await DOCUMENT_CONTENT.create(id, { id, documentId, clientId, contentType, size: bytes.length, bytes: objectKey ? null : Uint8Array.from(bytes), objectKey, createdAt: nowIso() });
@@ -51,7 +52,7 @@ export async function readDocumentContent(document: DocumentRecord, version: Doc
       if (!content || content.documentId !== document.id || content.clientId !== document.clientId) return null;
       if (content.objectKey) {
         const objects = getDocumentObjectStore();
-        if (!objects) { console.error("Document bytes are in object storage but Firebase Storage is not configured"); return null; }
+        if (!objects) { console.error("Document bytes are in object storage but no object store is configured"); return null; }
         return objects.get(content.objectKey);
       }
       return content.bytes ? Uint8Array.from(content.bytes) : null;
@@ -96,7 +97,7 @@ export async function deleteDocumentObjects(keys: string[]) {
  */
 export async function migrateDocumentContentToObjects(limit = 5, objects: DocumentObjectStore | null = getDocumentObjectStore()) {
   if (!relational()) throw new Error("Document content migration requires the hosted store.");
-  if (!objects) throw new Error("Firebase Storage is not configured.");
+  if (!objects) throw new Error("No object store is configured.");
   const batch = Math.max(1, Math.min(20, Math.floor(limit)));
   const pending = [{ field: "objectKey", op: "is-null" } as const];
   const rows = (await DOCUMENT_CONTENT.find(pending, { orderBy: [{ field: "createdAt" }], limit: batch })).filter((row) => row.bytes);

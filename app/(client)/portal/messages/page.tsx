@@ -169,13 +169,13 @@ function PortalMessagesInner() {
       {error ? (
         <p
           role="alert"
-          className="mb-4 rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/5 px-4 py-3 text-sm text-[var(--danger)]"
+          className="mb-4 rounded-[var(--radius-lg)] border border-[var(--danger)]/30 bg-[var(--danger)]/5 px-4 py-3 text-sm text-[var(--danger)]"
         >
           {error}
         </p>
       ) : null}
       {loading ? (
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-raised)] px-5 py-12 text-center text-sm text-[var(--ink-muted)]">
+        <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-raised)] px-5 py-12 text-center text-sm text-[var(--ink-muted)]">
           Loading your conversation…
         </div>
       ) : !clientId ? (
@@ -188,7 +188,7 @@ function PortalMessagesInner() {
           <header className="flex flex-col gap-4 border-b border-[var(--border)] bg-[var(--surface)]/45 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <div className="flex min-w-0 items-center gap-3">
               <div
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--brand)] text-white shadow-[0_8px_18px_rgba(20,43,53,0.14)]"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--brand)] text-[var(--on-brand)] shadow-[0_8px_18px_rgba(20,43,53,0.14)]"
                 aria-hidden="true"
               >
                 <MessageCircle className="h-5 w-5" />
@@ -204,11 +204,11 @@ function PortalMessagesInner() {
             </div>
             <span
               role="status"
-              className="inline-flex w-fit items-center gap-2 rounded-full border border-emerald-700/15 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-800"
+              className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--success)]/30 bg-[var(--success-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--success)]"
             >
               <span className="relative flex h-2 w-2" aria-hidden="true">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-60 motion-reduce:hidden" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-600" />
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--success)] opacity-60 motion-reduce:hidden" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--success)]" />
               </span>
               {liveConnected ? "Live updates on" : "Checking for updates"}
             </span>
@@ -221,7 +221,7 @@ function PortalMessagesInner() {
             {messages.length === 0 ? (
               <div className="flex min-h-64 flex-col items-center justify-center px-5 text-center">
                 <div
-                  className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--accent-soft)] text-[var(--brand)]"
+                  className="flex h-12 w-12 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--brand-soft)] text-[var(--brand)]"
                   aria-hidden="true"
                 >
                   <Sparkles className="h-5 w-5" />
@@ -264,7 +264,7 @@ function PortalMessagesInner() {
                           >
                             {!mine ? (
                               <div
-                                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-xs font-bold text-[var(--brand)]"
+                                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--brand-soft)] text-xs font-bold text-[var(--brand)]"
                                 aria-hidden="true"
                               >
                                 {message.authorName.charAt(0).toUpperCase()}
@@ -278,9 +278,9 @@ function PortalMessagesInner() {
                               ) : null}
                               <div
                                 className={cn(
-                                  "rounded-2xl px-3.5 py-2.5 text-sm leading-6 shadow-sm",
+                                  "rounded-[var(--radius-lg)] px-3.5 py-2.5 text-sm leading-6 shadow-sm",
                                   mine
-                                    ? "rounded-br-md bg-[var(--brand)] text-white"
+                                    ? "rounded-br-md bg-[var(--brand)] text-[var(--on-brand)]"
                                     : "rounded-bl-md border border-[var(--border)]/80 bg-[var(--surface-raised)] text-[var(--ink)]",
                                 )}
                               >

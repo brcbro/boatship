@@ -5,7 +5,7 @@ Shared workspace for client accounts and their engagements. Staff manage work, d
 ## Stack
 
 - Next.js (App Router) + Tailwind CSS
-- Firebase: Firestore for application data, users, sessions, and integration ownership; Firebase Storage for document files
+- PostgreSQL on ClickHouse Cloud for application data, users, sessions, integration ownership (JSON documents in one table) and document file bytes (a bytea blob table); Firebase Storage and Firestore remain only as fallbacks
 - Zoho CPaaS / ZeptoMail or Resend for transactional email (local demo logs to console without a provider; hosted mode requires a provider key and verified sender)
 - Composio for 250+ app integrations (Slack, Gmail, Drive, HubSpot, …)
 - Cloudflare Worker via OpenNext (`@opennextjs/cloudflare`)
@@ -36,8 +36,8 @@ Hosted email delivery uses `ZEPTOMAIL_API_KEY` and a verified general-purpose `Z
 
 ## Environment
 
-Copy `.env.example` to `.env.local` and set `FIREBASE_SERVICE_ACCOUNT` (the service-account JSON, or its PEM key with `FIREBASE_CLIENT_EMAIL`) and `FIREBASE_STORAGE_BUCKET`. Firestore needs no schema migration; collections are created on first write, and `npm run firestore:indexes` creates any composite index listed in `firestore.indexes.json`. The application refuses to use the local file store unless `ALLOW_LOCAL_STORE=1` is explicitly set for demo-only work.
-Keep demo data in explicit `ALLOW_LOCAL_STORE=1` mode. The old `db:import-local` shortcut is retired because it could replace populated data and import fixed demo credentials; see the [operations runbooks](docs/operations/README.md) before planning a reviewed data migration. Operator scripts run with `node --import tsx` (for example `node --import tsx scripts/provision-first-admin.mjs --expect-project boatship-main`).
+Copy `.env.example` to `.env.local` and set `DATABASE_URL` (the PostgreSQL connection string). On Cloudflare the Worker reaches the database through a Hyperdrive binding instead (see [docs/cloudflare-secrets.md](docs/cloudflare-secrets.md)). Files are stored in the database too, so no Firebase variables are needed; they only matter for the Firestore fallback. The database needs no schema migration; the `documents` and `documents_blobs` tables are created on first use. The application refuses to use the local file store unless `ALLOW_LOCAL_STORE=1` is explicitly set for demo-only work.
+Keep demo data in explicit `ALLOW_LOCAL_STORE=1` mode. The old `db:import-local` shortcut is retired because it could replace populated data and import fixed demo credentials; see the [operations runbooks](docs/operations/README.md) before planning a reviewed data migration. Operator scripts run with `node --import tsx` (for example `node --import tsx scripts/provision-first-admin.mjs --expect-project <postgres host from DATABASE_URL>`).
 
 Passwords are stored as scrypt hashes, and login sessions are opaque database records with hashed tokens.
 
@@ -69,10 +69,13 @@ bytes stay in the `DocumentContent` row. The server uses the service account dir
 batches with `POST /api/internal/document-content-migrate?limit=5` using the `x-boatship-cron-secret`
 header; repeat until the response reports `remaining: 0`.
 
-### Firestore access and tests
+### Database access and tests
 
-The Worker reaches Firestore through its REST API with a short-lived service-account token, so no
-Firebase SDK runs on Cloudflare. `npm run test:e2e` and `npm run local-qa` start the Firestore
+All data access goes through the storage interface in `lib/firestore/`, implemented for PostgreSQL
+(`DATABASE_URL`, production), the Firestore REST API (fallback and emulator tests), and memory.
+`npm run test:postgres` runs the storage contract against `DATABASE_URL` in a scratch table, and
+`npm run test:e2e:postgres` runs the end-to-end suite the same way with `QA_DATABASE_URL` set.
+`npm run test:e2e` and `npm run local-qa` start the Firestore
 emulator (Java 11+ required) and seed an isolated fixture; `npm run test:firestore` runs the client
 contract against the emulator. Run `npm run cf:dry-run` before deployment to build the OpenNext
 output, prune unused static assets, and validate the Worker without uploading it.
@@ -94,4 +97,4 @@ pages continue using their polling fallback.
 
 ## Security rules
 
-Server API routes enforce RBAC. Each authenticated Boatship user gets an isolated Composio user namespace (`boatship_<userId>`), and connected-account ownership is also recorded in Firestore.
+Server API routes enforce RBAC. Each authenticated Boatship user gets an isolated Composio user namespace (`boatship_<userId>`), and connected-account ownership is also recorded in the database.

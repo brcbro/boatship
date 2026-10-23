@@ -114,8 +114,8 @@ export function DocumentViewer({ document: record, token, canReplace = false, on
     if (!file) return;
     const extension = file.name.split(".").pop()?.toLowerCase() || "";
     const contentType = file.type || ({ pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp" } as Record<string, string>)[extension];
-    if (!PREVIEW_TYPES.has(contentType) || file.size === 0 || file.size > 10 * 1024 * 1024) {
-      setUploadError("Choose a PDF, PNG, JPG, or WebP file under 10 MB.");
+    if (!PREVIEW_TYPES.has(contentType) || file.size === 0 || file.size > 25 * 1024 * 1024) {
+      setUploadError("Choose a PDF, PNG, JPG, or WebP file under 25 MB.");
       return;
     }
     setUploading(true);
@@ -150,7 +150,7 @@ export function DocumentViewer({ document: record, token, canReplace = false, on
       {version !== "" ? <p className="text-sm text-[var(--ink-muted)]">A previous version is selected. Review status and replacement apply to the current file.</p> : null}
       {notice ? <p role="status" className="text-sm text-[var(--success)]">{notice}</p> : null}
       {error ? <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-[var(--danger)]"><p>{error}</p>{expanded ? <Button type="button" variant="secondary" size="sm" onClick={() => setRetry((value) => value + 1)}>Try preview again</Button> : null}</div> : null}
-      {expanded ? <section id={`${id}-preview`} aria-label={`Preview of ${chosen?.fileName || record.fileName}`} aria-busy={loading} className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)]">
+      {expanded ? <section id={`${id}-preview`} aria-label={`Preview of ${chosen?.fileName || record.fileName}`} aria-busy={loading} className="overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)]">
         <p className="border-b border-[var(--border)] px-3 py-2 text-sm break-words text-[var(--ink-muted)]">{chosen?.fileName || record.fileName}{version === "" ? " · Current file" : ` · Previous version ${Number(version) + 1}`}</p>
         {loading && !missingContent ? <div role="status" className="flex min-h-48 items-center justify-center px-4 text-sm text-[var(--ink-muted)]">Loading file preview…</div> : preview && !missingContent ? preview.contentType === "application/pdf" ? <><iframe src={preview.url} title={`PDF preview: ${chosen?.fileName || record.fileName}`} className="h-[min(60vh,560px)] min-h-72 w-full" /><p className="px-3 py-2 text-sm text-[var(--ink-muted)]">If your browser does not show the PDF, use Download to open it.</p></> : (
           // Blob URLs contain only the allowlisted image types returned by the authenticated content route.
@@ -159,7 +159,7 @@ export function DocumentViewer({ document: record, token, canReplace = false, on
         ) : null}
       </section> : null}
       {replacing && canReplace ? <form id={`${id}-replace`} onSubmit={(event) => void replace(event)} className="space-y-3 border-t border-[var(--border)] pt-3">
-        <div><Label htmlFor={`${id}-file`}>Replacement file</Label><Input id={`${id}-file`} type="file" accept={ACCEPT} required disabled={uploading} aria-describedby={`${id}-help`} onChange={(event) => setFile(event.target.files?.[0] || null)} /><p id={`${id}-help`} className="mt-1 text-sm text-[var(--ink-muted)]">PDF, PNG, JPG, or WebP · Max 10 MB. Replacing this file keeps its history and resets review status.</p></div>
+        <div><Label htmlFor={`${id}-file`}>Replacement file</Label><Input id={`${id}-file`} type="file" accept={ACCEPT} required disabled={uploading} aria-describedby={`${id}-help`} onChange={(event) => setFile(event.target.files?.[0] || null)} /><p id={`${id}-help`} className="mt-1 text-sm text-[var(--ink-muted)]">PDF, PNG, JPG, or WebP · Max 25 MB. Replacing this file keeps its history and resets review status.</p></div>
         {uploadError ? <p role="alert" className="text-sm text-[var(--danger)]">{uploadError}</p> : null}
         <div className="flex flex-wrap gap-2"><Button type="submit" size="sm" disabled={uploading || !file}>{uploading ? "Uploading replacement…" : "Upload replacement"}</Button><Button type="button" variant="ghost" size="sm" disabled={uploading} onClick={() => { setReplacing(false); setFile(null); }}>Cancel replacement</Button></div>
       </form> : null}

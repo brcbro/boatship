@@ -39,15 +39,15 @@ export function HodiDashboard() {
   return <div className="mx-auto max-w-7xl space-y-7">
     <PageHeader title="Hodi work queue" description="Review recommendations, approvals, reminders, and reports in one place." actions={<>
       <Button variant="secondary" onClick={() => void refresh()} disabled={loading}><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />{loading ? "Refreshing" : "Refresh queue"}</Button>
-      {!loading && counts.all > 0 ? <Link href="/agent" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--brand-strong)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)]">Chat with Hodi <ArrowRight className="h-4 w-4" /></Link> : null}
+      {!loading && counts.all > 0 ? <Link href="/agent" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--on-brand)] transition-colors hover:bg-[var(--brand-strong)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)]">Chat with Hodi <ArrowRight className="h-4 w-4" /></Link> : null}
     </>} />
-    {error ? <div role="alert" className="rounded-xl border border-[var(--warning)]/30 bg-[#f3ead2]/55 p-4 text-sm text-[var(--ink)]">{error} <button className="ml-2 underline underline-offset-2" onClick={() => void refresh()}>Try again</button></div> : null}
+    {error ? <div role="alert" className="rounded-[var(--radius-lg)] border border-[var(--warning)]/30 bg-[var(--warning-soft)]/55 p-4 text-sm text-[var(--ink)]">{error} <button className="ml-2 underline underline-offset-2" onClick={() => void refresh()}>Try again</button></div> : null}
     {loading ? <div role="status" className="flex items-center gap-3 py-12 text-sm text-[var(--ink-muted)]"><LoaderCircle className="h-5 w-5 animate-spin text-[var(--brand)]" />Loading Hodi work queue…</div> : null}
     {!loading && !error && counts.all === 0 ? <section className="mx-auto flex max-w-2xl flex-col items-center px-4 py-14 text-center sm:py-20">
-      <span className="mb-7 flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--accent-soft)] text-[var(--brand)]"><Sparkles className="h-7 w-7" /></span>
+      <span className="mb-7 flex h-14 w-14 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--brand-soft)] text-[var(--brand)]"><Sparkles className="h-7 w-7" /></span>
       <h2 className="font-[family-name:var(--font-display)] text-3xl text-[var(--ink)] sm:text-4xl">Your work queue is clear</h2>
       <p className="mt-3 max-w-prose text-base leading-7 text-[var(--ink-muted)]">When Hodi has recommendations, approvals, reminders, or reports for you, they&apos;ll appear here. Open a conversation to ask about your workspace or plan the next step.</p>
-      <Link href="/agent" className="mt-7 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[var(--brand-strong)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)]">Start a conversation <ArrowRight className="h-4 w-4" /></Link>
+      <Link href="/agent" className="mt-7 inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--brand)] px-5 py-2.5 text-sm font-medium text-[var(--on-brand)] transition-colors hover:bg-[var(--brand-strong)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)]">Start a conversation <ArrowRight className="h-4 w-4" /></Link>
       {lastSync ? <p className="mt-8 text-xs text-[var(--ink-muted)]">Last checked {new Date(lastSync).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p> : null}
     </section> : null}
     {!loading && counts.all > 0 ? <>

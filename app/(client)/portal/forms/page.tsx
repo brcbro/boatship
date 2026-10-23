@@ -310,12 +310,12 @@ function PortalFormsInner() {
       </div>
 
       {error && !modalOpen ? (
-        <p role="alert" className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+        <p role="alert" className="mb-4 rounded-[var(--radius-sm)] border border-[var(--danger)]/30 bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger)]">
           {error}
         </p>
       ) : null}
       {success && !modalOpen ? (
-        <p role="status" className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+        <p role="status" className="mb-4 rounded-[var(--radius-sm)] border border-[var(--success)]/30 bg-[var(--success-soft)] px-3 py-2 text-sm text-[var(--success)]">
           {success}
         </p>
       ) : null}
@@ -390,18 +390,18 @@ function PortalFormsInner() {
         }
       >
         {error && modalOpen ? (
-          <p role="alert" className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+          <p role="alert" className="mb-3 rounded-[var(--radius-sm)] border border-[var(--danger)]/30 bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger)]">
             {error}
           </p>
         ) : null}
         {success && modalOpen ? (
-          <p role="status" className="mb-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          <p role="status" className="mb-3 rounded-[var(--radius-sm)] border border-[var(--success)]/30 bg-[var(--success-soft)] px-3 py-2 text-sm text-[var(--success)]">
             {success}
           </p>
         ) : null}
 
         {!liveTemplate ? (
-          <p className="text-sm text-red-700">Form template could not be loaded.</p>
+          <p className="text-sm text-[var(--danger)]">Form template could not be loaded.</p>
         ) : (
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--ink-muted)]">
@@ -425,7 +425,7 @@ function PortalFormsInner() {
             </div>
 
             {alreadyDone ? (
-              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/50 px-3 py-3 text-sm">
+              <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-2)]/50 px-3 py-3 text-sm">
                 <p className="font-medium text-[var(--ink)]">
                   Status: {statusLabel(liveForm!.status)}
                 </p>
@@ -491,7 +491,7 @@ function PortalFormsInner() {
                 </form>
               )
             ) : embedUrl ? (
-              <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)]">
+              <div className="overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)]">
                 <iframe
                   title={liveTemplate.name}
                   src={embedUrl}
@@ -514,7 +514,7 @@ function PortalFormsInner() {
                 instead.
               </p>
             ) : (
-              <p className="text-sm text-red-700">No Google Form URL is configured for this form.</p>
+              <p className="text-sm text-[var(--danger)]">No Google Form URL is configured for this form.</p>
             )}
 
             {!alreadyDone && !native ? (

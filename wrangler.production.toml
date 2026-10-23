@@ -2,10 +2,17 @@ name = "boatship-onboarding"
 main = "custom-worker.ts"
 compatibility_date = "2026-09-13"
 compatibility_flags = ["nodejs_compat"]
+# No custom domain on this account yet; the Worker is served from its workers.dev address.
+workers_dev = true
 
 [assets]
 directory = ".open-next/assets"
 binding = "ASSETS"
+
+# Pooled PostgreSQL access; Hyperdrive terminates TLS to the privately signed origin. Caching is disabled on the config.
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "e2402d36445b43f0899f50bb147ee243"
 
 [observability]
 enabled = true
@@ -30,7 +37,3 @@ new_sqlite_classes = ["MessageRoom"]
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["AppRuntime"]
-
-[[routes]]
-pattern = "boatship.cohortix.in"
-custom_domain = true

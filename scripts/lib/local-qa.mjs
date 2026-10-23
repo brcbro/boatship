@@ -4,26 +4,39 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import dotenv from "dotenv";
 import { RestFirestore } from "../../lib/firestore/client.ts";
+import { PostgresFirestore } from "../../lib/firestore/postgres.ts";
 
 export const QA_PASSWORD = "local-qa-password-1";
 const stamp = "2026-10-14T12:00:00.000Z";
 export const QA_PROJECT = "demo-boatship";
 
 /**
- * Isolated QA fixture on the Firestore emulator. It never reads hosted
- * credentials: FIRESTORE_EMULATOR_HOST must point at a local emulator (start
- * one with `npm run test:e2e`, which wraps the test in `firebase emulators:exec`).
+ * Isolated QA fixture. With QA_DATABASE_URL it runs on PostgreSQL in a scratch
+ * table named for this process (dropped on close), so the production
+ * `documents` table is never touched. Otherwise FIRESTORE_EMULATOR_HOST must
+ * point at a local emulator (`npm run test:e2e` wraps the test in
+ * `firebase emulators:exec`). Hosted credentials are never read.
  */
 export async function createLocalQa({ web = false, port = 3100, log = () => {} } = {}) {
   const root = process.cwd();
+  const databaseUrl = process.env.QA_DATABASE_URL?.trim();
   const emulator = process.env.FIRESTORE_EMULATOR_HOST?.trim();
-  if (!emulator) throw new Error("FIRESTORE_EMULATOR_HOST is required; run through `firebase emulators:exec --only firestore`.");
-  const host = emulator.startsWith("http") ? emulator : `http://${emulator}`;
-  if (!["127.0.0.1", "localhost", "[::1]"].includes(new URL(host).hostname)) throw new Error("QA must never contact a remote Firestore");
-  // Wipe the emulator database so every run starts from the same fixture.
-  const wipe = await fetch(`${host}/emulator/v1/projects/${QA_PROJECT}/databases/(default)/documents`, { method: "DELETE" });
-  if (!wipe.ok) throw new Error(`Could not clear the Firestore emulator: HTTP ${wipe.status}`);
-  const firestore = new RestFirestore({ projectId: QA_PROJECT, host });
+  let firestore, host = null, storeEnv;
+  if (databaseUrl) {
+    const table = `qa_${process.pid}_${Date.now().toString(36)}`;
+    firestore = new PostgresFirestore({ url: databaseUrl, table, max: 2 });
+    await firestore.drop();
+    storeEnv = { DATABASE_URL: databaseUrl, DATABASE_TABLE: table, FIRESTORE_EMULATOR_HOST: "", FIREBASE_PROJECT_ID: "", FIREBASE_SERVICE_ACCOUNT: "" };
+  } else {
+    if (!emulator) throw new Error("QA_DATABASE_URL or FIRESTORE_EMULATOR_HOST is required; run through `firebase emulators:exec --only firestore` for the emulator.");
+    host = emulator.startsWith("http") ? emulator : `http://${emulator}`;
+    if (!["127.0.0.1", "localhost", "[::1]"].includes(new URL(host).hostname)) throw new Error("QA must never contact a remote Firestore");
+    // Wipe the emulator database so every run starts from the same fixture.
+    const wipe = await fetch(`${host}/emulator/v1/projects/${QA_PROJECT}/databases/(default)/documents`, { method: "DELETE" });
+    if (!wipe.ok) throw new Error(`Could not clear the Firestore emulator: HTTP ${wipe.status}`);
+    firestore = new RestFirestore({ projectId: QA_PROJECT, host });
+    storeEnv = { FIRESTORE_EMULATOR_HOST: emulator, FIREBASE_PROJECT_ID: QA_PROJECT, FIREBASE_SERVICE_ACCOUNT: "", DATABASE_URL: "", DATABASE_TABLE: "" };
+  }
 
   const currentBytes = await fs.readFile(path.join(root, "public", "brand", "boatship-b-white.png"));
   const oldBytes = await fs.readFile(path.join(root, "public", "brand", "boatship-favicon.png"));
@@ -55,12 +68,15 @@ export async function createLocalQa({ web = false, port = 3100, log = () => {} }
     const env = { ...process.env };
     const localConfig = await fs.readFile(path.join(root, ".env.local"), "utf8").catch(() => "");
     for (const key of Object.keys(dotenv.parse(localConfig))) env[key] = "";
-    Object.assign(env, { FIRESTORE_EMULATOR_HOST: emulator, FIREBASE_PROJECT_ID: QA_PROJECT, FIREBASE_SERVICE_ACCOUNT: "", FIREBASE_STORAGE_BUCKET: "", ALLOW_LOCAL_STORE: "0", NODE_ENV: "development", NEXT_PUBLIC_APP_URL: `http://127.0.0.1:${port}`, APP_URL: `http://127.0.0.1:${port}`, BOATSHIP_CRON_SECRET: "local-qa-only" });
+    Object.assign(env, storeEnv, { FIREBASE_STORAGE_BUCKET: "", ALLOW_LOCAL_STORE: "0", NODE_ENV: "development", NEXT_PUBLIC_APP_URL: `http://127.0.0.1:${port}`, APP_URL: `http://127.0.0.1:${port}`, BOATSHIP_CRON_SECRET: "local-qa-only" });
     child = spawn(process.execPath, [path.join(root, "node_modules", "next", "dist", "bin", "next"), "dev", "--hostname", "127.0.0.1", "--port", String(port)], { cwd: root, env, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
     child.stdout.on("data", (data) => log(data.toString()));
     child.stderr.on("data", (data) => log(data.toString()));
   }
-  return { firestore, host, currentBytes, oldBytes, child,
-    async close() { if (child && child.exitCode === null) { child.kill(); await new Promise((resolve) => { child.once("exit", resolve); setTimeout(resolve, 5000); }); } }
+  return { firestore, host, storeEnv, currentBytes, oldBytes, child,
+    async close() {
+      if (child && child.exitCode === null) { child.kill(); await new Promise((resolve) => { child.once("exit", resolve); setTimeout(resolve, 5000); }); }
+      if (firestore instanceof PostgresFirestore) { await firestore.drop(); await firestore.close(); }
+    }
   };
 }

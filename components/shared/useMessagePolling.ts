@@ -2,7 +2,12 @@
 
 import { useEffect, useRef } from "react";
 
-const MESSAGE_REFRESH_INTERVAL = 15_000;
+/**
+ * Fallback cadence while the realtime room is not connected. Each poll loads
+ * the thread through the store, so this stays slow; the room delivers new
+ * messages immediately when it is available, and focus still refreshes.
+ */
+const MESSAGE_REFRESH_INTERVAL = 60_000;
 
 /** Keeps an active message thread fresh without reloading the route. */
 export function useMessagePolling(refresh: () => Promise<void>, enabled: boolean, contextKey = "") {

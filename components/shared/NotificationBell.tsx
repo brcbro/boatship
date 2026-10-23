@@ -168,13 +168,13 @@ export function NotificationBell({
         aria-expanded={open}
         onClick={() => void onOpenChange(!open)}
         className={cn(
-          "relative inline-flex h-11 w-11 items-center justify-center rounded-lg transition",
+          "relative inline-flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] transition-colors",
           isDark
-            ? "text-white hover:bg-white/10"
-            : "border border-[var(--border)] text-[var(--ink)] hover:bg-[var(--surface-2)]"
+            ? "text-[var(--nav-fg)] hover:bg-[var(--nav-hover)] hover:text-[var(--nav-fg-strong)]"
+            : "text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
         )}
       >
-        <Bell size={18} />
+        <Bell size={17} />
         {unreadCount > 0 ? (
           <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--danger)] px-1 text-[10px] font-semibold text-white">
             {unreadCount > 99 ? "99+" : unreadCount}
@@ -188,7 +188,7 @@ export function NotificationBell({
           ref={panelRef}
           style={panelStyle}
           className={cn(
-            "fixed z-[70] max-h-[calc(100dvh-2rem)] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] shadow-lg"
+            "fixed z-[70] max-h-[calc(100dvh-2rem)] overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-raised)] shadow-[var(--shadow-pop)]"
           )}
         >
           <div className="flex items-center justify-between border-b border-[var(--border)] px-3 py-2.5">

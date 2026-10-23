@@ -293,7 +293,7 @@ export default function CalendarPage() {
         }
       />
 
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3">
         <div className="flex flex-wrap items-center gap-3 text-sm">
           <span className="inline-flex items-center gap-2 text-[var(--ink)]">
             <span className="h-2.5 w-2.5 rounded-full bg-[var(--brand)]" aria-hidden="true" />
@@ -331,17 +331,17 @@ export default function CalendarPage() {
       ) : null}
 
       {google.error ? (
-        <p role="alert" className="rounded-lg border border-[var(--warning)]/30 bg-[var(--warning)]/5 px-4 py-3 text-sm text-[var(--ink)]">
+        <p role="alert" className="rounded-[var(--radius-md)] border border-[var(--warning)]/30 bg-[var(--warning)]/5 px-4 py-3 text-sm text-[var(--ink)]">
           Google Calendar did not refresh: {google.error} Task deadlines are still available below.
         </p>
       ) : null}
       {error ? (
-        <p role="alert" className="rounded-lg border border-[var(--danger)]/30 bg-[var(--danger)]/5 px-4 py-3 text-sm text-[var(--danger)]">
+        <p role="alert" className="rounded-[var(--radius-md)] border border-[var(--danger)]/30 bg-[var(--danger)]/5 px-4 py-3 text-sm text-[var(--danger)]">
           {error}
         </p>
       ) : null}
       {message ? (
-        <p role="status" className="rounded-lg border border-[var(--success)]/30 bg-[var(--success)]/5 px-4 py-3 text-sm text-[var(--ink)]">
+        <p role="status" className="rounded-[var(--radius-md)] border border-[var(--success)]/30 bg-[var(--success)]/5 px-4 py-3 text-sm text-[var(--ink)]">
           {message}
         </p>
       ) : null}
@@ -429,7 +429,7 @@ export default function CalendarPage() {
                     active && "bg-[var(--brand)]/8 ring-1 ring-inset ring-[var(--brand)]/30",
                   )}
                 >
-                  <span className={cn("inline-flex h-6 w-6 items-center justify-center rounded-full text-xs", isToday(day) ? "bg-[var(--brand)] font-semibold text-white" : "text-[var(--ink)]")}>
+                  <span className={cn("inline-flex h-6 w-6 items-center justify-center rounded-full text-xs", isToday(day) ? "bg-[var(--brand)] font-semibold text-[var(--on-brand)]" : "text-[var(--ink)]")}>
                     {format(day, "d")}
                   </span>
                   {dayEvents.length ? (

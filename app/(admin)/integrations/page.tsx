@@ -345,12 +345,12 @@ function IntegrationsContent() {
       />
 
       {error ? (
-        <p role="alert" className="rounded-md border border-[var(--danger)]/30 bg-[var(--danger)]/5 px-3 py-2 text-sm text-[var(--danger)]">
+        <p role="alert" className="rounded-[var(--radius-sm)] border border-[var(--danger)]/30 bg-[var(--danger)]/5 px-3 py-2 text-sm text-[var(--danger)]">
           {error}
         </p>
       ) : null}
       {message ? (
-        <p role="status" className="rounded-md border border-[var(--brand)]/20 bg-[var(--brand)]/5 px-3 py-2 text-sm text-[var(--ink)]">
+        <p role="status" className="rounded-[var(--radius-sm)] border border-[var(--brand)]/20 bg-[var(--brand)]/5 px-3 py-2 text-sm text-[var(--ink)]">
           {message}
         </p>
       ) : null}
@@ -385,7 +385,7 @@ function IntegrationsContent() {
         ) : !jobsError ? <p className="text-sm text-[var(--ink-muted)]">No integration work has been queued yet. New client and task events will appear here.</p> : null}
       </Card>
 
-      <Card className="space-y-5 border-[var(--accent)]/30 bg-[var(--surface-raised)] p-5">
+      <Card className="space-y-5 border-[var(--brand)]/30 bg-[var(--surface-raised)] p-5">
         <div className="space-y-1">
           <h2 className="font-[family-name:var(--font-display)] text-lg text-[var(--brand)]">
             AI & integration credentials
@@ -400,7 +400,7 @@ function IntegrationsContent() {
             const status = secretStatuses.find((item) => item.provider === provider);
             const label = provider === "composio" ? "Composio" : "OpenRouter";
             return (
-              <div key={provider} className="space-y-3 rounded-lg border border-[var(--border)] p-4">
+              <div key={provider} className="space-y-3 rounded-[var(--radius-md)] border border-[var(--border)] p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <h3 className="font-medium text-[var(--ink)]">{label}</h3>
@@ -457,7 +457,7 @@ function IntegrationsContent() {
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               {data.workflows.map((workflow) => (
-                <div key={workflow.title} className="rounded-md border border-[var(--border)] p-3">
+                <div key={workflow.title} className="rounded-[var(--radius-sm)] border border-[var(--border)] p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <h3 className="font-medium text-[var(--ink)]">{workflow.title}</h3>
                     <Badge tone={workflow.status === "available" ? "success" : "neutral"}>
@@ -544,13 +544,13 @@ function IntegrationsContent() {
             </Button>
             <Link
               href="/agent"
-              className="inline-flex items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-2 text-sm font-medium text-[var(--ink)] hover:bg-[var(--surface-2)]"
+              className="inline-flex items-center justify-center rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-2 text-sm font-medium text-[var(--ink)] hover:bg-[var(--surface-2)]"
             >
               Open Hodi
             </Link>
           </div>
           {driveFiles ? (
-            <ul className="divide-y divide-[var(--border)] rounded-md border border-[var(--border)]">
+            <ul className="divide-y divide-[var(--border)] rounded-[var(--radius-sm)] border border-[var(--border)]">
               {driveFiles.length ? (
                 driveFiles.map((file) => (
                   <li key={file.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">

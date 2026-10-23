@@ -224,12 +224,12 @@ export default function AnalyticsPage() {
       />
 
       {scanMessage ? (
-        <p className="mb-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+        <p className="mb-4 rounded-[var(--radius-sm)] bg-[var(--success-soft)] px-3 py-2 text-sm text-[var(--success)]">
           {scanMessage}
         </p>
       ) : null}
       {error ? (
-        <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>
+        <p className="mb-4 rounded-[var(--radius-sm)] bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger)]">{error}</p>
       ) : null}
 
       <div className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -330,7 +330,7 @@ export default function AnalyticsPage() {
                         ·{" "}
                         <Link
                           href={`/clients/${entry.clientId}`}
-                          className="text-[var(--accent)] hover:underline"
+                          className="text-[var(--brand)] hover:underline"
                         >
                           {entry.clientName}
                         </Link>
@@ -372,7 +372,7 @@ export default function AnalyticsPage() {
                     <td className="hidden px-5 py-3 sm:table-cell">
                       <Link
                         href={`/clients/${row.clientId}`}
-                        className="text-[var(--accent)] hover:underline"
+                        className="text-[var(--brand)] hover:underline"
                       >
                         {row.clientName}
                       </Link>

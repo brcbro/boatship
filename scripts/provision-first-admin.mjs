@@ -1,13 +1,14 @@
 import { randomBytes, randomUUID, scryptSync } from "node:crypto";
 import { config } from "dotenv";
 import { assertFirstAdminEligible, normalizeBootstrapInput } from "./lib/bootstrap-admin.mjs";
-import { getFirestore, serviceAccountProjectId } from "./lib/firestore-cli.mjs";
+import { getFirestore, storeTargetId } from "./lib/firestore-cli.mjs";
 
 config({ path: ".env.local", quiet: true });
 
 const args = process.argv.slice(2);
 if (args.length === 1 && args[0] === "--help") {
-  console.log("Usage: node --import tsx scripts/provision-first-admin.mjs --expect-project PROJECT_ID [--apply]");
+  console.log("Usage: node --import tsx scripts/provision-first-admin.mjs --expect-project TARGET [--apply]");
+  console.log("TARGET is the PostgreSQL host from DATABASE_URL, or the Firebase project id when Firestore is configured.");
   console.log("Set FIREBASE_SERVICE_ACCOUNT (and FIREBASE_CLIENT_EMAIL for a bare key), BOATSHIP_ADMIN_EMAIL, BOATSHIP_ADMIN_NAME and BOATSHIP_ADMIN_PASSWORD in the process environment.");
   console.log("Without --apply, the command only inspects eligibility. It never prints the password or credentials.");
   process.exit(0);
@@ -15,11 +16,11 @@ if (args.length === 1 && args[0] === "--help") {
 const apply = args.includes("--apply");
 const remaining = args.filter((arg) => arg !== "--apply");
 if (remaining.length !== 2 || remaining[0] !== "--expect-project" || args.filter((arg) => arg === "--apply").length > 1) {
-  throw new Error("Expected --expect-project PROJECT_ID and optional --apply only; run --help");
+  throw new Error("Expected --expect-project TARGET and optional --apply only; run --help");
 }
 
-const projectId = serviceAccountProjectId();
-if (projectId !== remaining[1]) throw new Error(`Refusing to run: credentials belong to project ${projectId}, not ${remaining[1]}`);
+const projectId = storeTargetId();
+if (projectId !== remaining[1]) throw new Error(`Refusing to run: the configured database is ${projectId}, not ${remaining[1]}`);
 const input = normalizeBootstrapInput({
   email: process.env.BOATSHIP_ADMIN_EMAIL,
   name: process.env.BOATSHIP_ADMIN_NAME,

@@ -1,6 +1,6 @@
 # Firestore persistence port
 
-Last reviewed: 2026-10-22. Complete in the working tree: every module is ported and Prisma, Neon, pg, and PGlite are removed from the repository and dependencies.
+Last reviewed: 2026-10-23. Complete: every module is ported and Prisma, Neon, pg, and PGlite are removed. On 2026-10-23 the hosted store moved to PostgreSQL behind the same interface ([postgres-store.md](postgres-store.md)); the Firestore REST client remains as the emulator test backend and a fallback, and the conventions below still govern every module.
 
 ## Decision
 

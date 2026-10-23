@@ -3,6 +3,8 @@
 // Runtime types generated with workerd@1.20260903.1 2026-09-13 nodejs_compat
 interface __BaseEnv_CloudflareEnv {
 	ASSETS: Fetcher;
+	DATABASE_URL: string;
+	HYPERDRIVE: Hyperdrive;
 	COMPOSIO_API_KEY: string;
 	OPENROUTER_API_KEY: string;
 	OPENROUTER_MODEL: string;
@@ -24,7 +26,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "COMPOSIO_API_KEY" | "OPENROUTER_API_KEY" | "OPENROUTER_MODEL" | "BOATSHIP_SECRETS_MASTER_KEY" | "FIREBASE_SERVICE_ACCOUNT" | "FIREBASE_CLIENT_EMAIL" | "FIREBASE_STORAGE_BUCKET">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "DATABASE_URL" | "COMPOSIO_API_KEY" | "OPENROUTER_API_KEY" | "OPENROUTER_MODEL" | "BOATSHIP_SECRETS_MASTER_KEY" | "FIREBASE_SERVICE_ACCOUNT" | "FIREBASE_CLIENT_EMAIL" | "FIREBASE_STORAGE_BUCKET">> {}
 }
 
 // Begin runtime types

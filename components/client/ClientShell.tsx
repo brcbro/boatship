@@ -6,33 +6,40 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
   CheckSquare,
+  ClipboardCheck,
   FileText,
-  LayoutDashboard,
+  Home,
   Layers3,
-  Menu,
+  LogOut,
   MessageCircle,
   MoreHorizontal,
+  Search,
+  ThumbsUp,
   UserRound,
-  ClipboardCheck,
-  X,
+  type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/components/shared/AuthProvider";
-import { CommandPalette } from "@/components/shared/CommandPalette";
+import { CommandPalette, openCommandPalette } from "@/components/shared/CommandPalette";
 import { NotificationBell } from "@/components/shared/NotificationBell";
-import { Button } from "@/components/shared/ui";
+import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { cn } from "@/lib/utils";
 
-const NAV = [
-  { href: "/portal", label: "Dashboard", icon: LayoutDashboard, exact: true },
-  { href: "/portal/engagements", label: "Engagements", icon: Layers3 },
+type Item = { href: string; label: string; icon: LucideIcon; exact?: boolean };
+
+/** The four places a client goes most. Everything else sits under More. */
+const PRIMARY: readonly Item[] = [
+  { href: "/portal", label: "Home", icon: Home, exact: true },
   { href: "/portal/tasks", label: "Tasks", icon: CheckSquare },
   { href: "/portal/documents", label: "Documents", icon: FileText },
-  { href: "/portal/forms", label: "Forms", icon: ClipboardCheck },
-  { href: "/portal/approvals", label: "Approvals", icon: ClipboardCheck },
   { href: "/portal/messages", label: "Messages", icon: MessageCircle },
-] as const;
+];
 
-const MOBILE_NAV = [NAV[0], NAV[1], NAV[4], NAV[5]];
+const MORE: readonly Item[] = [
+  { href: "/portal/engagements", label: "Engagements", icon: Layers3 },
+  { href: "/portal/forms", label: "Forms", icon: ClipboardCheck },
+  { href: "/portal/approvals", label: "Approvals", icon: ThumbsUp },
+  { href: "/portal/account", label: "Account", icon: UserRound },
+];
 
 function isActive(pathname: string, href: string, exact?: boolean) {
   if (exact) return pathname === href;
@@ -45,6 +52,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const moreActive = MORE.some((item) => isActive(pathname, item.href));
 
   useEffect(() => {
     if (!open) return;
@@ -72,112 +80,91 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-dvh bg-[var(--background)]">
-      <a
-        href="#portal-content"
-        className="sr-only fixed left-4 top-4 z-[100] rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-white focus:not-sr-only"
-      >
+      <a href="#portal-content" className="sr-only fixed left-4 top-4 z-[100] rounded-[var(--radius-md)] bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-[var(--on-brand)] focus:not-sr-only">
         Skip to content
       </a>
-      <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--surface-raised)]/95 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
-          <div className="flex min-w-0 items-center gap-3 xl:gap-7">
-            <Link href="/portal" className="flex shrink-0 items-center rounded-lg bg-[var(--brand)] px-2.5 py-2 transition hover:bg-[var(--brand-strong)]">
-              <Image src="/brand/boatship-logo-white.png" alt="Boatship Workspace" width={154} height={30} priority className="h-5 w-auto sm:h-6" />
-            </Link>
 
-            <nav className="hidden items-center gap-1 xl:flex" aria-label="Client portal">
-              {NAV.map((item) => (
-                <PortalNavLink key={item.href} item={item} pathname={pathname} />
+      <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--surface-raised)]/92 backdrop-blur-xl">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
+          <div className="flex min-w-0 items-center gap-6">
+            <Link href="/portal" className="flex shrink-0 items-center gap-2.5" aria-label="Boatship home">
+              <span aria-hidden="true" className="grid h-8 w-8 place-items-center rounded-[9px] bg-[var(--accent)] font-[family-name:var(--font-display)] text-[17px] font-extrabold leading-none text-[var(--on-accent)]">b</span>
+              <Image src="/brand/boatship-logo-black.png" alt="Boatship" width={1428} height={366} priority className="show-light hidden h-5 w-auto sm:block" /><Image src="/brand/boatship-logo-white.png" alt="" aria-hidden="true" width={1432} height={370} className="show-dark hidden h-5 w-auto sm:block" />
+            </Link>
+            <nav className="hidden items-center gap-1 md:flex" aria-label="Client portal">
+              {PRIMARY.map((item) => (
+                <TopLink key={item.href} item={item} pathname={pathname} />
               ))}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setOpen((v) => !v)}
+                  aria-expanded={open}
+                  aria-controls="portal-more-menu"
+                  className={cn("inline-flex min-h-10 items-center gap-2 rounded-[var(--radius-md)] px-3 text-sm font-semibold transition-colors", open || moreActive ? "bg-[var(--surface-2)] text-[var(--ink)]" : "text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]")}
+                >
+                  More
+                  <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
             </nav>
           </div>
 
-          <div className="flex shrink-0 items-center gap-3">
-            <NotificationBell tone="light" />
-            <Link href="/portal/account" prefetch={false} aria-label="Account settings" title="Account settings" className={cn("hidden min-h-11 min-w-11 items-center gap-3 rounded-lg border border-[var(--border)] px-3 text-[var(--ink)] transition hover:bg-[var(--surface-2)] xl:inline-flex", isActive(pathname, "/portal/account") && "bg-[var(--surface-2)]")}>
-              <UserRound className="h-4 w-4 shrink-0" aria-hidden="true" />
-              <span className="hidden min-w-0 max-w-48 flex-col text-left 2xl:flex">
-                <span className="truncate text-sm font-medium">{loading ? "…" : session?.name || "Client"}</span>
-                <span className="truncate text-xs text-[var(--ink-muted)]">{session?.email}</span>
-              </span>
-            </Link>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => void onLogout()}
-              disabled={loggingOut}
-              className="hidden xl:inline-flex"
-            >
-              {loggingOut ? "Signing out…" : "Logout"}
-            </Button>
-            <button
-              type="button"
-              className="inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-lg border border-[var(--border)] text-[var(--ink)] transition hover:bg-[var(--surface-2)] xl:hidden"
-              onClick={() => setOpen((v) => !v)}
-              aria-label={open ? "Close menu" : "Open menu"}
-              aria-expanded={open}
-              aria-controls="portal-mobile-menu"
-            >
-              {open ? <X size={18} /> : <Menu size={18} />}
+          <div className="flex shrink-0 items-center gap-1">
+            <button type="button" onClick={() => openCommandPalette()} aria-label="Search" className="grid h-10 w-10 place-items-center rounded-[var(--radius-md)] text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]">
+              <Search className="h-[18px] w-[18px]" aria-hidden="true" />
             </button>
+            <ThemeToggle />
+            <NotificationBell tone="light" />
+            <Link href="/portal/account" prefetch={false} aria-label="Account" title="Account" className={cn("ml-1 hidden min-h-10 items-center gap-2 rounded-full border border-[var(--border)] py-1 pl-1 pr-3 text-[var(--ink)] transition-colors hover:bg-[var(--surface-2)] md:inline-flex", isActive(pathname, "/portal/account") && "bg-[var(--surface-2)]")}>
+              <span aria-hidden="true" className="grid h-7 w-7 place-items-center rounded-full bg-[var(--brand)] text-[12px] font-bold text-[var(--on-brand)]">{(session?.name || "C").trim().charAt(0).toUpperCase()}</span>
+              <span className="max-w-[9rem] truncate text-sm font-medium">{loading ? "…" : session?.name || "Client"}</span>
+            </Link>
           </div>
         </div>
 
         {open ? (
-          <div id="portal-mobile-menu" ref={menuRef} className="max-h-[calc(100dvh-9rem)] overflow-y-auto border-t border-[var(--border)] bg-[var(--surface-raised)] px-4 py-4 xl:hidden">
-            <nav className="flex flex-col gap-1" aria-label="All client sections">
-              {NAV.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  prefetch={false}
-                  onClick={() => setOpen(false)}
-                  aria-current={isActive(pathname, item.href, "exact" in item && item.exact) ? "page" : undefined}
-                  className={cn(
-                    "flex min-h-11 items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition",
-                    isActive(pathname, item.href, "exact" in item && item.exact)
-                      ? "bg-[var(--surface-2)] text-[var(--ink)]"
-                      : "text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
-                  )}
-                >
-                  <item.icon className="h-4 w-4" aria-hidden="true" />
-                  {item.label}
-                </Link>
-              ))}
-              <Link href="/portal/account" prefetch={false} onClick={() => setOpen(false)} aria-current={isActive(pathname, "/portal/account") ? "page" : undefined} className={cn("flex min-h-11 items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition", isActive(pathname, "/portal/account") ? "bg-[var(--surface-2)] text-[var(--ink)]" : "text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]")}><UserRound className="h-4 w-4" aria-hidden="true" />Account settings</Link>
-            </nav>
-            <div className="mt-3 flex items-center justify-between border-t border-[var(--border)] pt-3">
-              <div>
-                <p className="text-sm font-medium text-[var(--ink)]">{session?.name}</p>
-                <p className="text-xs text-[var(--ink-muted)]">{session?.email}</p>
+          <div id="portal-more-menu" ref={menuRef} className="border-t border-[var(--border)] bg-[var(--surface-raised)]">
+            <div className="mx-auto max-w-6xl px-4 py-3 sm:px-6 lg:px-8">
+              <nav className="grid gap-1 sm:grid-cols-2 lg:grid-cols-4" aria-label="More client sections">
+                {MORE.map((item) => (
+                  <Link key={item.href} href={item.href} prefetch={false} onClick={() => setOpen(false)} aria-current={isActive(pathname, item.href) ? "page" : undefined} className={cn("flex min-h-11 items-center gap-3 rounded-[var(--radius-md)] px-3 text-sm font-semibold transition-colors", isActive(pathname, item.href) ? "bg-[var(--surface-2)] text-[var(--ink)]" : "text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]")}>
+                    <item.icon className="h-4 w-4" aria-hidden="true" />
+                    {item.label}
+                  </Link>
+                ))}
+              </nav>
+              <div className="mt-3 flex items-center justify-between gap-3 border-t border-[var(--border)] pt-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-[var(--ink)]">{session?.name}</p>
+                  <p className="truncate text-xs text-[var(--ink-muted)]">{session?.email}</p>
+                </div>
+                <button type="button" onClick={() => void onLogout()} disabled={loggingOut} className="inline-flex min-h-10 items-center gap-2 rounded-[var(--radius-md)] border border-[var(--border-strong)] px-3 text-sm font-semibold text-[var(--ink)] hover:bg-[var(--surface-2)] disabled:opacity-50">
+                  <LogOut className="h-4 w-4" aria-hidden="true" />
+                  {loggingOut ? "Signing out…" : "Log out"}
+                </button>
               </div>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => void onLogout()}
-                disabled={loggingOut}
-              >
-                Logout
-              </Button>
             </div>
           </div>
         ) : null}
       </header>
 
-      <main id="portal-content" tabIndex={-1} className="mx-auto max-w-7xl px-4 py-7 pb-28 outline-none sm:px-6 sm:py-10 lg:px-8 xl:pb-10">{children}</main>
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--border)] bg-[var(--surface-raised)]/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 backdrop-blur-xl xl:hidden" aria-label="Client portal">
+      <main id="portal-content" tabIndex={-1} className="page-enter mx-auto max-w-6xl px-4 py-6 pb-28 outline-none sm:px-6 sm:py-8 lg:px-8 md:pb-12">
+        {children}
+      </main>
+
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--border)] bg-[var(--surface-raised)]/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-1.5 backdrop-blur-xl md:hidden" aria-label="Client portal">
         <div className="mx-auto grid max-w-lg grid-cols-5 gap-1">
-          {MOBILE_NAV.map((item) => <PortalNavLink key={item.href} item={item} pathname={pathname} compact />)}
+          {PRIMARY.map((item) => (
+            <TabLink key={item.href} item={item} pathname={pathname} />
+          ))}
           <button
             type="button"
             onClick={() => setOpen((value) => !value)}
             aria-label={open ? "Close more navigation" : "Open more navigation"}
             aria-expanded={open}
-            aria-controls="portal-mobile-menu"
-            className={cn(
-              "flex min-h-12 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg px-2 text-[11px] font-semibold transition",
-              open ? "bg-[var(--surface-2)] text-[var(--ink)]" : "text-[var(--ink-muted)] hover:bg-[var(--surface-2)]"
-            )}
+            aria-controls="portal-more-menu"
+            className={cn("flex min-h-12 flex-col items-center justify-center gap-1 rounded-[var(--radius-md)] px-1 text-[11px] font-semibold transition-colors", open || moreActive ? "text-[var(--brand)]" : "text-[var(--ink-muted)]")}
           >
             <MoreHorizontal className="h-5 w-5" aria-hidden="true" />
             More
@@ -189,32 +176,32 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function PortalNavLink({
-  item,
-  pathname,
-  compact = false,
-}: {
-  item: (typeof NAV)[number];
-  pathname: string;
-  compact?: boolean;
-}) {
-  const active = isActive(pathname, item.href, "exact" in item && item.exact);
+function TopLink({ item, pathname }: { item: Item; pathname: string }) {
+  const active = isActive(pathname, item.href, item.exact);
+  return (
+    <Link
+      href={item.href}
+      prefetch={false}
+      aria-current={active ? "page" : undefined}
+      className={cn("inline-flex min-h-10 items-center rounded-[var(--radius-md)] px-3 text-sm font-semibold transition-colors", active ? "bg-[var(--surface-2)] text-[var(--ink)]" : "text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]")}
+    >
+      {item.label}
+    </Link>
+  );
+}
+
+function TabLink({ item, pathname }: { item: Item; pathname: string }) {
+  const active = isActive(pathname, item.href, item.exact);
   const Icon = item.icon;
   return (
     <Link
       href={item.href}
       prefetch={false}
       aria-current={active ? "page" : undefined}
-      className={cn(
-        compact
-          ? "flex min-h-12 flex-col items-center justify-center gap-1 rounded-lg px-1 text-[11px] font-semibold transition"
-          : "inline-flex min-h-9 items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition",
-        active
-          ? "bg-[var(--surface-2)] text-[var(--ink)]"
-          : "text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
-      )}
+      className={cn("relative flex min-h-12 flex-col items-center justify-center gap-1 rounded-[var(--radius-md)] px-1 text-[11px] font-semibold transition-colors", active ? "text-[var(--brand)]" : "text-[var(--ink-muted)]")}
     >
-      <Icon className={compact ? "h-5 w-5" : "h-4 w-4"} aria-hidden="true" />
+      {active ? <span aria-hidden="true" className="absolute top-0 h-[3px] w-6 rounded-b-full bg-[var(--accent)]" /> : null}
+      <Icon className="h-5 w-5" aria-hidden="true" strokeWidth={active ? 2.25 : 1.9} />
       <span>{item.label}</span>
     </Link>
   );
