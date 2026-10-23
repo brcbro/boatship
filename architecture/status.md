@@ -94,6 +94,8 @@ The production build and Wrangler dry run passed, and Cloudflare deployed Worker
 
 ## Change log for this architecture folder
 
+- 2026-10-23: Monivo theme: the Regatta tokens were replaced with a near-black, graphite and gradient system, dark by default with a light twin, plus pill tabs, badge dots, metric markers on stat tiles and dim fields; eight commits following `docs/monivo-theme-plan.md`. Typecheck, lint, 103 unit tests and a browser pass on the local fixture in both themes passed; not deployed. Details in `ui-redesign.md` and `DESIGN.md`.
+
 - 2026-10-23: Regatta structural pass: `RecordHeader` plus query-driven `Tabs` on the client and product records (Messages and Billing tabs added to the client record), the `/tasks` Inbox replacing the approvals page, and the Hodi side drawer with `components/hodi/HodiChat.tsx` shared by the drawer and `/agent`. Typecheck, lint, 103 unit tests and a browser pass on the local QA fixture in both themes passed; deployed as Worker version `65bb755e` with anonymous smoke checks passing. Details in `ui-redesign.md`.
 
 - 2026-10-23: Cut PostgreSQL load from the hosted store: slice documents are cached per runtime instance and refreshed by meta version, verified sessions are memoised for 30 s, and the message fallback poll runs every 60 s instead of 15 s. Unit tests (103), typecheck, lint, and the end-to-end suite on a scratch table of the live service passed locally; the effect on ClickHouse Cloud compute time is not yet measured and the change is not deployed. Details in `postgres-store.md`.
