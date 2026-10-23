@@ -286,6 +286,7 @@ export function Tabs({ items, pathname, ariaLabel }: { items: TabItem[]; pathnam
               <Link
                 href={item.href}
                 prefetch={false}
+                scroll={false}
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "-mb-px inline-flex min-h-11 items-center gap-2 border-b-2 px-3 text-sm font-semibold transition-colors",
@@ -300,6 +301,70 @@ export function Tabs({ items, pathname, ariaLabel }: { items: TabItem[]; pathnam
         })}
       </ul>
     </nav>
+  );
+}
+
+/**
+ * Sticky header for a record page (client, product). Stays visible while the
+ * tabs below scroll. `meta` are short label/value pairs: owner, next milestone.
+ */
+export function RecordHeader({
+  back,
+  eyebrow,
+  title,
+  subtitle,
+  badges,
+  meta,
+  actions,
+  children,
+}: {
+  back?: { href: string; label: string };
+  eyebrow?: ReactNode;
+  title: string;
+  subtitle?: ReactNode;
+  badges?: ReactNode;
+  meta?: Array<{ label: string; value: ReactNode }>;
+  actions?: ReactNode;
+  /** Usually the Tabs for the record. */
+  children?: ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        // Sticky inside the page's padded wrapper: the ::before strip covers the
+        // wrapper's top padding once the header is stuck, so nothing scrolls past above it.
+        "sticky top-14 z-30 -mx-4 mb-6 bg-[var(--surface)]/92 px-4 backdrop-blur-xl before:pointer-events-none before:absolute before:inset-x-0 before:-top-6 before:h-6 before:bg-[var(--surface)] before:content-[''] sm:-mx-6 sm:px-6 lg:top-0 lg:-mx-10 lg:px-10 lg:before:-top-8 lg:before:h-8",
+        !children && "border-b border-[var(--border)]"
+      )}
+    >
+      {back ? (
+        <Link href={back.href} prefetch={false} className="mb-2 inline-flex items-center gap-1 text-[13px] font-semibold text-[var(--brand)] hover:underline">
+          ← {back.label}
+        </Link>
+      ) : null}
+      <div className="flex flex-col gap-3 pb-3 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0">
+          {eyebrow ? <div className="mb-1 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--ink-muted)]">{eyebrow}</div> : null}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <h1 className="min-w-0 truncate font-[family-name:var(--font-display)] text-[1.6rem] font-extrabold leading-[1.05] tracking-[-0.03em] text-[var(--ink)] sm:text-[2rem]">{title}</h1>
+            {badges ? <div className="flex flex-wrap items-center gap-1.5">{badges}</div> : null}
+          </div>
+          {subtitle ? <p className="mt-1 truncate text-sm text-[var(--ink-muted)]">{subtitle}</p> : null}
+          {meta?.length ? (
+            <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[13px]">
+              {meta.map((item) => (
+                <div key={item.label} className="flex min-w-0 items-baseline gap-1.5">
+                  <dt className="shrink-0 text-[var(--ink-muted)]">{item.label}</dt>
+                  <dd className="min-w-0 truncate font-semibold text-[var(--ink)]">{item.value}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
+        </div>
+        {actions ? <div className="flex flex-wrap gap-2 lg:shrink-0">{actions}</div> : null}
+      </div>
+      {children}
+    </div>
   );
 }
 

@@ -8,6 +8,7 @@ import {
   FileText,
   FolderKanban,
   Gauge,
+  Inbox,
   KeyRound,
   LayoutDashboard,
   ListTodo,
@@ -34,7 +35,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     label: "Work",
     items: [
       { href: "/dashboard", label: "Today", icon: LayoutDashboard },
-      { href: "/tasks", label: "Approvals", icon: ClipboardCheck },
+      { href: "/tasks", label: "Inbox", icon: Inbox },
       { href: "/messages", label: "Messages", icon: MessageSquare },
       { href: "/calendar", label: "Calendar", icon: CalendarDays },
       { href: "/clients", label: "Clients", icon: Users },

@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/shared/AuthProvider";
 import {
   Badge,
@@ -13,8 +13,9 @@ import {
   Input,
   Label,
   Modal,
-  PageHeader,
   ProgressBar,
+  RecordHeader,
+  Tabs,
   Textarea,
 } from "@/components/shared/ui";
 import { apiFetch } from "@/lib/api-client";
@@ -22,7 +23,7 @@ import { formatDate, formatDateTime, statusLabel } from "@/lib/utils";
 import { TaskBoard } from "@/components/shared/TaskBoard";
 import { DocumentViewer } from "@/components/shared/DocumentViewer";
 import { hasPermission } from "@/lib/rbac";
-import { ClientWorkspaceNav } from "@/components/clients/ClientWorkspaceNav";
+import { ClientMessagesPanel } from "@/components/clients/ClientMessagesPanel";
 import type {
   ClientStatus,
   ClientWithProgress,
@@ -37,7 +38,20 @@ import type {
 } from "@/types";
 
 type TeamUser = { uid: string; name: string; email: string; role: string };
-type Tab = "overview" | "engagements" | "people" | "tasks" | "documents" | "forms" | "vessels" | "activity";
+const TABS = [
+  ["overview", "Overview"],
+  ["engagements", "Engagements"],
+  ["tasks", "Tasks"],
+  ["forms", "Forms"],
+  ["documents", "Documents"],
+  ["messages", "Messages"],
+  ["billing", "Billing"],
+  ["vessels", "Vessels"],
+] as const;
+type Tab = (typeof TABS)[number][0];
+function parseTab(value: string | null): Tab {
+  return (TABS.find(([id]) => id === value)?.[0] as Tab | undefined) || "overview";
+}
 type Contact = { id: string; clientId: string; name: string; email: string; role: "account_admin" | "contributor" | "viewer" };
 type Engagement = {
   id: string;
@@ -92,16 +106,20 @@ function statusTone(status: string): "neutral" | "success" | "warning" | "danger
   return "neutral";
 }
 
-export default function ClientDetailPage() {
+function ClientDetailInner() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const id = String(params.id || "");
   const { token, session } = useAuth();
   const canManageClient = !!session && hasPermission(session, "clients.manage");
   const canReviewDocuments = !!session && hasPermission(session, "documents.review");
   const canReviewForms = !!session && hasPermission(session, "forms.review");
 
-  const [tab, setTab] = useState<Tab>("overview");
+  // The open tab lives in the URL (?tab=) so links from the Inbox, notifications
+  // and Hodi land on the right section and the browser back button works.
+  const tab = parseTab(searchParams.get("tab"));
+  const setTab = useCallback((next: Tab) => router.replace(`/clients/${id}?tab=${next}`, { scroll: false }), [router, id]);
   const [client, setClient] = useState<ClientWithProgress | null>(null);
   const [users, setUsers] = useState<TeamUser[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -755,22 +773,39 @@ export default function ClientDetailPage() {
 
   if (!client) return null;
 
+  const upcomingEngagement = [...engagements]
+    .filter((engagement) => engagement.targetDate && engagement.status !== "completed" && engagement.status !== "cancelled")
+    .sort((a, b) => (a.targetDate || "").localeCompare(b.targetDate || ""))[0];
+  const upcomingTask = [...tasks]
+    .filter((task) => task.dueDate && task.status !== "completed")
+    .sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""))[0];
+  const nextMilestone = upcomingEngagement
+    ? `${upcomingEngagement.name} · ${formatDate(upcomingEngagement.targetDate!)}`
+    : upcomingTask
+      ? `${upcomingTask.title} · ${formatDate(upcomingTask.dueDate!)}`
+      : "Nothing scheduled";
+
   return (
     <div>
-      <div className="mb-4">
-        <Link href="/clients" className="text-sm text-[var(--brand)] hover:underline">
-          ← Back to clients
-        </Link>
-      </div>
-
-      <PageHeader
+      <RecordHeader
+        back={{ href: "/clients", label: "Clients" }}
         title={client.name}
-        description={`${client.companyName} · ${client.primaryContactEmail}`}
+        subtitle={`${client.companyName} · ${client.primaryContactEmail}`}
+        badges={<>
+          <Badge tone={statusTone(client.status)}>{statusLabel(client.status)}</Badge>
+          {client.pausedAt || client.pauseReason ? <Badge tone="warning">Paused</Badge> : null}
+        </>}
+        meta={[
+          { label: "Owner", value: client.assignedTeamMemberName || users.find((user) => user.uid === client.assignedTeamMemberId)?.name || "Unassigned" },
+          { label: "Next milestone", value: nextMilestone },
+          { label: "Progress", value: `${client.completedTasks} of ${client.totalTasks} tasks` },
+        ]}
         actions={canManageClient ?
-          <div className="flex flex-wrap gap-2">
+          <>
             <Button
               type="button"
               variant="secondary"
+              size="sm"
               disabled={busy}
               onClick={() => {
                 setCloneEmail("");
@@ -780,13 +815,14 @@ export default function ClientDetailPage() {
               Clone
             </Button>
             {client.pausedAt || client.pauseReason ? (
-              <Button type="button" variant="secondary" disabled={busy} onClick={() => void resumeClient()}>
+              <Button type="button" variant="secondary" size="sm" disabled={busy} onClick={() => void resumeClient()}>
                 Resume
               </Button>
             ) : (
               <Button
                 type="button"
                 variant="secondary"
+                size="sm"
                 disabled={busy}
                 onClick={() => {
                   setPauseReason("");
@@ -796,12 +832,18 @@ export default function ClientDetailPage() {
                 Pause
               </Button>
             )}
-            <Button type="button" onClick={() => void inviteClient()} disabled={busy}>
+            <Button type="button" size="sm" onClick={() => void inviteClient()} disabled={busy}>
               Invite client
             </Button>
-          </div> : undefined
+          </> : undefined
         }
-      />
+      >
+        <Tabs
+          ariaLabel="Client record sections"
+          pathname={`/clients/${id}?tab=${tab}`}
+          items={TABS.map(([value, label]) => ({ href: `/clients/${id}?tab=${value}`, label, exact: true, count: value === "forms" ? forms.filter((form) => form.status === "submitted").length || undefined : value === "documents" ? documents.filter((document) => document.status === "pending_review").length || undefined : undefined }))}
+        />
+      </RecordHeader>
 
       {message ? (
         <p role="status" className="mb-4 rounded-[var(--radius-sm)] bg-[var(--success-soft)] px-3 py-2 text-sm text-[var(--success)]">{message}</p>
@@ -809,8 +851,6 @@ export default function ClientDetailPage() {
       {error ? (
         <p role="alert" className="mb-4 rounded-[var(--radius-sm)] bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger)]">{error}</p>
       ) : null}
-
-      <ClientWorkspaceNav active={tab} onChange={(next) => setTab(next as Tab)} />
 
       {tab === "overview" ? (
         <div className="grid gap-6 lg:grid-cols-2">
@@ -1000,7 +1040,7 @@ export default function ClientDetailPage() {
                   <ProgressBar value={engagement.progress} />
                   <p className="mt-3 text-xs text-[var(--ink-muted)]">Owner: {users.find((user) => user.uid === engagement.ownerId)?.name || "Unassigned"}{engagement.targetDate ? ` · Target ${formatDate(engagement.targetDate)}` : ""}</p>
                   <div className="mt-4 flex flex-wrap items-end gap-3">
-                    <div className="min-w-40 flex-1">{engagement.id === `onboarding_${id}` ? <p className="text-sm text-[var(--ink-muted)]">Onboarding status is managed in the legacy controls on the Account tab.</p> : <><Dropdown label="Status" value={engagement.status} disabled={busy || !canManageClient} onChange={(status) => void updateEngagement(engagement.id, { status })} options={(["planned", "active", "paused", "completed", "cancelled"] as Engagement["status"][]).map((status) => ({ value: status, label: statusLabel(status) }))} /></>}</div>
+                    <div className="min-w-40 flex-1">{engagement.id === `onboarding_${id}` ? <p className="text-sm text-[var(--ink-muted)]">Onboarding status is managed in the legacy controls on the Overview tab.</p> : <><Dropdown label="Status" value={engagement.status} disabled={busy || !canManageClient} onChange={(status) => void updateEngagement(engagement.id, { status })} options={(["planned", "active", "paused", "completed", "cancelled"] as Engagement["status"][]).map((status) => ({ value: status, label: statusLabel(status) }))} /></>}</div>
                     <Button type="button" variant="secondary" onClick={() => { setSelectedEngagementId(engagement.id); setTab("tasks"); }}>Open tasks</Button>
                   </div>
                 </Card>
@@ -1010,10 +1050,10 @@ export default function ClientDetailPage() {
         </div>
       ) : null}
 
-      {tab === "people" ? (
-        <div className="space-y-4">
+      {tab === "overview" ? (
+        <div className="mt-6 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div><p className="text-sm text-[var(--ink-muted)]">Account contact directory. Adding a contact does not create portal access.</p><p className="text-xs text-[var(--ink-muted)]">Use Invite client above to send a portal invitation to the primary contact.</p></div>
+            <div><h2 className="font-[family-name:var(--font-display)] text-lg">People</h2><p className="text-sm text-[var(--ink-muted)]">Account contact directory. Adding a contact does not create portal access.</p><p className="text-xs text-[var(--ink-muted)]">Use Invite client in the header to send a portal invitation to the primary contact.</p></div>
             {canManageClient ? <Button type="button" disabled={busy} onClick={() => setContactOpen(true)}>Add contact</Button> : null}
           </div>
           {contacts.length === 0 ? <EmptyState title="No contacts yet" description="Add a contact to keep account details together." /> : (
@@ -1365,6 +1405,30 @@ export default function ClientDetailPage() {
         )
       ) : null}
 
+      {tab === "messages" ? (
+        <ClientMessagesPanel clientId={id} clientName={client.name} engagements={engagements} />
+      ) : null}
+
+      {tab === "billing" ? (
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card>
+            <h2 className="mb-4 font-[family-name:var(--font-display)] text-lg">Engagement summary</h2>
+            <dl className="space-y-2 text-sm">
+              <div className="flex justify-between gap-4"><dt className="text-[var(--ink-muted)]">Active engagements</dt><dd>{engagements.filter((item) => item.status === "active").length}</dd></div>
+              <div className="flex justify-between gap-4"><dt className="text-[var(--ink-muted)]">Completed engagements</dt><dd>{engagements.filter((item) => item.status === "completed").length}</dd></div>
+              <div className="flex justify-between gap-4"><dt className="text-[var(--ink-muted)]">Work complete</dt><dd>{client.completedTasks} of {client.totalTasks} tasks ({client.progress}%)</dd></div>
+              <div className="flex justify-between gap-4"><dt className="text-[var(--ink-muted)]">Client since</dt><dd>{formatDate(client.createdAt)}</dd></div>
+            </dl>
+          </Card>
+          <Card>
+            <h2 className="mb-2 font-[family-name:var(--font-display)] text-lg">Invoices and ledger</h2>
+            <p className="text-sm leading-6 text-[var(--ink-muted)]">Boatship does not yet keep invoices per client. Money in and out is recorded in the workspace ledger{session?.role === "admin" ? "" : ", which administrators maintain"}.</p>
+            {session?.role === "admin" ? <div className="mt-4"><Link href="/accounting" prefetch={false} className="text-sm font-semibold text-[var(--brand)] hover:underline">Open the ledger</Link></div> : null}
+            {client.driveFolderUrl ? <p className="mt-4 text-sm text-[var(--ink-muted)]">Contracts and signed documents live in the client&apos;s <a href={client.driveFolderUrl} target="_blank" rel="noopener noreferrer" className="font-semibold text-[var(--brand)] hover:underline">Drive folder</a>.</p> : null}
+          </Card>
+        </div>
+      ) : null}
+
       {tab === "vessels" ? (
         <div>
           <div className="mb-4 flex items-center justify-between gap-3">
@@ -1565,8 +1629,10 @@ export default function ClientDetailPage() {
         </div>
       ) : null}
 
-      {tab === "activity" ? (
-        activity.length === 0 ? (
+      {tab === "overview" ? (
+        <div className="mt-6">
+        <h2 className="mb-3 font-[family-name:var(--font-display)] text-lg">Timeline</h2>
+        {activity.length === 0 ? (
           <EmptyState
             title="No recent activity"
             description="Actions on this client will appear in the activity timeline."
@@ -1587,7 +1653,8 @@ export default function ClientDetailPage() {
               ))}
             </ul>
           </Card>
-        )
+        )}
+        </div>
       ) : null}
 
       {inviteOpen && inviteResult ? (
@@ -1595,7 +1662,7 @@ export default function ClientDetailPage() {
           <button
             type="button"
             aria-label="Close invite dialog"
-            className="absolute inset-0 bg-slate-900/40"
+            className="absolute inset-0 bg-[var(--scrim)]"
             onClick={() => setInviteOpen(false)}
           />
           <Card className="relative z-10 w-full max-w-md">
@@ -1699,5 +1766,13 @@ export default function ClientDetailPage() {
         </div>
       </Modal>
     </div>
+  );
+}
+
+export default function ClientDetailPage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-[var(--ink-muted)]">Loading client…</p>}>
+      <ClientDetailInner />
+    </Suspense>
   );
 }

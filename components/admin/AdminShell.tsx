@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, ChevronsLeft, ChevronsRight, LogOut, Menu, Search, Settings2, X } from "lucide-react";
 import { useAuth } from "@/components/shared/AuthProvider";
 import { CommandPalette, openCommandPalette } from "@/components/shared/CommandPalette";
@@ -13,6 +13,7 @@ import { Kbd } from "@/components/shared/ui";
 import { cn, statusLabel } from "@/lib/utils";
 import { hasPermission } from "@/lib/rbac";
 import { NAV_GROUPS, SETTINGS_ITEMS, isActivePath, isSettingsPath, type NavItem } from "./navigation";
+import { HodiDrawer, HodiDrawerButton } from "./HodiDrawer";
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -22,6 +23,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [hodiOpen, setHodiOpen] = useState(false);
+  const hodiButtonRef = useRef<HTMLButtonElement>(null);
+  const closeHodi = useCallback(() => setHodiOpen(false), []);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -217,6 +221,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             <span className="hidden items-center gap-1 sm:inline-flex"><Kbd>⌘</Kbd><Kbd>K</Kbd></span>
           </button>
           <div className="ml-auto flex items-center gap-1">
+            {isAgentWorkspace ? null : <HodiDrawerButton open={hodiOpen} onClick={() => setHodiOpen((value) => !value)} buttonRef={hodiButtonRef} />}
             <ThemeToggle />
             <NotificationBell tone="light" />
           </div>
@@ -246,6 +251,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           {isAgentWorkspace ? children : <div className="mx-auto w-full max-w-[1320px]">{children}</div>}
         </main>
       </div>
+      {isAgentWorkspace ? null : <HodiDrawer open={hodiOpen} onClose={closeHodi} triggerRef={hodiButtonRef} />}
       <CommandPalette variant="admin" />
     </div>
   );
