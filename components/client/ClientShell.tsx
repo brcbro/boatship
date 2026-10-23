@@ -80,6 +80,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-dvh bg-[var(--background)]">
+      <div aria-hidden="true" className="pointer-events-none fixed inset-0 -z-10 hidden bg-[image:var(--glow)] md:block" />
       <a href="#portal-content" className="sr-only fixed left-4 top-4 z-[100] rounded-[var(--radius-md)] bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-[var(--on-brand)] focus:not-sr-only">
         Skip to content
       </a>
@@ -88,7 +89,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-6">
             <Link href="/portal" className="flex shrink-0 items-center gap-2.5" aria-label="Boatship home">
-              <span aria-hidden="true" className="grid h-8 w-8 place-items-center rounded-[9px] bg-[var(--accent)] font-[family-name:var(--font-display)] text-[17px] font-extrabold leading-none text-[var(--on-accent)]">b</span>
+              <span aria-hidden="true" className="grid h-8 w-8 place-items-center rounded-[9px] bg-[var(--accent)] bg-[image:var(--accent-gradient)] font-[family-name:var(--font-display)] text-[17px] font-bold leading-none text-[var(--on-accent)]">b</span>
               <Image src="/brand/boatship-logo-black.png" alt="Boatship" width={1428} height={366} priority className="show-light hidden h-5 w-auto sm:block" /><Image src="/brand/boatship-logo-white.png" alt="" aria-hidden="true" width={1432} height={370} className="show-dark hidden h-5 w-auto sm:block" />
             </Link>
             <nav className="hidden items-center gap-1 md:flex" aria-label="Client portal">
@@ -200,7 +201,7 @@ function TabLink({ item, pathname }: { item: Item; pathname: string }) {
       aria-current={active ? "page" : undefined}
       className={cn("relative flex min-h-12 flex-col items-center justify-center gap-1 rounded-[var(--radius-md)] px-1 text-[11px] font-semibold transition-colors", active ? "text-[var(--brand)]" : "text-[var(--ink-muted)]")}
     >
-      {active ? <span aria-hidden="true" className="absolute top-0 h-[3px] w-6 rounded-b-full bg-[var(--accent)]" /> : null}
+      {active ? <span aria-hidden="true" className="absolute top-0 h-[3px] w-6 rounded-b-full bg-[var(--brand)]" /> : null}
       <Icon className="h-5 w-5" aria-hidden="true" strokeWidth={active ? 2.25 : 1.9} />
       <span>{item.label}</span>
     </Link>

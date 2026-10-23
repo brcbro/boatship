@@ -28,10 +28,10 @@ export function buttonClasses({ variant = "primary", size = "md", className }: {
     size === "md" && "min-h-10 px-4 text-sm max-sm:min-h-11",
     size === "lg" && "min-h-12 px-5 text-[15px]",
     variant === "primary" && "bg-[var(--brand)] text-[var(--on-brand)] hover:bg-[var(--brand-strong)]",
-    variant === "accent" && "bg-[var(--accent)] text-[var(--on-accent)] shadow-[0_8px_20px_-10px_var(--accent)] hover:bg-[var(--accent-strong)]",
-    variant === "secondary" && "border border-[var(--border-strong)] bg-[var(--surface-raised)] text-[var(--ink)] hover:border-[var(--ink-faint)] hover:bg-[var(--surface-2)]",
+    variant === "accent" && "bg-[var(--accent)] bg-[image:var(--accent-gradient)] text-[var(--on-accent)] hover:brightness-110",
+    variant === "secondary" && "border border-[var(--border-strong)] bg-transparent text-[var(--ink)] hover:bg-[var(--brand-soft)]",
     variant === "ghost" && "text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]",
-    variant === "danger" && "bg-[var(--danger)] text-white hover:brightness-95",
+    variant === "danger" && "bg-[var(--danger)] text-[var(--on-accent)] hover:brightness-95",
     className
   );
 }
@@ -60,8 +60,9 @@ export function ButtonLink({
 /* Fields                                                              */
 /* ------------------------------------------------------------------ */
 
+// Fields are dim wells: no border at rest, a hairline on hover, an accent ring on focus.
 const fieldBase =
-  "w-full rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-[var(--surface-raised)] px-3 text-sm text-[var(--ink)] outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-[var(--ink-faint)] focus:border-[var(--brand)] focus:ring-4 focus:ring-[var(--brand-soft)] disabled:cursor-not-allowed disabled:bg-[var(--surface-2)] disabled:text-[var(--ink-muted)] aria-[invalid=true]:border-[var(--danger)]";
+  "w-full rounded-[var(--radius-md)] border border-transparent bg-[var(--surface-2)] px-3 text-sm text-[var(--ink)] outline-none transition-[border-color,box-shadow,background-color] duration-150 placeholder:text-[var(--ink-faint)] hover:border-[var(--border-strong)] focus:border-[var(--border-strong)] focus:bg-[var(--surface-raised)] focus:ring-4 focus:ring-[var(--accent-soft)] disabled:cursor-not-allowed disabled:opacity-60 aria-[invalid=true]:border-[var(--danger)]";
 
 export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input className={cn(fieldBase, "min-h-10 py-2 max-sm:min-h-11", className)} {...props} />;
@@ -145,12 +146,18 @@ export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElemen
   return <div className={cn("rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-raised)] p-5 shadow-[var(--shadow-card)]", className)} {...props} />;
 }
 
-/** A compact figure with a label. Use only when the figures are the point of the screen. */
+/**
+ * A compact figure with a label. Use only when the figures are the point of the screen.
+ * `marker` is a small colour block that identifies the metric (chart series 1 to 4), never its state;
+ * `delta` is the change line under the figure, green up or red down.
+ */
 export function StatTile({
   label,
   value,
   detail,
   tone = "neutral",
+  marker,
+  delta,
   href,
   className,
 }: {
@@ -158,13 +165,24 @@ export function StatTile({
   value: ReactNode;
   detail?: ReactNode;
   tone?: "neutral" | "brand" | "accent" | "danger" | "success" | "warning";
+  marker?: 1 | 2 | 3 | 4;
+  delta?: { value: ReactNode; direction: "up" | "down" | "flat" };
   href?: string;
   className?: string;
 }) {
   const body = (
     <>
-      <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--ink-muted)]">{label}</p>
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--ink-muted)]">{label}</p>
+        {marker ? <span aria-hidden="true" className={cn("mt-0.5 h-2.5 w-2.5 shrink-0 rounded-[3px]", marker === 1 && "bg-[var(--chart-1)]", marker === 2 && "bg-[var(--chart-2)]", marker === 3 && "bg-[var(--chart-3)]", marker === 4 && "bg-[var(--chart-4)]")} /> : null}
+      </div>
       <p className="mt-2 font-[family-name:var(--font-display)] text-[2rem] font-bold leading-none tracking-[-0.02em] tabular-nums text-[var(--ink)]">{value}</p>
+      {delta ? (
+        <p className={cn("mt-2 inline-flex items-center gap-1 text-xs font-semibold tabular-nums", delta.direction === "up" && "text-[var(--success)]", delta.direction === "down" && "text-[var(--danger)]", delta.direction === "flat" && "text-[var(--ink-muted)]")}>
+          <span aria-hidden="true">{delta.direction === "up" ? "↑" : delta.direction === "down" ? "↓" : "→"}</span>
+          {delta.value}
+        </p>
+      ) : null}
       {detail ? <p className="mt-2 text-xs text-[var(--ink-muted)]">{detail}</p> : null}
     </>
   );
@@ -172,7 +190,7 @@ export function StatTile({
     "block rounded-[var(--radius-lg)] border p-4 transition-colors",
     tone === "neutral" && "border-[var(--border)] bg-[var(--surface-raised)]",
     tone === "brand" && "border-transparent bg-[var(--brand-soft)]",
-    tone === "accent" && "border-transparent bg-[var(--accent-soft)]",
+    tone === "accent" && "border-transparent bg-[var(--accent)] bg-[image:var(--accent-gradient)] text-[var(--on-accent)] [&_p]:text-[var(--on-accent)] [&_p:first-child]:text-[var(--on-accent)]/80 [&_p:last-child]:text-[var(--on-accent)]/80",
     tone === "danger" && "border-transparent bg-[var(--danger-soft)]",
     tone === "success" && "border-transparent bg-[var(--success-soft)]",
     tone === "warning" && "border-transparent bg-[var(--warning-soft)]",
@@ -194,7 +212,7 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold leading-5 tracking-[0.01em]",
+        "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold leading-5 tracking-[0.01em] before:h-1.5 before:w-1.5 before:shrink-0 before:rounded-full before:bg-current before:content-['']",
         tone === "neutral" && "bg-[var(--surface-2)] text-[var(--ink-muted)]",
         tone === "success" && "bg-[var(--success-soft)] text-[var(--success)]",
         tone === "warning" && "bg-[var(--warning-soft)] text-[var(--warning)]",
@@ -215,7 +233,7 @@ export function ProgressBar({ value, label = "Progress", tone = "brand" }: { val
   return (
     <div role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={clamped} className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--surface-2)]">
       <div
-        className={cn("h-full rounded-full transition-[width] duration-500", tone === "brand" && "bg-[var(--brand)]", tone === "accent" && "bg-[var(--accent)]", tone === "success" && "bg-[var(--success)]")}
+        className={cn("h-full rounded-full transition-[width] duration-500", tone === "brand" && "bg-[var(--brand)]", tone === "accent" && "bg-[var(--accent)] bg-[image:var(--accent-gradient)]", tone === "success" && "bg-[var(--success)]")}
         style={{ width: `${clamped}%` }}
       />
     </div>
@@ -255,7 +273,7 @@ export function PageHeader({
     <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0">
         {eyebrow ? <div className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--ink-muted)]">{eyebrow}</div> : null}
-        <h1 className="max-w-3xl font-[family-name:var(--font-display)] text-[2rem] font-extrabold leading-[1.02] tracking-[-0.03em] text-[var(--ink)] sm:text-[2.5rem]">{title}</h1>
+        <h1 className="max-w-3xl font-[family-name:var(--font-display)] text-[2rem] font-bold leading-[1.05] tracking-[-0.02em] text-[var(--ink)] sm:text-[2.25rem]">{title}</h1>
         {description ? <p className="mt-2 max-w-2xl text-[0.95rem] leading-6 text-[var(--ink-muted)]">{description}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
@@ -274,11 +292,12 @@ export function SectionHeading({ title, action, id, className }: { title: ReactN
 
 export type TabItem = { href: string; label: string; count?: number; exact?: boolean };
 
-/** Horizontal link tabs for record pages. Underline marks the current one. */
-export function Tabs({ items, pathname, ariaLabel }: { items: TabItem[]; pathname: string; ariaLabel: string }) {
+/** Horizontal link tabs. `underline` marks the current one with a rule; `pills` sets it as a filled pill on a track (record pages). */
+export function Tabs({ items, pathname, ariaLabel, variant = "underline" }: { items: TabItem[]; pathname: string; ariaLabel: string; variant?: "underline" | "pills" }) {
+  const pills = variant === "pills";
   return (
-    <nav aria-label={ariaLabel} className="-mx-1 overflow-x-auto">
-      <ul className="flex min-w-max gap-1 border-b border-[var(--border)] px-1">
+    <nav aria-label={ariaLabel} className={cn("overflow-x-auto", pills ? "pb-3" : "-mx-1")}>
+      <ul className={cn("flex min-w-max", pills ? "gap-1 rounded-full bg-[var(--surface-2)] p-1" : "gap-1 border-b border-[var(--border)] px-1")}>
         {items.map((item) => {
           const active = item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (
@@ -289,12 +308,14 @@ export function Tabs({ items, pathname, ariaLabel }: { items: TabItem[]; pathnam
                 scroll={false}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "-mb-px inline-flex min-h-11 items-center gap-2 border-b-2 px-3 text-sm font-semibold transition-colors",
-                  active ? "border-[var(--accent)] text-[var(--ink)]" : "border-transparent text-[var(--ink-muted)] hover:border-[var(--border-strong)] hover:text-[var(--ink)]"
+                  "inline-flex items-center gap-2 text-sm font-semibold transition-colors",
+                  pills
+                    ? cn("min-h-9 rounded-full px-3.5", active ? "bg-[var(--brand)] text-[var(--on-brand)]" : "text-[var(--ink-muted)] hover:bg-[var(--brand-soft)] hover:text-[var(--ink)]")
+                    : cn("-mb-px min-h-11 border-b-2 px-3", active ? "border-[var(--accent)] text-[var(--ink)]" : "border-transparent text-[var(--ink-muted)] hover:border-[var(--border-strong)] hover:text-[var(--ink)]")
                 )}
               >
                 {item.label}
-                {typeof item.count === "number" ? <span className="rounded-full bg-[var(--surface-2)] px-1.5 text-[11px] tabular-nums text-[var(--ink-muted)]">{item.count}</span> : null}
+                {typeof item.count === "number" ? <span className={cn("rounded-full px-1.5 text-[11px] tabular-nums", pills && active ? "bg-[var(--on-brand)]/15 text-[var(--on-brand)]" : "bg-[var(--surface-raised)] text-[var(--ink-muted)]")}>{item.count}</span> : null}
               </Link>
             </li>
           );
@@ -346,7 +367,7 @@ export function RecordHeader({
         <div className="min-w-0">
           {eyebrow ? <div className="mb-1 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--ink-muted)]">{eyebrow}</div> : null}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <h1 className="min-w-0 truncate font-[family-name:var(--font-display)] text-[1.6rem] font-extrabold leading-[1.05] tracking-[-0.03em] text-[var(--ink)] sm:text-[2rem]">{title}</h1>
+            <h1 className="min-w-0 truncate font-[family-name:var(--font-display)] text-[1.5rem] font-bold leading-[1.05] tracking-[-0.02em] text-[var(--ink)] sm:text-[1.9rem]">{title}</h1>
             {badges ? <div className="flex flex-wrap items-center gap-1.5">{badges}</div> : null}
           </div>
           {subtitle ? <p className="mt-1 truncate text-sm text-[var(--ink-muted)]">{subtitle}</p> : null}

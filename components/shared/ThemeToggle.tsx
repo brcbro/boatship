@@ -8,12 +8,13 @@ export type ThemeChoice = "system" | "light" | "dark";
 const STORAGE_KEY = "boatship-theme";
 const CHANGE_EVENT = "boatship:theme";
 
+/** Dark is the default; "system" is an explicit choice to follow the device. */
 export function readTheme(): ThemeChoice {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    return stored === "dark" || stored === "light" ? stored : "system";
+    return stored === "dark" || stored === "light" || stored === "system" ? stored : "dark";
   } catch {
-    return "system";
+    return "dark";
   }
 }
 
@@ -22,8 +23,7 @@ export function applyTheme(choice: ThemeChoice) {
   if (choice === "system") root.removeAttribute("data-theme");
   else root.setAttribute("data-theme", choice);
   try {
-    if (choice === "system") localStorage.removeItem(STORAGE_KEY);
-    else localStorage.setItem(STORAGE_KEY, choice);
+    localStorage.setItem(STORAGE_KEY, choice);
   } catch {
     /* storage unavailable; the attribute still applies for this page */
   }
@@ -40,10 +40,10 @@ function subscribe(onChange: () => void) {
 }
 
 function useTheme(): ThemeChoice {
-  return useSyncExternalStore(subscribe, readTheme, () => "system");
+  return useSyncExternalStore(subscribe, readTheme, () => "dark");
 }
 
-const ORDER: ThemeChoice[] = ["system", "light", "dark"];
+const ORDER: ThemeChoice[] = ["dark", "light", "system"];
 const LABEL: Record<ThemeChoice, string> = { system: "Theme: follows your device", light: "Theme: light", dark: "Theme: dark" };
 
 /** Cycles system → light → dark. `tone="nav"` draws it for the cobalt rail. */

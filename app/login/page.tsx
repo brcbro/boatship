@@ -129,11 +129,11 @@ function LoginContent() {
     <div className="grid min-h-dvh lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
       <aside className="relative hidden overflow-hidden bg-[var(--nav-bg)] p-10 text-[var(--nav-fg)] lg:flex lg:flex-col lg:justify-between" aria-hidden="true">
         <div className="flex items-center gap-3">
-          <span className="grid h-10 w-10 place-items-center rounded-[11px] bg-[var(--accent)] font-[family-name:var(--font-display)] text-[22px] font-extrabold leading-none text-[var(--on-accent)]">b</span>
+          <span className="grid h-10 w-10 place-items-center rounded-[11px] bg-[var(--accent)] bg-[image:var(--accent-gradient)] font-[family-name:var(--font-display)] text-[22px] font-bold leading-none text-[var(--on-accent)]">b</span>
           <Image src="/brand/boatship-logo-white.png" alt="" width={1432} height={370} className="h-6 w-auto" />
         </div>
         <div className="max-w-md">
-          <p className="font-[family-name:var(--font-display)] text-[clamp(2.4rem,4vw,3.6rem)] font-extrabold leading-[0.98] tracking-[-0.03em] text-[var(--nav-fg-strong)]">Every client, every next step, one place.</p>
+          <p className="font-[family-name:var(--font-display)] text-[clamp(2.4rem,4vw,3.6rem)] font-bold leading-[0.98] tracking-[-0.02em] text-[var(--nav-fg-strong)]">Every client, every next step, one place.</p>
           <p className="mt-5 text-[15px] leading-7 text-[var(--nav-fg)]">Teams run onboarding and delivery here. Clients sign in to the same workspace and see exactly what is waiting for them.</p>
         </div>
         <p className="font-[family-name:var(--font-mono)] text-xs uppercase tracking-[0.12em] text-[var(--nav-fg)]/70">Boatship · Client OS</p>
@@ -144,11 +144,11 @@ function LoginContent() {
       <div className="w-full max-w-md">
         <div className="mb-8">
           <div className="mb-5 flex items-center gap-2.5 lg:hidden">
-            <span aria-hidden="true" className="grid h-9 w-9 place-items-center rounded-[10px] bg-[var(--accent)] font-[family-name:var(--font-display)] text-[19px] font-extrabold leading-none text-[var(--on-accent)]">b</span>
+            <span aria-hidden="true" className="grid h-9 w-9 place-items-center rounded-[10px] bg-[var(--accent)] bg-[image:var(--accent-gradient)] font-[family-name:var(--font-display)] text-[19px] font-bold leading-none text-[var(--on-accent)]">b</span>
             <Image src="/brand/boatship-logo-black.png" alt="Boatship" width={1428} height={366} className="show-light h-5 w-auto" />
             <Image src="/brand/boatship-logo-white.png" alt="" aria-hidden="true" width={1432} height={370} className="show-dark h-5 w-auto" />
           </div>
-          <h1 className="font-[family-name:var(--font-display)] text-[2.4rem] font-extrabold leading-[1.02] tracking-[-0.03em] text-[var(--ink)]">
+          <h1 className="font-[family-name:var(--font-display)] text-[2.4rem] font-bold leading-[1.02] tracking-[-0.02em] text-[var(--ink)]">
             {mode === "login" ? "Sign in" : title}
           </h1>
           <p className="mt-2 text-sm leading-6 text-[var(--ink-muted)]">{subtitle}</p>

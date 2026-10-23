@@ -10,6 +10,7 @@ import {
   EmptyState,
   PageHeader,
   ProgressBar,
+  StatTile,
 } from "@/components/shared/ui";
 import { apiFetch } from "@/lib/api-client";
 import { formatDate, statusLabel } from "@/lib/utils";
@@ -167,7 +168,7 @@ export default function DashboardPage() {
         <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_14rem]">
           <div className="space-y-2">
             {needsAttention.length ? needsAttention.slice(0, 5).map((client) => (
-              <Link key={client.id} href={`/clients/${client.id}`} className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-md)] bg-[var(--surface-2)] px-4 py-3 transition hover:bg-slate-100">
+              <Link key={client.id} href={`/clients/${client.id}`} className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-md)] bg-[var(--surface-2)] px-4 py-3 transition hover:bg-[var(--border)]">
                 <span className="font-medium text-[var(--ink)]">{client.companyName || client.name}</span>
                 <Badge tone={healthByClientId[client.id] ? healthTone(healthByClientId[client.id].state) : "danger"}>
                   {healthByClientId[client.id] ? healthLabels[healthByClientId[client.id].state] : statusLabel(client.status)}
@@ -176,7 +177,7 @@ export default function DashboardPage() {
             )) : <p className="rounded-[var(--radius-md)] bg-[var(--surface-2)] px-4 py-4 text-sm text-[var(--ink-muted)]">No clients are currently marked as blocked or waiting.</p>}
             {needsAttention.length > 5 ? <Link href="/clients" className="inline-block pt-1 text-sm font-medium text-[var(--brand)] hover:underline">View all {needsAttention.length} clients</Link> : null}
           </div>
-          <Link href="/workload" className="rounded-[var(--radius-md)] bg-[var(--surface-2)] px-4 py-4 transition hover:bg-slate-100">
+          <Link href="/workload" className="rounded-[var(--radius-md)] bg-[var(--surface-2)] px-4 py-4 transition hover:bg-[var(--border)]">
             <span className="block text-sm text-[var(--ink-muted)]">Overdue client tasks</span>
             <span className="mt-2 block font-[family-name:var(--font-display)] text-3xl tabular-nums text-[var(--ink)]">{analytics?.overdueTasks ?? 0}</span>
             <span className="mt-2 block text-sm font-medium text-[var(--brand)]">View team workload →</span>
@@ -185,20 +186,10 @@ export default function DashboardPage() {
       </section>
 
       <div className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatTile label="Total clients" marker={1} value={analytics?.totalClients ?? 0} />
+        <StatTile label="Active engagements" marker={2} value={analytics?.activeEngagements ?? 0} />
         <Card>
-          <p className="text-sm text-[var(--ink-muted)]">Total clients</p>
-          <p className="mt-2 font-[family-name:var(--font-display)] text-3xl text-[var(--ink)]">
-            {analytics?.totalClients ?? 0}
-          </p>
-        </Card>
-        <Card>
-          <p className="text-sm text-[var(--ink-muted)]">Active engagements</p>
-          <p className="mt-2 font-[family-name:var(--font-display)] text-3xl text-[var(--ink)]">
-            {analytics?.activeEngagements ?? 0}
-          </p>
-        </Card>
-        <Card>
-          <p className="text-sm text-[var(--ink-muted)]">Legacy onboarding status</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--ink-muted)]">Legacy onboarding status</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {(
               [
@@ -214,12 +205,7 @@ export default function DashboardPage() {
             ))}
           </div>
         </Card>
-        <Card>
-          <p className="text-sm text-[var(--ink-muted)]">Approx. onboarding days</p>
-          <p className="mt-2 font-[family-name:var(--font-display)] text-3xl text-[var(--ink)]">
-            {analytics?.avgOnboardingDays ?? 0}
-          </p>
-        </Card>
+        <StatTile label="Approx. onboarding days" marker={4} value={analytics?.avgOnboardingDays ?? 0} />
       </div>
 
       <Card className="overflow-hidden p-0">
@@ -246,21 +232,21 @@ export default function DashboardPage() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-0 text-left text-sm sm:min-w-[640px]">
-              <thead className="bg-[var(--surface-2)] text-xs uppercase tracking-wide text-[var(--ink-muted)]">
+              <thead className="text-[11px] uppercase tracking-[0.08em] text-[var(--ink-faint)]">
                 <tr>
-                  <th className="px-4 py-2.5 font-medium">Name</th>
-                  <th className="hidden px-4 py-2.5 font-medium sm:table-cell">Company</th>
-                  <th className="px-4 py-2.5 font-medium">Status</th>
-                  <th className="hidden px-4 py-2.5 font-medium md:table-cell">Onboarding health</th>
-                  <th className="px-4 py-2.5 font-medium">Progress</th>
-                  <th className="hidden px-4 py-2.5 font-medium sm:table-cell">Updated</th>
+                  <th className="px-4 py-2.5 font-semibold">Name</th>
+                  <th className="hidden px-4 py-2.5 font-semibold sm:table-cell">Company</th>
+                  <th className="px-4 py-2.5 font-semibold">Status</th>
+                  <th className="hidden px-4 py-2.5 font-semibold md:table-cell">Onboarding health</th>
+                  <th className="px-4 py-2.5 font-semibold">Progress</th>
+                  <th className="hidden px-4 py-2.5 font-semibold sm:table-cell">Updated</th>
                 </tr>
               </thead>
               <tbody>
                 {clients.map((c) => (
                   <tr
                     key={c.id}
-                    className="border-t border-[var(--border)] hover:bg-slate-50/80"
+                    className="border-t border-[var(--border)] hover:bg-[var(--surface-2)]"
                   >
                     <td className="px-4 py-2.5">
                       <Link

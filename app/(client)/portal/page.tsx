@@ -103,18 +103,18 @@ export default function PortalDashboardPage() {
       <PageHeader eyebrow={client.companyName} title={`Hello, ${firstName}`} description={waitingCount === 0 ? "Nothing is waiting on you right now." : `${waitingCount} thing${waitingCount === 1 ? "" : "s"} need${waitingCount === 1 ? "s" : ""} you this week.`} />
 
       <section aria-labelledby="next-heading" className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(16rem,0.5fr)]">
-        <div className="relative overflow-hidden rounded-[var(--radius-xl)] bg-[var(--accent)] p-6 text-[var(--on-accent)] sm:p-8">
+        <div className="relative overflow-hidden rounded-[var(--radius-xl)] bg-[var(--accent)] bg-[image:var(--accent-gradient)] p-6 text-[var(--on-accent)] sm:p-8">
           <span aria-hidden="true" className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full border-[22px] border-[var(--on-accent)]/10" />
           <p id="next-heading" className="text-xs font-bold uppercase tracking-[0.12em] opacity-80">Your next step</p>
           {pendingApprovals.length > 0 ? (
             <>
-              <p className="mt-3 font-[family-name:var(--font-display)] text-[1.75rem] font-extrabold leading-[1.05] tracking-[-0.02em] sm:text-[2.1rem]">{pendingApprovals[0].subject}</p>
+              <p className="mt-3 font-[family-name:var(--font-display)] text-[1.75rem] font-bold leading-[1.05] tracking-[-0.02em] sm:text-[2.1rem]">{pendingApprovals[0].subject}</p>
               <p className="mt-2 text-sm opacity-85">A decision is waiting · {pendingApprovals.length} approval{pendingApprovals.length === 1 ? "" : "s"} to review</p>
               <Link href="/portal/approvals" className="mt-6 inline-flex min-h-11 items-center gap-2 rounded-[var(--radius-md)] bg-[var(--on-accent)] px-4 text-sm font-semibold text-[var(--accent)] transition-transform hover:translate-x-0.5">Review approval <ArrowRight className="h-4 w-4" aria-hidden="true" /></Link>
             </>
           ) : nextTask ? (
             <>
-              <p className="mt-3 font-[family-name:var(--font-display)] text-[1.75rem] font-extrabold leading-[1.05] tracking-[-0.02em] sm:text-[2.1rem]">{nextTask.title}</p>
+              <p className="mt-3 font-[family-name:var(--font-display)] text-[1.75rem] font-bold leading-[1.05] tracking-[-0.02em] sm:text-[2.1rem]">{nextTask.title}</p>
               <p className="mt-2 flex flex-wrap items-center gap-2 text-sm opacity-85">
                 {nextTask.engagementId ? <span>{engagements.find((item) => item.id === nextTask.engagementId)?.name}</span> : null}
                 {nextTask.dueDate ? <span>· Due {formatDate(nextTask.dueDate)}</span> : null}
@@ -125,7 +125,7 @@ export default function PortalDashboardPage() {
             </>
           ) : (
             <>
-              <p className="mt-3 font-[family-name:var(--font-display)] text-[1.75rem] font-extrabold leading-[1.05] tracking-[-0.02em] sm:text-[2.1rem]">You’re all caught up</p>
+              <p className="mt-3 font-[family-name:var(--font-display)] text-[1.75rem] font-bold leading-[1.05] tracking-[-0.02em] sm:text-[2.1rem]">You’re all caught up</p>
               <p className="mt-2 text-sm opacity-85">There are no tasks or decisions waiting for you. Your team will let you know when something changes.</p>
             </>
           )}
