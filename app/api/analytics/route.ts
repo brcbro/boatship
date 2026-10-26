@@ -6,7 +6,7 @@ import { getRedisCacheVersion, withRedisCache } from "@/lib/redis-cache";
 import type { ClientStatus } from "@/types";
 import { ENGAGEMENTS } from "@/lib/engagements";
 import { isLocalDemoStore } from "@/lib/firestore";
-import { averageOnboardingDays } from "@/lib/utils";
+import { averageOnboardingDays, dueDateKey } from "@/lib/utils";
 
 export const runtime = "nodejs";
 
@@ -152,7 +152,8 @@ export async function GET(req: Request) {
         if (
           task.dueDate &&
           task.status !== "completed" &&
-          new Date(task.dueDate).getTime() < now
+          // Due dates are calendar days: a task is overdue from the day after it is due.
+          (dueDateKey(task.dueDate) ?? "") < new Date(now).toISOString().slice(0, 10)
         ) {
           overdueTaskList.push({
             taskId: task.id,

@@ -223,7 +223,7 @@ export async function POST(req: Request) {
         summary: title,
         start_datetime: start,
         end_datetime: end,
-        timezone: body.timezone?.trim() || "Asia/Kolkata",
+        timezone: body.timezone?.trim() || "UTC",
         description: body.description?.trim() || undefined,
         attendees: attendeeEmails.length ? attendeeEmails : undefined,
         send_updates: attendeeEmails.length ? "all" : "none",

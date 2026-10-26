@@ -45,7 +45,7 @@ function dateTime(value: unknown, name: string): string {
 
 function timezone(value: unknown): string {
   const result = value === undefined || value === null || value === ""
-    ? "Asia/Kolkata"
+    ? "UTC"
     : requiredText(value, "timezone", 100);
   try {
     new Intl.DateTimeFormat("en-US", { timeZone: result });

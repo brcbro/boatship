@@ -4,8 +4,8 @@ import { clientCanSeeTask } from "@/lib/client-projection";
 import { getStore } from "@/lib/store";
 import { withRequestStoreScope } from "@/lib/store-context";
 import { internalErrorResponse, jsonError } from "@/lib/api";
-import { readDocumentContent } from "@/lib/document-content";
-import { DocumentInputError, documentByteRange, documentContentHeaders, documentVersionIndex, sniffDocumentType } from "@/lib/document-files";
+import { readDocumentContentRange } from "@/lib/document-content";
+import { DocumentInputError, documentContentHeaders, documentVersionIndex, sniffDocumentType } from "@/lib/document-files";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,22 +25,21 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       const url = new URL(req.url);
       const index = documentVersionIndex(url.searchParams.get("version"), document.versions.length);
       const version = index === null ? document : document.versions[index];
-      const bytes = await readDocumentContent(document, version);
-      if (!bytes?.length) return jsonError("This file is unavailable. Ask your team to upload it again.", 404);
-      const type = sniffDocumentType(bytes) || "application/octet-stream";
+      // Range requests read only the requested bytes when the store supports it.
+      const read = await readDocumentContentRange(document, version, req.headers.get("range"));
+      if (!read) return jsonError("This file is unavailable. Ask your team to upload it again.", 404);
+      if (read.kind === "unsatisfiable") {
+        return new Response(null, { status: 416, headers: { "Content-Range": `bytes */${read.size}`, "Cache-Control": "private, no-store" } });
+      }
+      const type = sniffDocumentType(read.head) || "application/octet-stream";
       const headers = documentContentHeaders(version.fileName, type, url.searchParams.get("disposition") === "attachment" || type === "application/octet-stream");
       headers.set("Accept-Ranges", "bytes");
-      let range;
-      try { range = documentByteRange(req.headers.get("range"), bytes.length); }
-      catch { return new Response(null, { status: 416, headers: { "Content-Range": `bytes */${bytes.length}`, "Cache-Control": "private, no-store" } }); }
-      if (range) {
-        const body = bytes.slice(range.start, range.end + 1);
-        headers.set("Content-Range", `bytes ${range.start}-${range.end}/${bytes.length}`);
-        headers.set("Content-Length", String(body.length));
-        return new Response(body, { status: 206, headers });
+      headers.set("Content-Length", String(read.bytes.length));
+      if (read.kind === "partial" && read.range) {
+        headers.set("Content-Range", `bytes ${read.range.start}-${read.range.end}/${read.size}`);
+        return new Response(new Uint8Array(read.bytes), { status: 206, headers });
       }
-      headers.set("Content-Length", String(bytes.length));
-      return new Response(Uint8Array.from(bytes), { headers });
+      return new Response(read.bytes as Uint8Array<ArrayBuffer>, { headers });
     });
   } catch (error) {
     if (error instanceof Response) return error;

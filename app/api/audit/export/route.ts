@@ -28,7 +28,7 @@ export async function GET(req: Request) {
       return jsonError("Forbidden", 403);
     }
     const store = await getStore();
-    let activity = await store.listAllActivity();
+    let activity = await store.listAllActivity({ includeArchived: true });
     if (session.role === "team") {
       const assignedIds = new Set((await filterAssignedClients(session, await store.listClients()))
         .map((client) => client.id));

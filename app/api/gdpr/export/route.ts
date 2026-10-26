@@ -25,7 +25,7 @@ export async function GET(req: Request) {
       store.listForms(clientId),
       store.listMessages(clientId),
       store.listVessels(clientId),
-      store.listActivity(clientId),
+      store.listActivity(clientId, { includeArchived: true }),
     ]);
 
     // Document metadata only — omit storage payloads / binary content.

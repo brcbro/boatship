@@ -116,7 +116,7 @@ export function statusLabel(status: string) {
     .join(" ");
 }
 
-/** Path prefixes of the staff workspace. Keep in step with ADMIN_PATHS in proxy.ts. */
+/** Path prefixes of the staff workspace; proxy.ts protects exactly these. */
 export const STAFF_PATH_PREFIXES = [
   "/dashboard", "/settings", "/clients", "/team", "/workload", "/projects",
   "/products", "/workspace", "/calendar", "/messages", "/templates",
