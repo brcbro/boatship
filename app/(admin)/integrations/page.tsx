@@ -359,7 +359,7 @@ function IntegrationsContent() {
         <div className="flex items-center justify-between gap-4">
           <div>
             <h2 className="font-[family-name:var(--font-display)] text-lg text-[var(--brand)]">Recent integration work</h2>
-            <p className="mt-1 text-sm text-[var(--ink-muted)]">Client folders, team updates, and CRM contacts are tracked here. Queued work runs every five minutes in the hosted workspace.</p>
+            <p className="mt-1 text-sm text-[var(--ink-muted)]">Client folders, team updates, and CRM contacts are tracked here. Queued work starts as soon as it is added; an hourly run retries anything that was interrupted.</p>
           </div>
           <Button type="button" size="sm" variant="secondary" disabled={jobsLoading} onClick={() => void loadJobs()}>{jobsLoading ? "Refreshing…" : "Refresh"}</Button>
         </div>

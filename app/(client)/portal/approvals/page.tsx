@@ -18,6 +18,8 @@ type Approval = {
   createdAt: string;
   reviewNote?: string | null;
   engagementId?: string | null;
+  requestedBy?: string;
+  requestedByRole?: "admin" | "team" | "client";
 };
 type Engagement = { id: string; name: string; status: string };
 
@@ -100,7 +102,9 @@ function ApprovalsContent() {
   }
 
   const visibleApprovals = approvals.filter((approval) => scope === "all" || (scope === "account" ? !approval.engagementId : approval.engagementId === scope || includeAccountWide && !approval.engagementId));
-  const pendingCount = visibleApprovals.filter((approval) => approval.status === "pending").length;
+  // Clients decide only on requests their team made; the API rejects the rest.
+  const clientRequested = (approval: Approval) => approval.requestedByRole === "client" || approval.requestedBy === session?.uid;
+  const pendingCount = visibleApprovals.filter((approval) => approval.status === "pending" && !clientRequested(approval)).length;
 
   return (
     <div>
@@ -131,7 +135,8 @@ function ApprovalsContent() {
         <section className="space-y-4" aria-label="Approval requests">
           <p className="text-sm text-[var(--ink-muted)]">{pendingCount} decision{pendingCount === 1 ? "" : "s"} waiting for you</p>
           {visibleApprovals.map((approval) => {
-            const pending = approval.status === "pending";
+            const ownRequest = clientRequested(approval);
+            const pending = approval.status === "pending" && !ownRequest;
             const saving = busyId === approval.id;
             const engagement = engagements.find((item) => item.id === approval.engagementId);
             const closed = engagement?.status === "completed" || engagement?.status === "cancelled";
@@ -146,6 +151,7 @@ function ApprovalsContent() {
                     <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--ink-muted)]">{approval.description || `Your team requested a ${approval.kind} decision.`}</p>
                     <p className="mt-3 text-xs font-medium text-[var(--ink-muted)]">{approval.kind.charAt(0).toUpperCase() + approval.kind.slice(1)} · Requested {formatDate(approval.createdAt)}</p>
                     <p className="mt-1 text-sm text-[var(--ink-muted)]">{approval.engagementId ? engagement?.name || "Historical engagement" : "Account-wide decision"}</p>
+                    {ownRequest && approval.status === "pending" ? <p className="mt-3 text-sm text-[var(--ink-muted)]">You raised this request. Your team will review it.</p> : null}
                     {closed && pending ? <p className="mt-3 text-sm text-[var(--ink-muted)]">This engagement has ended. Contact your team about this pending decision.</p> : null}
                     {pending ? <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--ink-muted)]">Need to see the item before deciding? <Link href="/portal/messages" className="font-semibold text-[var(--brand)] underline underline-offset-2">Ask your team to share it</Link>.</p> : null}
                     {approval.reviewNote ? <p className="mt-3 rounded-[var(--radius-md)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--ink)]"><span className="font-semibold">Your change request:</span> {approval.reviewNote}</p> : null}

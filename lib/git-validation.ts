@@ -1,8 +1,14 @@
 import { createHash } from "crypto";
 import { execFile } from "child_process";
-import { promises as fs } from "fs";
 import path from "path";
 import { promisify } from "util";
+
+/**
+ * Checkout paths come from configuration at run time. Loading the file system
+ * module outside bundle analysis keeps Turbopack from tracing the whole
+ * project for these calls; validation never runs on the Worker.
+ */
+const checkoutFs = () => import(/* turbopackIgnore: true */ "node:fs/promises");
 import {
   isGitCheckName,
   type GitChangedFile,
@@ -36,6 +42,7 @@ export function gitValidationAvailability(env: Record<string, string | undefined
   }
   const root = env.BOATSHIP_GIT_CHECKOUT_ROOT?.trim();
   if (!root) return { available: false, reason: "Git validation is disabled: BOATSHIP_GIT_CHECKOUT_ROOT is not configured." };
+  if (!path.isAbsolute(root)) return { available: false, reason: "Git validation is disabled: BOATSHIP_GIT_CHECKOUT_ROOT must be an absolute path." };
   return { available: true, root };
 }
 
@@ -50,8 +57,12 @@ export async function resolveCheckoutPath(root: string, requested?: string): Pro
   let realRoot: string;
   let realCandidate: string;
   try {
-    realRoot = await fs.realpath(path.resolve(root));
-    realCandidate = await fs.realpath(path.resolve(realRoot, requested?.trim() || "."));
+    // Joined explicitly: path.resolve falls back to the working directory, which makes the bundler trace the whole project.
+    if (!path.isAbsolute(root)) return null;
+    const fs = await checkoutFs();
+    realRoot = await fs.realpath(root);
+    const target = requested?.trim() || ".";
+    realCandidate = await fs.realpath(path.isAbsolute(target) ? target : `${realRoot}${path.sep}${target}`);
   } catch {
     return null;
   }
@@ -177,7 +188,8 @@ export async function validateGitProgress(
   const repoPath = await resolveCheckoutPath(availability.root, request.repositoryPath);
   if (!repoPath) return blocked(taskId, request, "Repository path must name a checkout inside the configured checkout root.");
   // Evidence names the checkout relative to the root, never the server's absolute layout.
-  const displayPath = path.relative(await fs.realpath(path.resolve(availability.root)), repoPath).split(path.sep).join("/") || ".";
+  const fs = await checkoutFs();
+  const displayPath = path.relative(await fs.realpath(availability.root), repoPath).split(path.sep).join("/") || ".";
   request = { ...request, repositoryPath: displayPath };
 
   try {
