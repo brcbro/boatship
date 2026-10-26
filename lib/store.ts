@@ -30,7 +30,9 @@ import type {
 } from "@/types";
 import { calcProgress } from "@/lib/utils";
 import { SEED_FORM_TEMPLATES, SEED_ONBOARDING_TEMPLATES } from "@/lib/seed-templates";
-import { Collection, getFirestore, isFirestoreStatus, isHostedStore, type DocSnapshot, type FirestoreReader, type Where, type Write } from "@/lib/firestore";
+import { Buffer } from "node:buffer";
+import { Collection, getFirestore, isFirestoreStatus, isHostedStore, PostgresFirestore, type DocSnapshot, type FirestoreClient, type FirestoreReader, type Where, type Write } from "@/lib/firestore";
+import { applyRetention, NOTIFICATION_READ_RETENTION_DAYS } from "@/lib/store-retention";
 import { deleteWhere, updateWhere } from "@/lib/firestore/bulk";
 import { deleteDocumentObjects, listClientDocumentObjectKeys } from "@/lib/document-content";
 import { ensureLegacyEngagement } from "@/lib/engagements";
@@ -603,8 +605,13 @@ export interface DataStore {
   updateForm(id: string, patch: Partial<FormSubmission>): Promise<FormSubmission>;
   submitFormOnce(input: FormSubmissionInput): Promise<FormSubmission>;
 
-  listActivity(clientId: string): Promise<ActivityLog[]>;
-  listAllActivity(): Promise<ActivityLog[]>;
+  /**
+   * Activity in the snapshot (the most recent `ACTIVITY_SNAPSHOT_MAX`
+   * entries). `includeArchived` also reads older entries that retention
+   * moved to `ActivityArchive`; use it for audit and privacy exports.
+   */
+  listActivity(clientId: string, options?: { includeArchived?: boolean }): Promise<ActivityLog[]>;
+  listAllActivity(options?: { includeArchived?: boolean }): Promise<ActivityLog[]>;
   addActivity(
     entry: Omit<ActivityLog, "id" | "timestamp"> & { timestamp?: string }
   ): Promise<ActivityLog>;
@@ -697,9 +704,19 @@ class LocalStore implements DataStore {
     await bumpRedisCacheVersion();
   }
 
+  /**
+   * Applies `fn` to the store and saves it. The hosted override runs `fn`
+   * inside a serializable transaction that is retried on contention (up to
+   * 12 attempts), so `fn` must only change `data` and compute its result:
+   * no network calls, emails, notifications, or other side effects, and any
+   * outer variable it assigns must be overwritten on every run. Ids and
+   * timestamps may be generated inside; only the committed attempt's result
+   * is returned. Do side effects after `mutate` resolves.
+   */
   protected async mutate<T>(fn: (data: StoreData) => T | Promise<T>): Promise<T> {
     const data = await this.read();
     const result = await fn(data);
+    applyRetention(data, Date.now(), { archiveActivity: false });
     await this.persist(data);
     return result;
   }
@@ -1567,7 +1584,14 @@ class LocalStore implements DataStore {
 const SNAPSHOT_COLLECTION = "StoreSnapshot";
 const SNAPSHOT_META_ID = "main";
 const SNAPSHOT_SLICE_PREFIX = "main:";
-const SNAPSHOT_SLICE_LIMIT = 900_000; // bytes of JSON; Firestore caps a document at 1 MiB
+/** Bytes of slice JSON on the Firestore fallback, which caps a document at 1 MiB. */
+export const FIRESTORE_SLICE_LIMIT = 900_000;
+/**
+ * PostgreSQL has no 1 MiB document cap (jsonb allows hundreds of MB). This
+ * cap only stops a runaway slice, since every change rewrites the whole
+ * slice; retention (`lib/store-retention.ts`) keeps real slices far below it.
+ */
+export const POSTGRES_SLICE_LIMIT = 64 * 1024 * 1024;
 const SLICE_KEYS = Object.keys(emptyStore()) as Array<keyof StoreData>;
 
 type SliceDoc = { json: string; version: number };
@@ -1575,6 +1599,33 @@ type MetaDoc = { version: number; updatedAt: string };
 
 export const USER_PROFILES = new Collection<UserProfileDoc>("UserProfile");
 const NOTIFICATIONS = new Collection<NotificationDoc>("NotificationRecord");
+/** Activity entries moved out of the snapshot by retention, one document per entry. */
+export const ACTIVITY_ARCHIVE = new Collection<ActivityLog>("ActivityArchive");
+
+/** Snapshot activity plus archived entries, newest first, without duplicates. */
+function mergeActivity(current: ActivityLog[], archived: ActivityLog[]): ActivityLog[] {
+  const seen = new Set(current.map((entry) => entry.id));
+  return [...current, ...archived.filter((entry) => !seen.has(entry.id))].sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+}
+
+/** The slice size limit for the active storage backend. */
+export function sliceByteLimit(client: FirestoreClient = getFirestore()): number {
+  return client instanceof PostgresFirestore ? POSTGRES_SLICE_LIMIT : FIRESTORE_SLICE_LIMIT;
+}
+
+/**
+ * Whether the profile collection has any document. Once true it is cached
+ * per client for the life of the instance (profiles are never all removed in
+ * normal operation), so a profile miss costs one keyed read, not a count.
+ */
+const profilesSeen = new WeakSet<object>();
+async function hasUserProfiles(): Promise<boolean> {
+  const client = getFirestore();
+  if (profilesSeen.has(client)) return true;
+  const any = (await USER_PROFILES.find([], { limit: 1 })).length > 0;
+  if (any) profilesSeen.add(client);
+  return any;
+}
 
 function sliceId(key: string) {
   return `${SNAPSHOT_SLICE_PREFIX}${key}`;
@@ -1592,9 +1643,25 @@ function parseSlices(docs: Map<string, DocSnapshot<SliceDoc>>): StoreData {
 }
 
 function serializeSlice(key: keyof StoreData, value: unknown): string {
-  const json = JSON.stringify(value ?? (key === "projectOps" ? {} : []));
-  if (json.length > SNAPSHOT_SLICE_LIMIT) throw new Error(`Store slice ${key} exceeds the ${SNAPSHOT_SLICE_LIMIT} byte Firestore document limit; archive old records before writing more`);
-  return json;
+  return JSON.stringify(value ?? (key === "projectOps" ? {} : []));
+}
+
+/** Only called for slices this write changes, so one full slice never blocks writes to the others. */
+export function assertSliceSize(key: string, json: string, limit: number) {
+  const bytes = Buffer.byteLength(json, "utf8");
+  if (bytes > limit) throw new Error(`Store slice ${key} is ${bytes} bytes, over the ${limit} byte limit for this database; archive old records before writing more`);
+}
+
+/** Set writes for the slices whose JSON differs from `before`; unchanged slices are neither checked nor written. */
+export function changedSliceWrites(before: Map<string, DocSnapshot<SliceDoc>>, data: StoreData, version: number, limit: number): Write[] {
+  const writes: Write[] = [];
+  for (const key of SLICE_KEYS) {
+    const json = serializeSlice(key, data[key]);
+    if (before.get(sliceId(key))?.data.json === json) continue;
+    assertSliceSize(key, json, limit);
+    writes.push({ set: { collection: SNAPSHOT_COLLECTION, id: sliceId(key), data: { json, version } } });
+  }
+  return writes;
 }
 
 type SnapshotSlices = Map<string, DocSnapshot<SliceDoc>>;
@@ -1626,7 +1693,10 @@ async function loadSlices(reader: FirestoreReader): Promise<{ meta: DocSnapshot<
   const meta = await reader.get<MetaDoc>(SNAPSHOT_COLLECTION, SNAPSHOT_META_ID);
   const cached = snapshotCaches.get(client);
   if (meta && cached && cached.version === meta.data.version) return { meta, slices: cached.slices };
-  if (meta && cached) {
+  // A meta version below the cached one means the database went back in time
+  // (a restore): the cache is not a base for an incremental refresh.
+  if (meta && cached && meta.data.version < cached.version) snapshotCaches.delete(client);
+  else if (meta && cached) {
     const changed = await reader.query<SliceDoc>({ collection: SNAPSHOT_COLLECTION, where: [{ field: "version", op: ">", value: cached.version }] });
     const slices: SnapshotSlices = new Map(cached.slices);
     for (const doc of changed) if (doc.id !== SNAPSHOT_META_ID) slices.set(doc.id, doc);
@@ -1634,7 +1704,7 @@ async function loadSlices(reader: FirestoreReader): Promise<{ meta: DocSnapshot<
     return { meta, slices };
   }
   const slices = await reader.getMany<SliceDoc>(SNAPSHOT_COLLECTION, SLICE_KEYS.map(sliceId));
-  if (meta) rememberSnapshot(client, meta.data.version, slices);
+  if (meta) snapshotCaches.set(client, { version: meta.data.version, slices });
   return { meta, slices };
 }
 
@@ -1688,7 +1758,7 @@ class FirestoreStore extends LocalStore {
     if (profile) return appUserFromProfile(profile);
     // A fresh database whose seed snapshot predates the profile collection.
     // Once any profile exists, a missing document is authoritative.
-    if ((await USER_PROFILES.count()) > 0) return null;
+    if (await hasUserProfiles()) return null;
     const legacy = await super.getUser(uid);
     if (legacy) await this.upsertProfile(legacy);
     return legacy;
@@ -1698,7 +1768,7 @@ class FirestoreStore extends LocalStore {
     const normalizedEmail = email.trim().toLowerCase();
     const profile = await USER_PROFILES.findFirst([{ field: "email", op: "==", value: normalizedEmail }]);
     if (profile) return appUserFromProfile(profile);
-    if ((await USER_PROFILES.count()) > 0) return null;
+    if (await hasUserProfiles()) return null;
     const legacy = await super.getUserByEmail(normalizedEmail);
     if (legacy) await this.upsertProfile(legacy);
     return legacy;
@@ -1710,7 +1780,7 @@ class FirestoreStore extends LocalStore {
       if (profile.inviteTokenExpiresAt && new Date(profile.inviteTokenExpiresAt).getTime() < Date.now()) return null;
       return appUserFromProfile(profile);
     }
-    if ((await USER_PROFILES.count()) > 0) return null;
+    if (await hasUserProfiles()) return null;
     const legacy = await super.getUserByInviteToken(token);
     if (legacy) await this.upsertProfile(legacy);
     return legacy;
@@ -1790,14 +1860,31 @@ class FirestoreStore extends LocalStore {
   override async markAllNotificationsRead(userId: string) {
     const count = await updateWhere(NOTIFICATIONS.name, [{ field: "userId", op: "==", value: userId }, { field: "readAt", op: "is-null" }], { readAt: now() });
     await this.syncLegacySnapshot(() => super.markAllNotificationsRead(userId));
+    // Same retention as the snapshot copy: read notifications older than the window go.
+    const cutoff = new Date(Date.now() - NOTIFICATION_READ_RETENTION_DAYS * 86_400_000).toISOString();
+    await deleteWhere(NOTIFICATIONS.name, [{ field: "userId", op: "==", value: userId }, { field: "readAt", op: "<", value: cutoff }])
+      .catch((error) => console.error("Notification retention failed", error));
     return count;
+  }
+
+  override async listActivity(clientId: string, options: { includeArchived?: boolean } = {}) {
+    const current = await super.listActivity(clientId);
+    if (!options.includeArchived) return current;
+    const archived = await ACTIVITY_ARCHIVE.find([{ field: "clientId", op: "==", value: clientId }]);
+    return mergeActivity(current, archived);
+  }
+
+  override async listAllActivity(options: { includeArchived?: boolean } = {}) {
+    const current = await super.listAllActivity();
+    if (!options.includeArchived) return current;
+    return mergeActivity(current, await ACTIVITY_ARCHIVE.find([]));
   }
 
   override async deleteClientCascade(id: string) {
     await super.deleteClientCascade(id);
     const objectKeys = await listClientDocumentObjectKeys(id);
     const byClient: Where[] = [{ field: "clientId", op: "==", value: id }];
-    for (const collection of ["NotificationRecord", "Engagement", "ClientContact", "DocumentContent", "IntegrationJob"]) await deleteWhere(collection, byClient);
+    for (const collection of ["NotificationRecord", "Engagement", "ClientContact", "DocumentContent", "IntegrationJob", ACTIVITY_ARCHIVE.name]) await deleteWhere(collection, byClient);
     await deleteWhere(USER_PROFILES.name, [...byClient, { field: "role", op: "==", value: "client" }]);
     await deleteDocumentObjects(objectKeys);
   }
@@ -1818,15 +1905,10 @@ class FirestoreStore extends LocalStore {
   }
 
   private sliceWrites(before: Map<string, DocSnapshot<SliceDoc>>, data: StoreData, version: number): Write[] {
-    const writes: Write[] = [];
-    for (const key of SLICE_KEYS) {
-      const json = serializeSlice(key, data[key]);
-      if (before.get(sliceId(key))?.data.json === json) continue;
-      writes.push({ set: { collection: SNAPSHOT_COLLECTION, id: sliceId(key), data: { json, version } } });
-    }
-    return writes;
+    return changedSliceWrites(before, data, version, sliceByteLimit());
   }
 
+  /** See `LocalStore.mutate`: `fn` may run several times and must be free of side effects. */
   protected override async mutate<T>(fn: (data: StoreData) => T | Promise<T>): Promise<T> {
     // Firestore transactions re-run the callback on contention, so its result
     // is only published once the corresponding version has committed.
@@ -1834,6 +1916,10 @@ class FirestoreStore extends LocalStore {
       const { data, meta, slices } = await this.loadSnapshot(tx);
       await ensureSeed(data);
       const result = await fn(data);
+      // Retention runs inside the transaction: archived activity is written
+      // atomically with the slice that no longer holds it.
+      const { archivedActivity } = applyRetention(data, Date.now(), { archiveActivity: true });
+      for (const entry of archivedActivity) tx.write({ set: { collection: ACTIVITY_ARCHIVE.name, id: entry.id, data: { ...entry } } });
       const version = (meta?.data.version ?? 0) + 1;
       const writes = this.sliceWrites(slices, data, version);
       for (const write of writes) tx.write(write);

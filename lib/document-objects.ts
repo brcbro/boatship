@@ -11,6 +11,12 @@ export type DocumentObjectStore = {
   put(key: string, bytes: Uint8Array, contentType: string): Promise<void>;
   get(key: string): Promise<Uint8Array | null>;
   delete(keys: string[]): Promise<void>;
+  /**
+   * Optional partial read (inclusive byte offsets, clamped to the object):
+   * the bytes, the object's total size, and its first 16 bytes for type
+   * sniffing. Stores without it are read whole and sliced by the caller.
+   */
+  getRange?(key: string, start: number, end: number): Promise<{ bytes: Uint8Array; size: number; head: Uint8Array } | null>;
 };
 
 const KEY_PART = /^[A-Za-z0-9._:-]{1,128}$/;
@@ -40,6 +46,7 @@ export function postgresDocumentObjectStore(client: PostgresFirestore): Document
   return {
     put: (key, bytes, contentType) => client.putBlob(key, bytes, contentType),
     get: (key) => client.getBlob(key),
+    getRange: (key, start, end) => client.getBlobRange(key, start, end),
     delete: (keys) => client.deleteBlobs(keys),
   };
 }
@@ -50,6 +57,10 @@ export function memoryDocumentObjectStore(): DocumentObjectStore & { objects: Ma
     objects,
     async put(key, bytes, contentType) { objects.set(key, { bytes: Uint8Array.from(bytes), contentType }); },
     async get(key) { const hit = objects.get(key); return hit ? Uint8Array.from(hit.bytes) : null; },
+    async getRange(key, start, end) {
+      const hit = objects.get(key);
+      return hit ? { bytes: hit.bytes.slice(start, end + 1), size: hit.bytes.length, head: hit.bytes.slice(0, 16) } : null;
+    },
     async delete(keys) { for (const key of keys) objects.delete(key); },
   };
 }

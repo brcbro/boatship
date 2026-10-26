@@ -1,6 +1,6 @@
 import { compareValues, valuesEqual } from "./codec";
 import {
-  assertDocumentId, FirestoreError,
+  assertDocumentId, FirestoreError, notifyCommittedWrites,
   type DocSnapshot, type FirestoreClient, type FirestoreTransaction, type FsData, type QuerySpec, type Where, type Write,
 } from "./types";
 
@@ -132,6 +132,7 @@ export class MemoryFirestore implements FirestoreClient {
 
   async commit(writes: Write[]): Promise<void> {
     this.applyWrites(writes);
+    await notifyCommittedWrites(writes);
   }
 
   async runTransaction<R>(body: (tx: FirestoreTransaction) => Promise<R>, options: { attempts?: number } = {}): Promise<R> {
@@ -166,6 +167,7 @@ export class MemoryFirestore implements FirestoreClient {
         continue;
       }
       this.applyWrites(writes);
+      await notifyCommittedWrites(writes);
       return result;
     }
   }

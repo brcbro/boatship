@@ -56,6 +56,25 @@ export async function bumpRedisCacheVersion(): Promise<void> {
   await command(["INCR", VERSION_KEY]);
 }
 
+/**
+ * Collections outside the StoreSnapshot whose documents appear in cached
+ * responses (users, clients, messages, analytics). `lib/firestore/index.ts`
+ * bumps the generation after any committed write to one of them, whichever
+ * module made the write. StoreSnapshot writes bump in `lib/store.ts`.
+ */
+export const REDIS_CACHED_COLLECTIONS: ReadonlySet<string> = new Set(["UserProfile", "Engagement", "ClientContact", "NotificationRecord"]);
+
+/** Bumps once when any of the written collections feeds a cached response. */
+export async function bumpRedisCacheForCollections(collections: Iterable<string>): Promise<boolean> {
+  for (const collection of collections) {
+    if (REDIS_CACHED_COLLECTIONS.has(collection)) {
+      await bumpRedisCacheVersion();
+      return true;
+    }
+  }
+  return false;
+}
+
 /** Keep request filters out of Redis key names while retaining stable lookup keys. */
 export async function redisCacheKey(scope: string, input: string): Promise<string> {
   const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
