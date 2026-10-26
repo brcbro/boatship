@@ -115,7 +115,7 @@ export async function handleMcpRequest(request: McpJsonRpcRequest, context: McpC
     if (uri === "boatship://me/tasks") {
       const denied = missingScope(id, context, "tasks:read");
       if (denied) return denied;
-      return { jsonrpc: "2.0", id, result: { contents: [{ uri, mimeType: "application/json", text: JSON.stringify(await visibleTasks(context)) }] } };
+      return { jsonrpc: "2.0", id, result: { contents: [{ uri, mimeType: "application/json", text: JSON.stringify(sanitizeForMcp(await visibleTasks(context))) }] } };
     }
     return error(id, -32004, "Resource not found or not authorized");
   }

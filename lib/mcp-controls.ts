@@ -213,7 +213,12 @@ export async function runApprovedTaskAction(input: ApprovalInput) {
   if (input.action === "update_task_status") {
     const status = payload.status;
     if (!["pending", "in_progress", "completed", "blocked"].includes(String(status))) return { status: "failed", message: "Invalid task status" };
-    apply = async () => ({ task: await store.updateTask(task.id, { status: status as typeof task.status }) });
+    apply = async () => {
+      // Staff-only bookkeeping never leaves through an MCP result.
+      const { watcherIds: _watchers, escalatedAt: _escalated, reminderSentAt: _reminder, internalNotes: _notes, ...updated } = await store.updateTask(task.id, { status: status as typeof task.status });
+      void [_watchers, _escalated, _reminder, _notes];
+      return { task: updated };
+    };
   } else if (input.action === "add_comment") {
     const body = String(payload.body || "").trim();
     if (!body) return { status: "failed", message: "body is required" };

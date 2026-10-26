@@ -243,3 +243,21 @@ test("an admin minting a token for another user records issuedBy and cannot gran
   assert.ok(entry);
   assert.equal(entry.metadata.issuedBy, adminA.uid);
 });
+
+test("an applied status update does not return staff-only task fields", async () => {
+  fresh();
+  await seedUser(adminA);
+  await seedUser(adminB);
+  const store = await getStore();
+  const client = await store.createClient({ name: "Fields", companyName: "Fields Co", primaryContactEmail: "f@example.com", templateId: null, assignedTeamMemberId: null });
+  const task = await store.createTask({ clientId: client.id, title: "Status", description: "", type: "general", assignedTo: null, assignedRole: "team", status: "pending", dueDate: null, order: 1, formTemplateId: null, requiresUpload: false });
+  let context = await createMcpContext(adminA, "boatship_admin_a", undefined, ["tasks:write"]);
+  const { approvalId } = await runApprovedTaskAction({ context, action: "update_task_status", taskId: task.id, payload: { status: "completed" } });
+  await reviewMcpWriteApproval({ approvalId, decision: "approved", reviewer: adminB });
+  resetSnapshotCache();
+  context = await createMcpContext(adminA, "boatship_admin_a", undefined, ["tasks:write"]);
+  const result = await runApprovedTaskAction({ context, action: "update_task_status", taskId: task.id, payload: { status: "completed" }, approved: true, approvalId });
+  assert.equal(result.status, "applied");
+  assert.equal(result.task.status, "completed");
+  for (const field of ["watcherIds", "escalatedAt", "reminderSentAt", "internalNotes"]) assert.equal(field in result.task, false, field);
+});
