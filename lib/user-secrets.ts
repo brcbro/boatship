@@ -58,8 +58,62 @@ export type UserProviderSecretDoc = { id: string; userId: string; provider: stri
 export const USER_PROVIDER_SECRETS = new Collection<UserProviderSecretDoc>("UserProviderSecret");
 const secretId = (userId: string, provider: string) => `${userId}__${provider}`;
 
-export async function listUserSecretMetadata(userId: string): Promise<SecretMetadata[]> {
-  const records = (await USER_PROVIDER_SECRETS.find([{ field: "userId", op: "in", value: [WORKSPACE_SECRET_USER_ID, userId] }]))
+/** Current ciphertext format: AES-256-GCM with the row identity as additional authenticated data. */
+const KEY_VERSION_WITH_AAD = 2;
+
+function secretAad(userId: string, provider: string) {
+  return Buffer.from(`boatship:user-secret:v2:${userId}:${provider}`, "utf8");
+}
+
+/**
+ * Encrypts a secret bound to its row (userId and provider), so a ciphertext
+ * copied into another user's or provider's row does not decrypt.
+ */
+export function encryptUserSecret(userId: string, provider: string, value: string, key: Buffer = masterKey()) {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  cipher.setAAD(secretAad(userId, provider));
+  const ciphertext = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
+  return {
+    ciphertext: ciphertext.toString("base64"),
+    iv: iv.toString("base64"),
+    authTag: cipher.getAuthTag().toString("base64"),
+    keyVersion: KEY_VERSION_WITH_AAD,
+  };
+}
+
+function decryptWith(record: Pick<UserProviderSecretDoc, "ciphertext" | "iv" | "authTag">, key: Buffer, aad: Buffer | null) {
+  const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(record.iv, "base64"));
+  if (aad) decipher.setAAD(aad);
+  decipher.setAuthTag(Buffer.from(record.authTag, "base64"));
+  return Buffer.concat([
+    decipher.update(Buffer.from(record.ciphertext, "base64")),
+    decipher.final(),
+  ]).toString("utf8");
+}
+
+/**
+ * Decrypts a stored secret for the row it was looked up under. Rows written
+ * before row binding (keyVersion 1) have no AAD and remain readable; they are
+ * bound the next time the credential is saved.
+ */
+export function decryptUserSecret(
+  userId: string,
+  provider: string,
+  record: Pick<UserProviderSecretDoc, "ciphertext" | "iv" | "authTag" | "keyVersion">,
+  key: Buffer = masterKey(),
+) {
+  try {
+    return decryptWith(record, key, secretAad(userId, provider));
+  } catch (error) {
+    if ((record.keyVersion ?? 1) >= KEY_VERSION_WITH_AAD) throw error;
+    return decryptWith(record, key, null);
+  }
+}
+
+export async function listUserSecretMetadata(userId: string, options: { includeWorkspace?: boolean } = {}): Promise<SecretMetadata[]> {
+  const scopes = options.includeWorkspace === false ? [userId] : [WORKSPACE_SECRET_USER_ID, userId];
+  const records = (await USER_PROVIDER_SECRETS.find([{ field: "userId", op: "in", value: scopes }]))
     .sort((a, b) => a.provider.localeCompare(b.provider));
   const byProvider = new Map<string, (typeof records)[number]>();
   // Workspace values win, while legacy per-user values remain readable until
@@ -86,26 +140,16 @@ export async function listUserSecretMetadata(userId: string): Promise<SecretMeta
 export async function getUserSecret(userId: string, providerInput: string): Promise<string | null> {
   const provider = providerOrThrow(providerInput);
   const workspaceRecord = await USER_PROVIDER_SECRETS.get(secretId(WORKSPACE_SECRET_USER_ID, provider));
-  const record = workspaceRecord || await USER_PROVIDER_SECRETS.get(secretId(userId, provider));
-  if (!record) return null;
-
-  const decipher = createDecipheriv("aes-256-gcm", masterKey(), Buffer.from(record.iv, "base64"));
-  decipher.setAuthTag(Buffer.from(record.authTag, "base64"));
-  return Buffer.concat([
-    decipher.update(Buffer.from(record.ciphertext, "base64")),
-    decipher.final(),
-  ]).toString("utf8");
+  if (workspaceRecord) return decryptUserSecret(WORKSPACE_SECRET_USER_ID, provider, workspaceRecord);
+  const record = await USER_PROVIDER_SECRETS.get(secretId(userId, provider));
+  return record ? decryptUserSecret(userId, provider, record) : null;
 }
 
 export async function upsertUserSecret(userId: string, providerInput: string, valueInput: string) {
   const provider = providerOrThrow(providerInput);
   const value = valueInput.trim();
   if (!value) throw new Error("Secret value is required");
-  const key = masterKey();
-  const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", key, iv);
-  const ciphertext = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
-  const authTag = cipher.getAuthTag();
+  const encrypted = encryptUserSecret(userId, provider, value);
   const docId = secretId(userId, provider);
   const existing = await USER_PROVIDER_SECRETS.get(docId);
   const stamp = nowIso();
@@ -113,10 +157,7 @@ export async function upsertUserSecret(userId: string, providerInput: string, va
     id: existing?.id || randomUUID(),
     userId,
     provider,
-    ciphertext: ciphertext.toString("base64"),
-    iv: iv.toString("base64"),
-    authTag: authTag.toString("base64"),
-    keyVersion: 1,
+    ...encrypted,
     last4: last4(value),
     createdAt: existing?.createdAt || stamp,
     updatedAt: stamp,

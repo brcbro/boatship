@@ -1,5 +1,6 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
+import { requireStaffPermission } from "@/lib/rbac";
 import {
   listUserSecretMetadata,
   upsertUserSecret,
@@ -20,14 +21,23 @@ function targetUserId(session: { uid: string; role: string }, requested?: string
 export async function GET(req: Request) {
   return handleApi(async () => {
     const session = await requireRoles(req, ["admin", "team"]);
-    const userId = targetUserId(session, new URL(req.url).searchParams.get("userId") || undefined);
-    return { secrets: await listUserSecretMetadata(userId) };
+    requireStaffPermission(session, "integrations.manage");
+    const requested = new URL(req.url).searchParams.get("userId") || undefined;
+    // Workspace credentials are admin-only. A team member without an explicit
+    // target sees only their own legacy per-user records, never the workspace
+    // record, instead of a Forbidden error.
+    if (session.role !== "admin" && !requested?.trim()) {
+      return { secrets: await listUserSecretMetadata(session.uid, { includeWorkspace: false }) };
+    }
+    const userId = targetUserId(session, requested);
+    return { secrets: await listUserSecretMetadata(userId, { includeWorkspace: session.role === "admin" }) };
   });
 }
 
 export async function POST(req: Request) {
   return handleApi(async () => {
     const session = await requireRoles(req, ["admin", "team"]);
+    requireStaffPermission(session, "integrations.manage");
     const body = (await req.json().catch(() => ({}))) as {
       userId?: string;
       provider?: string;
