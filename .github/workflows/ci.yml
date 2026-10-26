@@ -33,3 +33,55 @@ jobs:
       - run: npm run build
       - name: Audit production dependencies for high and critical advisories
         run: npm audit --omit=dev --audit-level=high
+
+  # The storage contract and the end-to-end suite against a throwaway
+  # PostgreSQL in a service container. TEST_DATABASE_URL points at localhost,
+  # so the suites' target guard allows it; nothing here reads a hosted secret.
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: boatship
+          POSTGRES_PASSWORD: boatship-ci-only
+          POSTGRES_DB: boatship_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U boatship -d boatship_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # The container has no certificate; sslmode=disable is honoured only for loopback hosts.
+      TEST_DATABASE_URL: postgresql://boatship:boatship-ci-only@127.0.0.1:5432/boatship_test?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Storage contract on PostgreSQL
+        run: npm run test:postgres
+      - name: End-to-end flows on PostgreSQL
+        run: npm run test:e2e:postgres
+
+  # OpenNext build plus a Wrangler dry run of the development config. Neither
+  # step authenticates to Cloudflare or needs secrets (`--dry-run` only bundles).
+  cloudflare-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Cloudflare build and Wrangler dry run
+        run: npm run cf:dry-run

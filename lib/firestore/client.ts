@@ -1,7 +1,7 @@
 import { compareValues, decodeFields, encodeFields, fieldPath, type RestValue } from "./codec";
 import { encodeValue } from "./codec";
 import {
-  assertDocumentId, FirestoreError,
+  assertDocumentId, FirestoreError, notifyCommittedWrites,
   type DocSnapshot, type FirestoreClient, type FirestoreTransaction, type FsData, type Precondition, type QuerySpec, type Where, type Write,
 } from "./types";
 import type { TokenProvider } from "@/lib/google-auth";
@@ -165,6 +165,7 @@ export class RestFirestore implements FirestoreClient {
   async commit(writes: Write[], transaction?: string): Promise<void> {
     if (!writes.length && !transaction) return;
     await this.request("POST", ":commit", { writes: writes.map((write) => this.restWrite(write)), ...(transaction ? { transaction } : {}) });
+    await notifyCommittedWrites(writes);
   }
 
   async runTransaction<R>(body: (tx: FirestoreTransaction) => Promise<R>, options: { attempts?: number } = {}): Promise<R> {

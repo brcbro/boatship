@@ -4,13 +4,16 @@ import { MemoryFirestore } from "../lib/firestore/memory.ts";
 import { RestFirestore } from "../lib/firestore/client.ts";
 import { PostgresFirestore } from "../lib/firestore/postgres.ts";
 import { FirestoreError } from "../lib/firestore/types.ts";
+import { testDatabaseUrl } from "../lib/firestore/test-database.ts";
 import { compareValues, encodeFields, decodeFields, fieldPath } from "../lib/firestore/codec.ts";
 
 const emulator = process.env.FIRESTORE_EMULATOR_HOST?.trim();
 const backends = [["memory", () => new MemoryFirestore()]];
 if (emulator) backends.push(["emulator", () => new RestFirestore({ projectId: process.env.FIREBASE_PROJECT_ID || "demo-boatship", host: emulator.startsWith("http") ? emulator : `http://${emulator}` })]);
 // PostgreSQL runs the same contract in a scratch table that is dropped afterwards.
-const databaseUrl = process.env.DATABASE_URL?.trim();
+// Only TEST_DATABASE_URL is used (never the app's DATABASE_URL), and only on a
+// local host unless QA_ALLOW_REMOTE_DATABASE=1; the guard throws otherwise.
+const databaseUrl = testDatabaseUrl();
 let scratch = null;
 if (databaseUrl) backends.push(["postgres", () => (scratch = new PostgresFirestore({ url: databaseUrl, table: `contract_test_${process.pid}`, max: 4 }))]);
 test.after(async () => { if (scratch) { await scratch.drop(); await scratch.close(); } });
@@ -29,6 +32,31 @@ if (databaseUrl) {
     await db.deleteBlobs([key, "documents/missing"]);
     assert.equal(await db.getBlob(key), null);
     await assert.rejects(db.putBlob("bad key", bytes, "x"), /Invalid blob key/);
+    // Range reads return only the requested slice plus size and head.
+    await db.putBlob(key, bytes, "application/octet-stream");
+    const part = await db.getBlobRange(key, 100, 199);
+    assert.equal(part.size, bytes.length);
+    assert.deepEqual(part.bytes, bytes.slice(100, 200));
+    assert.deepEqual(part.head, bytes.slice(0, 16));
+    assert.equal(await db.getBlobRange("documents/missing", 0, 1), null);
+    await db.deleteBlobs([key]);
+  });
+
+  test("postgres: hot-field expression indexes exist and indexed predicates keep exact semantics", { timeout: 60_000 }, async () => {
+    const db = scratch || new PostgresFirestore({ url: databaseUrl, table: `contract_test_${process.pid}`, max: 4 });
+    scratch = db;
+    const collection = `idx_${process.pid}`;
+    await db.commit([
+      { set: { collection, id: "a", data: { status: "open", createdAt: "2026-01-01T00:00:00.000Z" } } },
+      { set: { collection, id: "n", data: { status: 5, createdAt: 5 } } },
+      { set: { collection, id: "s", data: { status: "5", createdAt: "2025-01-01T00:00:00.000Z" } } },
+    ]);
+    const indexes = (await db.sql`SELECT indexname FROM pg_indexes WHERE tablename = ${`contract_test_${process.pid}`}`).map((row) => row.indexname).sort();
+    for (const suffix of ["ix_ca", "ix_ex", "ix_st"]) assert.ok(indexes.includes(`contract_test_${process.pid}_${suffix}`), `missing ${suffix}`);
+    const ids = async (where) => (await db.query({ collection, where: [where] })).map((doc) => doc.id).sort();
+    assert.deepEqual(await ids({ field: "status", op: "==", value: "5" }), ["s"], "text equality does not match the number 5");
+    assert.deepEqual(await ids({ field: "status", op: "in", value: ["open", "5"] }), ["a", "s"]);
+    assert.deepEqual(await ids({ field: "createdAt", op: ">=", value: "2026" }), ["a"]);
   });
 }
 
