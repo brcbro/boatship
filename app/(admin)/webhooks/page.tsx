@@ -91,7 +91,7 @@ export default function WebhooksPage() {
   function startEdit(hook: PublicWebhook) {
     setEditingId(hook.id);
     setForm({
-      name: hook.name,
+      name: hook.name ?? "",
       url: hook.url,
       secret: "",
       events: [...hook.events],
@@ -266,6 +266,9 @@ export default function WebhooksPage() {
                 onChange={(e) => setForm((f) => ({ ...f, secret: e.target.value }))}
                 placeholder={editingId ? "••••••••" : "Auto-generated if empty"}
               />
+              <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                Receivers verify X-Boatship-Signature as hex HMAC-SHA256 of <code>{"${X-Boatship-Timestamp}.${raw body}"}</code> with this secret.
+              </p>
             </div>
           </div>
           <div className="mt-4">
@@ -331,7 +334,8 @@ export default function WebhooksPage() {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="mb-1 flex flex-wrap items-center gap-2">
-                    <p className="font-medium text-[var(--ink)]">{hook.name}</p>
+                    <p className="font-medium text-[var(--ink)]">{hook.name || "Untitled webhook"}</p>
+                    {hook.ownerId ? <Badge tone="neutral">MCP subscription</Badge> : null}
                     <Badge tone={hook.active ? "success" : "neutral"}>
                       {hook.active ? "Active" : "Paused"}
                     </Badge>

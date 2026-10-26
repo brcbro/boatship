@@ -1,4 +1,5 @@
 import { Buffer } from "node:buffer";
+import { ownedBytes } from "@/lib/firestore/bytes";
 
 export const DOCUMENT_MAX_BYTES = 25 * 1024 * 1024;
 export const DOCUMENT_MAX_LABEL = "25MB";
@@ -27,7 +28,10 @@ export function decodeDocumentUpload(input: { base64: unknown; fileName: unknown
   if (typeof input.base64 !== "string" || input.base64.length > Math.ceil(DOCUMENT_MAX_BYTES / 3) * 4 + 128) throw new DocumentInputError(`File size must be ${DOCUMENT_MAX_LABEL} or less.`);
   const raw = input.base64.replace(/^data:[^,]*,/, "");
   if (!raw || raw.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(raw)) throw new DocumentInputError("The file could not be read. Choose it again.");
-  const bytes = Uint8Array.from(Buffer.from(raw, "base64"));
+  // One decode; the Buffer is handed on as a view rather than copied again.
+  // The base64 JSON transport itself (about 1.33x the file in the request
+  // body, plus the decoded bytes) remains; streaming uploads are a follow-up.
+  const bytes = ownedBytes(Buffer.from(raw, "base64"));
   if (!bytes.length || bytes.length > DOCUMENT_MAX_BYTES || (input.size !== undefined && (typeof input.size !== "number" || input.size !== bytes.length))) throw new DocumentInputError(`File size is invalid or exceeds ${DOCUMENT_MAX_LABEL}.`);
   if (sniffDocumentType(bytes) !== contentType) throw new DocumentInputError("The file contents do not match its selected type.");
   return { bytes, contentType, fileName: input.fileName.trim() };
@@ -47,7 +51,7 @@ export function documentContentHeaders(fileName: string, contentType: string, at
   return new Headers({
     "Content-Type": contentType,
     "Content-Disposition": `${attachment ? "attachment" : "inline"}; filename="${safeName}"; filename*=UTF-8''${encodedName}`,
-    "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
+    "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer",
     "Content-Security-Policy": "sandbox; default-src 'none'; frame-ancestors 'self'",
   });
 }

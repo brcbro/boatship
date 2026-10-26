@@ -1,24 +1,24 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireSession } from "@/lib/auth";
-import { validateGitProgress } from "@/lib/git-validation";
+import { gitValidationAvailability, validateGitProgress } from "@/lib/git-validation";
 import { canAccessClient } from "@/lib/client-access";
 import { isStaff } from "@/lib/rbac";
 import { getStore } from "@/lib/store";
 import { taskEngagementClosed } from "@/lib/engagements";
 import { getPolicy, evaluateQuality, persistValidation } from "@/lib/git-quality";
-import type { GitCheckName, GitValidationRequest } from "@/lib/git-validation-types";
+import { isGitCheckName, type GitValidationRequest } from "@/lib/git-validation-types";
 
 export const runtime = "nodejs";
 
 type Params = { params: Promise<{ id: string }> };
-const allowedChecks = new Set<GitCheckName>(["git-diff-check", "typecheck", "lint", "test", "build", "secret-scan", "dependency-scan", "deployment-preview", "deployment-production"]);
 
 function parseRequest(value: unknown): GitValidationRequest {
   if (!value || typeof value !== "object") return {};
   const raw = value as Record<string, unknown>;
-  const checks = Array.isArray(raw.checks)
-    ? raw.checks.filter((check): check is GitCheckName => typeof check === "string" && allowedChecks.has(check as GitCheckName))
-    : undefined;
+  if (raw.checks !== undefined && (!Array.isArray(raw.checks) || !raw.checks.every(isGitCheckName))) {
+    throw jsonError("checks must be an array of supported check names", 400);
+  }
+  const checks = raw.checks as GitValidationRequest["checks"];
   return {
     repositoryPath: typeof raw.repositoryPath === "string" ? raw.repositoryPath : undefined,
     repositoryUrl: typeof raw.repositoryUrl === "string" ? raw.repositoryUrl : undefined,
@@ -32,6 +32,8 @@ function parseRequest(value: unknown): GitValidationRequest {
 export async function POST(req: Request, { params }: Params) {
   return handleApi(async () => {
     const session = await requireSession(req);
+    const availability = gitValidationAvailability();
+    if (!availability.available) throw jsonError(availability.reason, 501);
     const { id } = await params;
     const store = await getStore();
     const task = await store.getTask(id);

@@ -39,15 +39,19 @@ The service's certificate is signed by a private Ubicloud root. Node accepts it 
 
 `DATABASE_URL` is the full `postgresql://` connection string from the ClickHouse Cloud console. Locally it goes in `.env.local`; in production it must be a Wrangler secret (`scripts/worker-secrets.mjs` includes it; `scripts/scrub-env-bundle.mjs` strips it from the OpenNext bundle). `cloudflare-env.d.ts` declares it. The Firestore variables stay documented in `.env.example` because the fallback client is still in the repository.
 
+Optional `DATABASE_CA_CERT` (PEM, `\n` escapes accepted) verifies the certificate on direct connections; `sslmode=disable` is honoured only for loopback hosts so CI can reach a local PostgreSQL. Hyperdrive connections are unchanged.
+
 ## Verification
 
-- `npm run test:postgres` runs the shared storage contract (`tests/firestore.test.mjs`) against the in-memory client and, when `DATABASE_URL` is set, against the live service in a scratch table named `contract_test_<pid>` that is dropped afterwards. It passed on 2026-10-23 (three tests, about 8 s for the PostgreSQL leg because of the round trip to `ap-south-1`), including six concurrent serializable counter transactions.
+Since 2026-10-26 both suites read `TEST_DATABASE_URL` only, refuse non-local hosts unless `QA_ALLOW_REMOTE_DATABASE=1`, and no longer load `.env.local`; CI runs them against a `postgres:16` service. The runs below predate that change.
+
+- `npm run test:postgres` runs the shared storage contract (`tests/firestore.test.mjs`) against the in-memory client and, when a database URL is set, against the service in a scratch table named `contract_test_<pid>` that is dropped afterwards. It passed on 2026-10-23 (three tests, about 8 s for the PostgreSQL leg because of the round trip to `ap-south-1`), including six concurrent serializable counter transactions.
 - `npm run test:e2e:postgres` runs the isolated end-to-end suite with `next dev` on a scratch table when `QA_DATABASE_URL` is set (the harness never touches the production `documents` table and drops its table on close). It passed on 2026-10-23: 13 tests, about 142 s. `npm run test:e2e` still runs the same suite on the Firestore emulator.
 - `npm test` (101), `npm run typecheck`, and `npm run lint` pass. The Cloudflare build and Wrangler dry run are recorded in [status.md](status.md).
 
 ## Limits and open work
 
-- Every collection shares one table and the only index is the GIN index on `doc`; filters on nested paths, ranges, and ordering are sequential scans within a collection. The snapshot cache's `version >` query is one such scan over the ~20 `StoreSnapshot` rows. Add expression indexes on `(collection, (doc->>'field'))` when a collection grows past tens of thousands of rows.
+- Every collection shares one table. Besides the GIN index on `doc`, `ensure()` creates `(collection, ((doc ->> f) COLLATE "C"))` expression indexes for `createdAt`, `status` and `expiresAt`, used by string equality, `in` and range filters on those fields (2026-10-26). Other nested paths and ordering remain sequential scans within a collection.
 - jsonb drops duplicate keys and does not preserve key order; application documents never depend on either.
 - ClickHouse Cloud's PostgreSQL service is new; its backup and restore procedure, connection limits, and SLA have not been checked. The database is reachable from the public internet with password authentication, so the password must stay a secret.
-- The 1 MiB document and 500-write transaction limits of Firestore no longer apply, but the snapshot slice cap of 900 KB in `lib/store.ts` is kept so the Firestore fallback still works.
+- The 1 MiB document and 500-write transaction limits of Firestore no longer apply. The snapshot slice cap is 64 MiB on PostgreSQL and 900 KB on Firestore, checked only for slices a write changes; growing slices are pruned by `lib/store-retention.ts`, with old activity moved to `ActivityArchive`. Messages still grow without limit.

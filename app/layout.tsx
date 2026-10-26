@@ -21,8 +21,22 @@ const mono = Space_Mono({
   weight: ["400", "700"],
 });
 
+const DEFAULT_APP_URL = "https://boatship-onboarding.boatship.workers.dev";
+
+/** The public origin for canonical and Open Graph URLs. */
+function appUrl() {
+  const configured = (process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "").trim().replace(/\/$/, "");
+  try {
+    return new URL(configured || DEFAULT_APP_URL);
+  } catch {
+    return new URL(DEFAULT_APP_URL);
+  }
+}
+
+const APP_URL = appUrl();
+
 export const metadata: Metadata = {
-  metadataBase: new URL("https://boatship.cohortix.in"),
+  metadataBase: APP_URL,
   title: {
     default: "Boatship | Client OS Workspace",
     template: "%s | Boatship",
@@ -37,7 +51,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     type: "website",
-    url: "https://boatship.cohortix.in",
+    url: APP_URL.origin,
     siteName: "Boatship",
     title: "Boatship | Client OS Workspace",
     description: "A connected workspace for client accounts, engagements, and delivery.",

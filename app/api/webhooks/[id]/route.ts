@@ -1,35 +1,11 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
 import { getStore } from "@/lib/store";
-import { publicWebhook, validateWebhookUrl } from "@/lib/webhook-security";
-import type { WebhookEvent } from "@/types";
+import { parseWebhookEvents as parseEvents, publicWebhook, validateWebhookUrl, WEBHOOK_EVENTS as ALL_EVENTS } from "@/lib/webhook-security";
 
 export const runtime = "nodejs";
 
 type Params = { params: Promise<{ id: string }> };
-
-const ALL_EVENTS: WebhookEvent[] = [
-  "client.created",
-  "client.completed",
-  "client.invited",
-  "task.completed",
-  "task.overdue",
-  "document.approved",
-  "document.rejected",
-  "form.submitted",
-];
-
-function parseEvents(value: unknown): WebhookEvent[] | null {
-  if (!Array.isArray(value)) return null;
-  const out: WebhookEvent[] = [];
-  for (const item of value) {
-    if (typeof item !== "string" || !ALL_EVENTS.includes(item as WebhookEvent)) {
-      return null;
-    }
-    if (!out.includes(item as WebhookEvent)) out.push(item as WebhookEvent);
-  }
-  return out;
-}
 
 export async function GET(req: Request, { params }: Params) {
   return handleApi(async () => {

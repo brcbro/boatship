@@ -2,6 +2,9 @@ import { Resend } from "resend";
 
 type SenderName = "Boatship" | "Boatship Team" | "Boatship Updates";
 
+/** Upper bound on one provider request, so a hung API never holds a request or cron run open. */
+export const EMAIL_REQUEST_TIMEOUT_MS = 10_000;
+
 function senderAddress(value: string | undefined) {
   const address = (value?.trim().match(/<([^<>]+)>$/)?.[1] || value?.trim())?.toLowerCase();
   return address && /^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(address) && !/^onboarding@/i.test(address)
@@ -43,6 +46,7 @@ export async function sendEmail(payload: EmailPayload) {
         subject: payload.subject,
         htmlbody: payload.html,
       }),
+      signal: AbortSignal.timeout(EMAIL_REQUEST_TIMEOUT_MS),
     });
     if (!response.ok) throw new Error(`Email delivery failed (${response.status})`);
     const result = (await response.json()) as { request_id?: string };

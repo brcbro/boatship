@@ -5,6 +5,7 @@ import path from "node:path";
 import dotenv from "dotenv";
 import { RestFirestore } from "../../lib/firestore/client.ts";
 import { PostgresFirestore } from "../../lib/firestore/postgres.ts";
+import { assertTestDatabaseTarget } from "../../lib/firestore/test-database.ts";
 
 export const QA_PASSWORD = "local-qa-password-1";
 const stamp = "2026-10-14T12:00:00.000Z";
@@ -23,6 +24,8 @@ export async function createLocalQa({ web = false, port = 3100, log = () => {} }
   const emulator = process.env.FIRESTORE_EMULATOR_HOST?.trim();
   let firestore, host = null, storeEnv;
   if (databaseUrl) {
+    // The fixture creates and drops a scratch table; never aim it at a hosted database by accident.
+    assertTestDatabaseTarget(databaseUrl);
     const table = `qa_${process.pid}_${Date.now().toString(36)}`;
     firestore = new PostgresFirestore({ url: databaseUrl, table, max: 2 });
     await firestore.drop();

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, decodeLocalSession } from "@/lib/session";
 import { isCrossOriginCookieMutation } from "@/lib/request-origin";
+import { STAFF_PATH_PREFIXES } from "@/lib/utils";
 
 const PUBLIC_PATHS = [
   "/login",
@@ -11,13 +12,8 @@ const PUBLIC_PATHS = [
   "/api/auth/reset-password",
 ];
 
-const ADMIN_PATHS = [
-  "/dashboard", "/settings", "/clients", "/team", "/workload", "/projects",
-  "/products", "/workspace", "/calendar", "/messages", "/templates",
-  "/forms", "/analytics", "/accounting", "/integrations", "/webhooks",
-  "/mcp", "/compliance", "/hodi", "/automations", "/agent",
-  "/tasks", "/reminders", "/account",
-];
+// One list for route protection and the sign-in `next` check.
+const ADMIN_PATHS = STAFF_PATH_PREFIXES;
 
 function matchesRoute(pathname: string, route: string) {
   return pathname === route || pathname.startsWith(`${route}/`);

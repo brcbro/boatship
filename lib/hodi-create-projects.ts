@@ -141,7 +141,7 @@ export async function executeHodiProjectCreation(action: HodiProjectCreationActi
   // Repeat authorization and validation after approval; access or referenced records may have changed.
   if (action === "create_project_approval") {
     const { input } = await validateProjectApproval(payload, session);
-    const approval = await createApproval({ clientId: input.clientId, engagementId: input.engagementId, subject: input.subject, description: input.description || "", kind: input.kind || "document", requestedBy: session.uid });
+    const approval = await createApproval({ clientId: input.clientId, engagementId: input.engagementId, subject: input.subject, description: input.description || "", kind: input.kind || "document", requestedBy: session.uid, requestedByRole: session.role });
     await (await getStore()).addActivity({ clientId: input.clientId, actorId: session.uid, actorName: session.name, action: "hodi.project_approval_created", meta: { proposalId, approvalId: approval.id, engagementId: input.engagementId } });
     return { approval, href: `/clients/${input.clientId}` };
   }

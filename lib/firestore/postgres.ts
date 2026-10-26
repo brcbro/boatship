@@ -1,25 +1,34 @@
 import { Buffer } from "node:buffer";
 import postgres, { type JSONValue, type Sql, type TransactionSql } from "postgres";
 import {
-  assertDocumentId, FirestoreError,
+  assertDocumentId, FirestoreError, notifyCommittedWrites,
   type DocSnapshot, type FirestoreClient, type FirestoreTransaction, type FsData, type OrderBy, type Precondition, type QuerySpec, type Where, type Write,
 } from "./types";
+import { ownedBytes } from "./bytes";
 
 export type PostgresStoreOptions = {
   /**
-   * postgresql:// connection string. A direct connection always uses TLS; a
-   * Cloudflare Hyperdrive connection string (host *.hyperdrive.local) is
-   * plain because Hyperdrive terminates TLS to the origin itself.
+   * postgresql:// connection string. A direct connection always uses TLS
+   * (see `postgresTls`); a Cloudflare Hyperdrive connection string (host
+   * *.hyperdrive.local) is plain because Hyperdrive terminates TLS to the
+   * origin itself, and a loopback test server may set `sslmode=disable`.
    */
   url: string;
   /** Table holding every collection; defaults to `documents`. */
   table?: string;
   /** Pool size; the Worker keeps this small because each isolate has its own pool. */
   max?: number;
+  /**
+   * PEM certificate(s) of the CA that signs the server certificate
+   * (`DATABASE_CA_CERT`). When set, a direct connection verifies the chain and
+   * hostname; without it the connection is encrypted but unverified.
+   */
+  ca?: string;
 };
 
 type Row = { id: string; doc: unknown; update_time: string };
 type BlobRow = { bytes: Buffer };
+type BlobRangeRow = { size: number; head: Buffer; part: Buffer };
 type Db = Sql | TransactionSql;
 type Fragment = ReturnType<Sql["unsafe"]>;
 
@@ -29,16 +38,56 @@ const RETRYABLE = new Set(["40001", "40P01"]);
 /** Microsecond ISO-8601 so every write gets a distinct, comparable update time. */
 const STAMP = `to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
 
+/**
+ * Top-level fields with a `(collection, (doc ->> field) COLLATE "C")` btree
+ * index. Their string equality, IN and range predicates are written against
+ * that exact expression (with the field name inlined) so the planner can use
+ * the index; every other field keeps the generic `doc #> path` form.
+ */
+export const INDEXED_FIELDS: Readonly<Record<string, string>> = { createdAt: "ix_ca", status: "ix_st", expiresAt: "ix_ex" };
+
+/** The exact indexed expression; identical text in the DDL and the predicates is what lets the planner match them. */
+export function indexedExpression(field: string): string {
+  if (!(field in INDEXED_FIELDS) || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(field)) throw new Error(`Field ${field} has no expression index`);
+  return `((doc ->> '${field}') COLLATE "C")`;
+}
+
+/** Two instances creating the same index at once: the loser sees a duplicate and can carry on. */
+function ignoreConcurrentCreate(error: unknown) {
+  const code = typeof error === "object" && error && "code" in error ? String((error as { code: unknown }).code) : "";
+  if (code !== "23505" && code !== "42P07") throw error;
+}
+
 export function isHyperdriveUrl(url: string): boolean {
   try { return /\.hyperdrive\.local$/i.test(new URL(url).hostname); } catch { return false; }
 }
 
-const bytesToBase64 = (bytes: Uint8Array) => {
-  let binary = "";
-  for (let index = 0; index < bytes.length; index += 0x8000) binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
-  return btoa(binary);
-};
-const base64ToBytes = (text: string) => Uint8Array.from(atob(text), (character) => character.charCodeAt(0));
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
+export function isLoopbackDatabaseUrl(url: string): boolean {
+  try { return LOOPBACK_HOSTS.has(new URL(url).hostname.toLowerCase()); } catch { return false; }
+}
+
+/**
+ * TLS for the driver. Hyperdrive is plain inside Cloudflare's network (it
+ * terminates TLS to the origin itself, so its behaviour is unchanged). A
+ * loopback server may opt out with `sslmode=disable` (CI's service container
+ * and local test servers have no certificate). A direct remote connection is
+ * always encrypted; with a pinned CA it is also verified.
+ */
+export function postgresTls(url: string, ca?: string): false | "require" | { ca: string; rejectUnauthorized: true } {
+  if (isHyperdriveUrl(url)) return false;
+  if (isLoopbackDatabaseUrl(url)) {
+    try { if (new URL(url).searchParams.get("sslmode") === "disable") return false; } catch { /* fall through to TLS */ }
+  }
+  // Secret stores often flatten newlines; accept `\n` escapes in the PEM.
+  const pem = ca?.trim().replace(/\\n/g, "\n");
+  if (pem) return { ca: pem, rejectUnauthorized: true };
+  return "require";
+}
+
+// Buffer views avoid the per-character string building of btoa/atob on large values.
+const bytesToBase64 = (bytes: Uint8Array) => Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString("base64");
+const base64ToBytes = (text: string) => ownedBytes(Buffer.from(text, "base64"));
 
 /**
  * JSON shape stored in the `doc` column. Dates and bytes, which JSON lacks,
@@ -100,10 +149,9 @@ export class PostgresFirestore implements FirestoreClient {
   constructor(options: PostgresStoreOptions) {
     this.table = options.table || "documents";
     if (!TABLE_PATTERN.test(this.table)) throw new Error(`Invalid table name: ${this.table}`);
-    const hyperdrive = isHyperdriveUrl(options.url);
     this.sql = postgres(options.url, {
-      // The service's certificate is signed by a private CA, so a direct connection encrypts without verifying it.
-      ssl: hyperdrive ? false : "require",
+      // The service's certificate is signed by a private CA: a direct connection verifies it only when that CA is pinned.
+      ssl: postgresTls(options.url, options.ca),
       max: options.max ?? 4, connect_timeout: 15, idle_timeout: 60, max_lifetime: 60 * 30, onnotice: () => undefined,
     });
   }
@@ -119,6 +167,11 @@ export class PostgresFirestore implements FirestoreClient {
       this.ready = (async () => {
         await this.sql`CREATE TABLE IF NOT EXISTS ${table} (collection text NOT NULL, id text NOT NULL, doc jsonb NOT NULL, update_time text NOT NULL, PRIMARY KEY (collection, id))`;
         await this.sql`CREATE INDEX IF NOT EXISTS ${this.sql(`${this.table}_doc_idx`)} ON ${table} USING gin (doc jsonb_path_ops)`;
+        // Expression indexes for the hot top-level fields; see INDEXED_FIELDS and predicate().
+        // Plain (not CONCURRENTLY) so a failed build never leaves an invalid index that IF NOT EXISTS would then skip.
+        for (const [field, suffix] of Object.entries(INDEXED_FIELDS)) {
+          await this.sql`CREATE INDEX IF NOT EXISTS ${this.sql(`${this.table}_${suffix}`)} ON ${table} (collection, ${this.sql.unsafe(indexedExpression(field))})`.catch(ignoreConcurrentCreate);
+        }
         // File bytes live beside the documents in a bytea table so a document read never parses a blob.
         await this.sql`CREATE TABLE IF NOT EXISTS ${this.sql(this.blobTable)} (key text PRIMARY KEY, bytes bytea NOT NULL, content_type text NOT NULL, size integer NOT NULL, created_at text NOT NULL)`;
       })().catch((error) => { this.ready = null; translate(error); });
@@ -147,7 +200,24 @@ export class PostgresFirestore implements FirestoreClient {
     await this.ensure();
     try {
       const rows = await this.sql<BlobRow[]>`SELECT bytes FROM ${this.sql(this.blobTable)} WHERE key = ${key}`;
-      return rows.length ? Uint8Array.from(rows[0].bytes) : null;
+      // The driver decodes bytea into a fresh Buffer; hand out a view of it instead of a second copy.
+      return rows.length ? ownedBytes(rows[0].bytes) : null;
+    } catch (error) { translate(error); }
+  }
+
+  /**
+   * Bytes `start..end` (inclusive) of a blob plus its total size and first
+   * 16 bytes (for type sniffing), without sending the whole blob to the
+   * client. The range is clamped to the blob; null when the key is unknown.
+   */
+  async getBlobRange(key: string, start: number, end: number): Promise<{ bytes: Uint8Array; size: number; head: Uint8Array } | null> {
+    if (!BLOB_KEY_PATTERN.test(key)) return null;
+    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start) throw new FirestoreError("Invalid blob range.", "INVALID_ARGUMENT", 400);
+    await this.ensure();
+    try {
+      const rows = await this.sql<BlobRangeRow[]>`SELECT octet_length(bytes) AS size, substring(bytes FROM 1 FOR 16) AS head, substring(bytes FROM ${start + 1}::integer FOR ${end - start + 1}::integer) AS part FROM ${this.sql(this.blobTable)} WHERE key = ${key}`;
+      if (!rows.length) return null;
+      return { bytes: ownedBytes(rows[0].part), size: Number(rows[0].size), head: ownedBytes(rows[0].head) };
     } catch (error) { translate(error); }
   }
 
@@ -196,8 +266,13 @@ export class PostgresFirestore implements FirestoreClient {
     if (where.op === "is-not-null") return db`${x} IS NOT NULL AND ${x} <> 'null'::jsonb`;
     if (!("value" in where)) throw new FirestoreError(`Unsupported operator: ${String(where.op)}`, "INVALID_ARGUMENT", 400);
     const { op, value } = where;
+    // `(doc ->> 'field') COLLATE "C"` for an indexed top-level field. Text
+    // alone cannot tell the string "5" from the number 5, so it is always
+    // combined with the type-exact predicate; it only narrows via the index.
+    const indexed = where.field in INDEXED_FIELDS ? db.unsafe(indexedExpression(where.field)) : null;
     switch (op) {
       case "==": {
+        if (indexed && typeof value === "string") return db`${indexed} = ${value} AND doc @> ${db.json({ [where.field]: value })}`;
         // Top-level scalar equality goes through containment so the GIN index applies.
         if (!where.field.includes(".") && value !== null && (typeof value === "string" || typeof value === "number" || typeof value === "boolean")) return db`doc @> ${db.json({ [where.field]: value })}`;
         return db`${x} = ${db.json(toJson(value))}`;
@@ -206,13 +281,17 @@ export class PostgresFirestore implements FirestoreClient {
       case "<": case "<=": case ">": case ">=": {
         // Firestore only matches values of the same type; strings compare by code point.
         const compare = (left: Fragment, right: Fragment) => (op === "<" ? db`${left} < ${right}` : op === "<=" ? db`${left} <= ${right}` : op === ">" ? db`${left} > ${right}` : db`${left} >= ${right}`);
-        if (typeof value === "string") return db`jsonb_typeof(${x}) = 'string' AND ${compare(db`(${x} #>> '{}') COLLATE "C"`, db`${value}`)}`;
+        if (typeof value === "string") return db`jsonb_typeof(${x}) = 'string' AND ${compare(indexed || db`(${x} #>> '{}') COLLATE "C"`, db`${value}`)}`;
         if (typeof value === "number") return db`jsonb_typeof(${x}) = 'number' AND ${compare(db`(${x} #>> '{}')::numeric`, db`${value}::numeric`)}`;
         if (value instanceof Date) return db`${x} ? '$date' AND ${compare(db`(${x} ->> '$date') COLLATE "C"`, db`${value.toISOString()}`)}`;
         if (value === null || value === undefined) return db`FALSE`;
         return db`jsonb_typeof(${x}) = ${Array.isArray(value) ? "array" : typeof value === "boolean" ? "boolean" : "object"} AND ${compare(x, db`${db.json(toJson(value))}`)}`;
       }
-      case "in": return db`${x} IN (SELECT jsonb_array_elements(${db.json(toJson(value))}))`;
+      case "in": {
+        const exact = db`${x} IN (SELECT jsonb_array_elements(${db.json(toJson(value))}))`;
+        if (indexed && Array.isArray(value) && value.length && value.every((item) => typeof item === "string")) return db`${indexed} = ANY(${value as string[]}::text[]) AND ${exact}`;
+        return exact;
+      }
       case "not-in": return db`${x} IS NOT NULL AND ${x} <> 'null'::jsonb AND NOT (${x} IN (SELECT jsonb_array_elements(${db.json(toJson(value))})))`;
       case "array-contains": return db`jsonb_typeof(${x}) = 'array' AND EXISTS (SELECT 1 FROM jsonb_array_elements(${x}) AS element WHERE element = ${db.json(toJson(value))})`;
       case "array-contains-any": return db`jsonb_typeof(${x}) = 'array' AND EXISTS (SELECT 1 FROM jsonb_array_elements(${x}) AS element WHERE element IN (SELECT jsonb_array_elements(${db.json(toJson(value))})))`;
@@ -300,15 +379,17 @@ export class PostgresFirestore implements FirestoreClient {
     if (!writes.length) return;
     await this.ensure();
     try { await this.sql.begin((tx) => this.apply(tx, writes)); } catch (error) { translate(error); }
+    await notifyCommittedWrites(writes);
   }
 
   async runTransaction<R>(body: (tx: FirestoreTransaction) => Promise<R>, options: { attempts?: number } = {}): Promise<R> {
     const attempts = Math.max(1, options.attempts ?? 5);
     await this.ensure();
     for (let attempt = 1; ; attempt += 1) {
+      let writes: Write[] = [];
       try {
-        return await this.sql.begin("ISOLATION LEVEL SERIALIZABLE", async (db): Promise<R> => {
-          const writes: Write[] = [];
+        const result = await this.sql.begin("ISOLATION LEVEL SERIALIZABLE", async (db): Promise<R> => {
+          writes = [];
           const tx: FirestoreTransaction = {
             get: async <T,>(collection: string, id: string) => (await this.read<T>(db, collection, [id])).get(id) || null,
             getMany: <T,>(collection: string, ids: string[]) => this.read<T>(db, collection, ids),
@@ -320,6 +401,8 @@ export class PostgresFirestore implements FirestoreClient {
           await this.apply(db, writes);
           return result;
         }) as R;
+        await notifyCommittedWrites(writes);
+        return result;
       } catch (error) {
         const code = typeof error === "object" && error && "code" in error ? String((error as { code: unknown }).code) : "";
         const retryable = RETRYABLE.has(code) || (error instanceof FirestoreError && error.status === "ABORTED");

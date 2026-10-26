@@ -1,14 +1,18 @@
 import { createHash, randomUUID } from "crypto";
-import type { AuthSession, Task, TaskPriority, TaskStatus, TaskType } from "@/types";
+import type { AuthSession, Task, TaskPriority, TaskStatus } from "@/types";
 import { hasPermission } from "@/lib/rbac";
 import { requireClientAccess } from "@/lib/client-access";
 import { getStore } from "@/lib/store";
 import { createAccountingEntry, listAccountingEntries, updateAccountingEntry, validateAccountingInput } from "@/lib/accounting";
-import { consumeHodiActionProposal, createHodiActionProposal, finishHodiActionProposal, releaseHodiActionProposal } from "@/lib/hodi-queue";
+import { consumeHodiActionProposal, createHodiActionProposal, finishHodiActionProposal, HODI_ACTION_PROPOSALS, releaseHodiActionProposal, type HodiActionProposalDoc } from "@/lib/hodi-queue";
 import { previewCreateFormsAction, executeCreateFormsAction } from "@/lib/hodi-create-forms";
 import { previewCreateCalendarAction, executeCreateCalendarAction } from "@/lib/hodi-create-calendar";
 import { hodiProjectCreationActions, previewHodiProjectCreation, executeHodiProjectCreation } from "@/lib/hodi-create-projects";
 import { syncClientStatusFromTasks } from "@/lib/client-status";
+import { getFirestore, nowIso } from "@/lib/firestore";
+import { assertHodiPayloadKeys, failedProposalOutcome, newTaskFields } from "@/lib/hodi-action-policy";
+import { CONNECTED_APP_ACTION, type ConnectedToolItem } from "@/lib/composio-policy";
+import { executeConnectedAppAction, previewConnectedAppAction } from "@/lib/hodi-create-connected-apps";
 
 export const HODI_ACTIONS = [
   "create_client", "apply_template", "create_task", "update_task", "assign_task", "block_task",
@@ -17,6 +21,8 @@ export const HODI_ACTIONS = [
   "create_project_milestone", "create_project_approval", "create_product", "create_product_milestone", "create_product_work_item", "create_product_release",
 ] as const;
 export type HodiAction = (typeof HODI_ACTIONS)[number];
+/** Actions that can be executed after approval. Connected-app proposals come only from guarded chat tools. */
+export type HodiExecutableAction = HodiAction | typeof CONNECTED_APP_ACTION;
 
 type ActionPayload = Record<string, unknown>;
 
@@ -47,8 +53,8 @@ function payloadHash(payload: ActionPayload) {
   return createHash("sha256").update(stableJson(payload)).digest("hex");
 }
 
-function assertAction(value: unknown): asserts value is HodiAction {
-  if (!HODI_ACTIONS.includes(value as HodiAction)) throw new Error("Unsupported Hodi action");
+function assertAction(value: unknown): asserts value is HodiExecutableAction {
+  if (value !== CONNECTED_APP_ACTION && !HODI_ACTIONS.includes(value as HodiAction)) throw new Error("Unsupported Hodi action");
 }
 
 function assertCanManage(session: AuthSession) {
@@ -146,7 +152,29 @@ async function buildWeeklyReport(clientId: string) {
   };
 }
 
-async function preview(action: HodiAction, payload: ActionPayload, session: AuthSession) {
+function listValue(values: string[]) {
+  return values.length ? values.join(", ") : "None";
+}
+
+function normalizedTags(value: unknown) {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) throw new Error("tags must be a list");
+  return value.map(text).filter(Boolean);
+}
+
+function normalizedDiscoveryBrief(value: unknown): Record<string, string> {
+  if (value === undefined || value === null) return {};
+  if (typeof value !== "object" || Array.isArray(value)) throw new Error("discoveryBrief must be an object");
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .map(([key, entry]) => [key.trim(), text(entry)] as const)
+      .filter(([key, entry]) => key && entry)
+  );
+}
+
+async function preview(action: HodiExecutableAction, payload: ActionPayload, session: AuthSession) {
+  assertHodiPayloadKeys(action, payload);
+  if (action === CONNECTED_APP_ACTION) return previewConnectedAppAction(payload, session);
   if (action === "create_form_template" || action === "assign_form" || action === "create_service_template") {
     return previewCreateFormsAction(action, payload, session);
   }
@@ -177,21 +205,30 @@ async function preview(action: HodiAction, payload: ActionPayload, session: Auth
       }
       const templateId = optionalText(payload.templateId);
       const assigneeId = optionalText(payload.assignedTeamMemberId) || session.uid;
+      const tags = normalizedTags(payload.tags);
+      const brief = normalizedDiscoveryBrief(payload.discoveryBrief);
       const [template, assignee] = await Promise.all([
         templateId ? requireTemplate(templateId) : null,
         requireStaff(assigneeId),
       ]);
+      const email = primaryContactEmail.toLowerCase();
       return {
         title: `Create ${companyName} as a client`,
         changes: [
-          `Create client contact ${name} (${primaryContactEmail})`,
+          `Create client contact ${name} (${email})`,
           `Assign ${assignee?.name || "the signed-in staff member"}`,
           template ? `Apply ${template.name} and create ${template.taskList.length} onboarding tasks` : "Create without a service template",
+          "Status: not started. No invitation email is sent.",
         ],
         diff: [
-          { field: "client", label: "Client", before: "Does not exist", after: companyName },
-          { field: "contact", label: "Primary contact", before: "Not set", after: `${name} (${primaryContactEmail})` },
-          { field: "assignee", label: "Owner", before: "Not set", after: assignee?.name || "The signed-in staff member" },
+          { field: "name", label: "Contact name", before: "Does not exist", after: name },
+          { field: "companyName", label: "Client", before: "Does not exist", after: companyName },
+          { field: "primaryContactEmail", label: "Primary contact email", before: "Not set", after: email },
+          { field: "assignedTeamMemberId", label: "Owner", before: "Not set", after: assignee?.name || "The signed-in staff member" },
+          { field: "templateId", label: "Service template", before: "Not set", after: template ? `${template.name} (${template.taskList.length} tasks)` : "None" },
+          { field: "status", label: "Status", before: "Not set", after: "not_started" },
+          { field: "tags", label: "Tags", before: "None", after: listValue(tags) },
+          ...Object.entries(brief).map(([key, value]) => ({ field: `discoveryBrief.${key}`, label: `Discovery brief: ${key}`, before: "Not set", after: value })),
         ],
       };
     }
@@ -200,17 +237,42 @@ async function preview(action: HodiAction, payload: ActionPayload, session: Auth
       const templateId = text(payload.templateId);
       if (!clientId || !templateId) throw new Error("clientId and templateId are required");
       const [client, template] = await Promise.all([requireClient(clientId), requireTemplate(templateId)]);
-      return { title: `Apply ${template.name} to ${client.companyName}`, changes: [`Update the client service template`, `Create ${template.taskList.length} template tasks`], diff: [{ field: "template", label: "Service template", before: client.templateId || "Not set", after: template.name }, { field: "tasks", label: "Onboarding tasks", before: "No new tasks", after: `${template.taskList.length} tasks created` }] };
+      const requestedAssignee = optionalText(payload.assignedTeamMemberId);
+      if (session.role === "team" && requestedAssignee && requestedAssignee !== session.uid && requestedAssignee !== client.assignedTeamMemberId) {
+        throw new Error("Team members can assign template tasks only to themselves or the client owner");
+      }
+      const assignee = await requireStaff(requestedAssignee || client.assignedTeamMemberId || null);
+      return { title: `Apply ${template.name} to ${client.companyName}`, changes: [`Update the client service template`, `Create ${template.taskList.length} template tasks`, `Assign template tasks to ${assignee?.name || "nobody"}`], diff: [{ field: "template", label: "Service template", before: client.templateId || "Not set", after: template.name }, { field: "tasks", label: "Onboarding tasks", before: "No new tasks", after: `${template.taskList.length} tasks created: ${listValue(template.taskList.map((task) => task.title))}` }, { field: "assignedTeamMemberId", label: "Task assignee", before: "Not set", after: assignee?.name || "Unassigned" }] };
     }
     case "create_task": {
       assertCanManage(session);
       const title = text(payload.title);
       if (!clientId || !title) throw new Error("clientId and title are required");
+      const fields = newTaskFields(payload);
       const [client, assignee] = await Promise.all([requireClient(clientId), requireStaff(optionalText(payload.assignedTo))]);
       const dueDate = validateDueDate(payload.dueDate);
       const formTemplateId = optionalText(payload.formTemplateId);
-      if (formTemplateId && !await (await getStore()).getFormTemplate(formTemplateId)) throw new Error("Form template not found");
-      return { title: `Create task for ${client.companyName}`, changes: [`Create “${title}”`, assignee ? `Assign ${assignee.name}` : "Leave unassigned", dueDate ? `Set due date to ${dueDate}` : "No due date", formTemplateId ? "Create a linked client form" : "No form attached"], diff: [{ field: "task", label: "Task", before: "Does not exist", after: title }, { field: "assignee", label: "Assignee", before: "Not set", after: assignee?.name || "Unassigned" }, { field: "dueDate", label: "Due date", before: "Not set", after: dueDate || "Not set" }] };
+      const formTemplate = formTemplateId ? await (await getStore()).getFormTemplate(formTemplateId) : null;
+      if (formTemplateId && !formTemplate) throw new Error("Form template not found");
+      const visibility = fields.clientVisible ? "Visible to the client in their portal" : "Internal: hidden from the client";
+      return {
+        title: `Create ${fields.clientVisible ? "client-visible" : "internal"} task for ${client.companyName}`,
+        changes: [`Create “${title}”`, visibility, assignee ? `Assign ${assignee.name}` : "Leave unassigned", dueDate ? `Set due date to ${dueDate}` : "No due date", formTemplate ? `Create a linked client form: ${formTemplate.name}` : "No form attached"],
+        diff: [
+          { field: "title", label: "Task", before: "Does not exist", after: title },
+          { field: "type", label: "Visibility", before: "Not set", after: visibility },
+          { field: "assignedRole", label: "Responsible role", before: "Not set", after: fields.assignedRole },
+          { field: "assignedTo", label: "Assignee", before: "Not set", after: assignee?.name || "Unassigned" },
+          { field: "status", label: "Status", before: "Not set", after: fields.status },
+          { field: "priority", label: "Priority", before: "Not set", after: fields.priority },
+          { field: "dueDate", label: "Due date", before: "Not set", after: dueDate || "Not set" },
+          { field: "description", label: "Description", before: "Not set", after: displayValue(text(payload.description)) },
+          { field: "internalNotes", label: "Internal notes", before: "Not set", after: displayValue(text(payload.internalNotes)) },
+          { field: "section", label: "Section", before: "Not set", after: displayValue(optionalText(payload.section)) },
+          { field: "formTemplateId", label: "Linked form", before: "Not set", after: formTemplate?.name || "None" },
+          { field: "requiresUpload", label: "Requires upload", before: "Not set", after: fields.requiresUpload ? "Yes" : "No" },
+        ],
+      };
     }
     case "update_task":
     case "assign_task":
@@ -235,7 +297,7 @@ async function preview(action: HodiAction, payload: ActionPayload, session: Auth
       const diff = taskDiff(task, payload);
       const updates = diff.map((change) => `${change.label}: ${change.before} → ${change.after}`);
       if (updates.length === 0) throw new Error("Provide at least one supported task update");
-      validateDueDate(payload.dueDate);
+      taskPatch(payload);
       if (payload.assignedTo !== undefined) await requireStaff(optionalText(payload.assignedTo));
       return { title: `Update ${task.title}`, changes: updates, diff };
     }
@@ -262,13 +324,40 @@ async function preview(action: HodiAction, payload: ActionPayload, session: Auth
   }
 }
 
-export async function proposeHodiAction(action: HodiAction, payload: ActionPayload, session: AuthSession) {
-  assertAction(action);
+async function storeProposal(action: HodiExecutableAction, payload: ActionPayload, session: AuthSession) {
   const actionPreview = await preview(action, payload, session);
   const approvalToken = randomUUID();
   const expiresAt = new Date(Date.now() + PROPOSAL_TTL_MS);
   await createHodiActionProposal({ approvalToken, action, payload, payloadHash: payloadHash(payload), userId: session.uid, preview: actionPreview, expiresAt });
-  return { action, preview: actionPreview, approvalToken, expiresAt: new Date(Date.now() + PROPOSAL_TTL_MS).toISOString(), approvalRequired: true };
+  return { action, preview: actionPreview, approvalToken, expiresAt: expiresAt.toISOString(), approvalRequired: true };
+}
+
+export async function proposeHodiAction(action: HodiAction, payload: ActionPayload, session: AuthSession) {
+  if (!HODI_ACTIONS.includes(action)) throw new Error("Unsupported Hodi action");
+  return storeProposal(action, payload, session);
+}
+
+/**
+ * Stores connected-app write calls that the chat model attempted, for explicit
+ * approval in the Hodi UI. Only the guarded chat tools call this; the public
+ * propose endpoint cannot create connected-app proposals.
+ */
+export async function proposeConnectedAppAction(tools: ConnectedToolItem[], session: AuthSession) {
+  return storeProposal(CONNECTED_APP_ACTION, { tools }, session);
+}
+
+/** Marks a proposal failed with its error so a retry cannot repeat writes that already happened. */
+async function settleFailedProposal(id: string, previousStatus: "pending" | "approved", writesStarted: boolean, error: unknown) {
+  const outcome = failedProposalOutcome(writesStarted, previousStatus, error);
+  if (outcome.status !== "failed") {
+    await releaseHodiActionProposal(id, previousStatus);
+    return;
+  }
+  await getFirestore().runTransaction(async (tx) => {
+    const current = await tx.get<HodiActionProposalDoc>(HODI_ACTION_PROPOSALS.name, id);
+    if (!current || current.data.status !== "executing") return;
+    tx.write({ update: { collection: HODI_ACTION_PROPOSALS.name, id, data: { status: "failed", rejectedReason: outcome.reason, updatedAt: nowIso() } } });
+  });
 }
 
 function taskPatch(payload: ActionPayload): Partial<Task> {
@@ -292,13 +381,16 @@ function taskPatch(payload: ActionPayload): Partial<Task> {
 }
 
 export async function executeHodiAction(
-  action: HodiAction,
+  action: HodiExecutableAction,
   payload: ActionPayload,
   approvalToken: string,
   session: AuthSession
 ) {
   assertAction(action);
   const claim = await consumeHodiActionProposal({ approvalToken, action, payloadHash: payloadHash(payload), userId: session.uid });
+  // Until validation passes nothing has been written and the proposal can be
+  // retried. From then on any failure leaves the proposal failed.
+  let writesStarted = false;
   try {
     await preview(action, payload, session);
     const store = await getStore();
@@ -306,6 +398,11 @@ export async function executeHodiAction(
       await finishHodiActionProposal(claim.proposal.id);
       return result;
     };
+    writesStarted = true;
+
+  if (action === CONNECTED_APP_ACTION) {
+    return complete(await executeConnectedAppAction(payload, session));
+  }
 
   if (action === "create_form_template" || action === "assign_form" || action === "create_service_template") {
     return complete(await executeCreateFormsAction(action, payload, session, claim.proposal.id));
@@ -341,8 +438,8 @@ export async function executeHodiAction(
     const client = await store.createClient({
       name: text(payload.name), companyName: text(payload.companyName), primaryContactEmail: text(payload.primaryContactEmail).toLowerCase(),
       assignedTeamMemberId: optionalText(payload.assignedTeamMemberId) || session.uid, templateId, status: "not_started",
-      tags: Array.isArray(payload.tags) ? payload.tags.map(text).filter(Boolean) : [],
-      customFields: payload.discoveryBrief && typeof payload.discoveryBrief === "object" ? Object.fromEntries(Object.entries(payload.discoveryBrief as Record<string, unknown>).map(([key, value]) => [key, text(value)]).filter(([key, value]) => key && value)) : {},
+      tags: normalizedTags(payload.tags),
+      customFields: normalizedDiscoveryBrief(payload.discoveryBrief),
     });
     const tasks = templateId ? await store.generateTasksFromTemplate(client.id, templateId, client.assignedTeamMemberId) : [];
     await store.addActivity({ clientId: client.id, actorId: session.uid, actorName: session.name, action: "hodi.client_created", meta: { proposalId: claim.proposal.id, templateId, taskCount: tasks.length } });
@@ -360,14 +457,15 @@ export async function executeHodiAction(
 
   if (action === "create_task") {
     const clientId = text(payload.clientId);
+    const fields = newTaskFields(payload);
     const existing = await store.listTasks(clientId);
     const task = await store.createTask({
-      clientId, title: text(payload.title), description: text(payload.description), type: (text(payload.type) || "internal") as TaskType,
-      assignedTo: optionalText(payload.assignedTo), assignedRole: (text(payload.assignedRole) || "team") as Task["assignedRole"],
-      status: (text(payload.status) || "pending") as TaskStatus, dueDate: validateDueDate(payload.dueDate),
+      clientId, title: text(payload.title), description: text(payload.description), type: fields.type,
+      assignedTo: optionalText(payload.assignedTo), assignedRole: fields.assignedRole,
+      status: fields.status, dueDate: validateDueDate(payload.dueDate),
       order: existing.length ? Math.max(...existing.map((item) => item.order)) + 1 : 1,
-      priority: (text(payload.priority) || "medium") as TaskPriority, internalNotes: text(payload.internalNotes), section: optionalText(payload.section) || undefined,
-      formTemplateId: optionalText(payload.formTemplateId), requiresUpload: Boolean(payload.requiresUpload),
+      priority: fields.priority, internalNotes: text(payload.internalNotes), section: optionalText(payload.section) || undefined,
+      formTemplateId: optionalText(payload.formTemplateId), requiresUpload: fields.requiresUpload,
     });
     if (task.formTemplateId) {
       try { await store.createForm({ clientId, formTemplateId: task.formTemplateId, taskId: task.id }); }
@@ -398,7 +496,7 @@ export async function executeHodiAction(
   await store.addActivity({ clientId: task.clientId, actorId: session.uid, actorName: session.name, action: activityAction, meta: { proposalId: claim.proposal.id, taskId: task.id, changes: patch } });
   return complete({ task });
   } catch (error) {
-    await releaseHodiActionProposal(claim.proposal.id, claim.previousStatus);
+    await settleFailedProposal(claim.proposal.id, claim.previousStatus, writesStarted, error);
     throw error;
   }
 }

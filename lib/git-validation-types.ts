@@ -2,6 +2,13 @@ import type { Task } from "@/types";
 
 export type GitCheckName = "git-diff-check" | "typecheck" | "lint" | "test" | "build" | "secret-scan" | "dependency-scan" | "deployment-preview" | "deployment-production";
 
+/** Every check name the validator knows; anything else is refused, never run. */
+export const GIT_CHECK_NAMES: readonly GitCheckName[] = ["git-diff-check", "typecheck", "lint", "test", "build", "secret-scan", "dependency-scan", "deployment-preview", "deployment-production"];
+
+export function isGitCheckName(value: unknown): value is GitCheckName {
+  return typeof value === "string" && (GIT_CHECK_NAMES as readonly string[]).includes(value);
+}
+
 export type GitValidationStatus = "verified" | "failed" | "blocked";
 
 export type GitValidationRequest = {

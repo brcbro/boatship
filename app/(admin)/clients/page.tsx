@@ -7,11 +7,13 @@ import {
   Badge,
   Button,
   Card,
+  ConfirmDialog,
   Dropdown,
   EmptyState,
   Input,
   Label,
   Modal,
+  NameList,
   PageHeader,
   ProgressBar,
   Textarea,
@@ -21,6 +23,7 @@ import { formatDate, statusLabel } from "@/lib/utils";
 import type { ClientStatus, ClientWithProgress, SavedSmartList } from "@/types";
 
 type TeamUser = { uid: string; name: string; email: string; role: string };
+type BulkPatch = { status?: ClientStatus; assignedTeamMemberId?: string | null };
 type OnboardingHealth = {
   clientId: string;
   state: "on_track" | "waiting_on_client" | "blocked_internally" | "ready_to_launch";
@@ -64,6 +67,7 @@ export default function ClientsPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkStatus, setBulkStatus] = useState("");
   const [bulkAssignee, setBulkAssignee] = useState("");
+  const [pendingBulk, setPendingBulk] = useState<{ patch: BulkPatch; ids: string[] } | null>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -202,11 +206,14 @@ export default function ClientsPage() {
     });
   }
 
-  async function runBulk(patch: {
-    status?: ClientStatus;
-    assignedTeamMemberId?: string | null;
-  }) {
+  function requestBulk(patch: BulkPatch) {
     if (!selected.size) return;
+    setPendingBulk({ patch, ids: Array.from(selected) });
+  }
+
+  async function runBulk() {
+    if (!pendingBulk) return;
+    const { patch, ids } = pendingBulk;
     setBusy(true);
     setError("");
     setMessage("");
@@ -214,17 +221,25 @@ export default function ClientsPage() {
       const data = await apiFetch<{ updated: number }>("/api/clients/bulk", {
         method: "POST",
         token,
-        body: JSON.stringify({ ids: Array.from(selected), ...patch }),
+        body: JSON.stringify({ ids, ...patch }),
       });
       setMessage(`Updated ${data.updated} client(s).`);
       setBulkStatus("");
       setBulkAssignee("");
+      setPendingBulk(null);
       await load();
     } catch (err) {
+      setPendingBulk(null);
       setError(err instanceof Error ? err.message : "Bulk update failed");
     } finally {
       setBusy(false);
     }
+  }
+
+  function bulkChangeLabel(patch: BulkPatch) {
+    if (patch.status) return `status to ${statusLabel(patch.status)}`;
+    if (patch.assignedTeamMemberId === null) return "assignee to Unassigned";
+    return `assignee to ${users.find((user) => user.uid === patch.assignedTeamMemberId)?.name || "the chosen team member"}`;
   }
 
   async function runImport() {
@@ -383,6 +398,22 @@ export default function ClientsPage() {
         <p className="mb-4 rounded-[var(--radius-sm)] bg-[var(--success-soft)] px-3 py-2 text-sm text-[var(--success)]">{message}</p>
       ) : null}
 
+      <ConfirmDialog
+        open={!!pendingBulk}
+        title={pendingBulk ? `Change ${pendingBulk.ids.length} client${pendingBulk.ids.length === 1 ? "" : "s"}?` : ""}
+        description={pendingBulk ? `Set ${bulkChangeLabel(pendingBulk.patch)} for:` : undefined}
+        confirmLabel="Apply change"
+        busyLabel="Applying…"
+        busy={busy}
+        onCancel={() => setPendingBulk(null)}
+        onConfirm={() => void runBulk()}
+      >
+        <NameList names={(pendingBulk?.ids || []).map((id) => {
+          const client = clients.find((item) => item.id === id);
+          return client ? client.companyName || client.name : id;
+        })} />
+      </ConfirmDialog>
+
       {selected.size > 0 ? (
         <Card className="mb-4">
           <div className="flex flex-wrap items-end gap-3">
@@ -406,7 +437,7 @@ export default function ClientsPage() {
               type="button"
               size="sm"
               disabled={busy || !bulkStatus}
-              onClick={() => void runBulk({ status: bulkStatus as ClientStatus })}
+              onClick={() => requestBulk({ status: bulkStatus as ClientStatus })}
             >
               Apply status
             </Button>
@@ -427,7 +458,7 @@ export default function ClientsPage() {
               size="sm"
               disabled={busy || !bulkAssignee}
               onClick={() =>
-                void runBulk({
+                requestBulk({
                   assignedTeamMemberId:
                     bulkAssignee === "__unassign__" ? null : bulkAssignee,
                 })
@@ -487,8 +518,8 @@ export default function ClientsPage() {
                   </th>
                   <th className="px-5 py-3 font-medium">Name</th>
                   <th className="hidden px-5 py-3 font-medium sm:table-cell">Company</th>
-                  <th className="px-5 py-3 font-medium">Onboarding status</th>
-                  <th className="hidden px-5 py-3 font-medium xl:table-cell">Onboarding health</th>
+                  <th className="px-5 py-3 font-medium">Engagement status</th>
+                  <th className="hidden px-5 py-3 font-medium xl:table-cell">Engagement health</th>
                   <th className="hidden px-5 py-3 font-medium lg:table-cell">Tags</th>
                   <th className="hidden px-5 py-3 font-medium md:table-cell">Assignee</th>
                   <th className="hidden px-5 py-3 font-medium lg:table-cell">Vessels</th>
@@ -501,7 +532,7 @@ export default function ClientsPage() {
                 {clients.map((c) => (
                   <tr
                     key={c.id}
-                    className="border-t border-[var(--border)] hover:bg-slate-50/80"
+                    className="border-t border-[var(--border)] hover:bg-[var(--surface-2)]"
                   >
                     <td className="px-5 py-3" onClick={(e) => e.stopPropagation()}>
                       <input

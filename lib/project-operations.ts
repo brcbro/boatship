@@ -25,6 +25,8 @@ export type ProjectApproval = {
   kind: "document" | "design" | "release";
   status: "pending" | "approved" | "changes_requested";
   requestedBy: string;
+  /** Role of the requester when the approval was created; missing on older records. */
+  requestedByRole?: "admin" | "team" | "client";
   reviewedBy: string | null;
   reviewedAt: string | null;
   reviewNote?: string | null;
@@ -107,13 +109,31 @@ export async function createApproval(input: Omit<ProjectApproval, "id" | "create
   return approval;
 }
 
+/**
+ * Why a reviewer may not decide this approval, or null when they may.
+ * Nobody reviews their own request, and a client reviews only approvals that
+ * staff requested. `requesterRole` is the requester's role, null when unknown.
+ */
+export function approvalReviewError(
+  approval: Pick<ProjectApproval, "requestedBy">,
+  reviewer: { uid: string; role: string },
+  requesterRole: string | null,
+): string | null {
+  if (approval.requestedBy === reviewer.uid) return "You cannot review an approval you requested";
+  if (reviewer.role === "client" && requesterRole !== "admin" && requesterRole !== "team") {
+    return "Clients can only review approvals requested by your team";
+  }
+  return null;
+}
+
 export async function updateApproval(id: string, status: "approved" | "changes_requested", reviewedBy: string, reviewNote: string | null) {
   const { store } = await readOps();
   let updated: ProjectApproval | null = null;
   await store.mutateProjectOps<ProjectOpsData>((data) => {
     const next = { ...emptyOps(), ...data };
     next.approvals = (next.approvals || []).map((item) => {
-      if (item.id !== id || item.status !== "pending") return item;
+      // Re-checked inside the mutation: a requester never records a decision on their own request.
+      if (item.id !== id || item.status !== "pending" || item.requestedBy === reviewedBy) return item;
       updated = { ...item, status, reviewedBy, reviewedAt: new Date().toISOString(), reviewNote };
       return updated;
     });

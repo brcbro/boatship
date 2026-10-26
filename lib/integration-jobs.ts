@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
-import { Collection, getFirestore, isLocalDemoStore, nowIso, type FirestoreTransaction } from "@/lib/firestore";
+import { Collection, getFirestore, isLocalDemoStore, nowIso, PostgresFirestore, type FirestoreTransaction } from "@/lib/firestore";
 import { getStore } from "@/lib/store";
 import { canAccessClient, filterAssignedClients } from "@/lib/client-access";
 import { hasPermission } from "@/lib/rbac";
@@ -164,6 +164,9 @@ export async function drainIntegrationJobs(limit = 10) {
   return { processed: jobs.length, results };
 }
 
+/** Most jobs read for the jobs list (which shows the newest 100 after access filtering). */
+const SAVED_JOBS_LIMIT = 500;
+
 async function savedJobs(clientId?: string, actorId?: string): Promise<IntegrationJob[]> {
   const local = localQueue();
   if (local) return (await local.list()).filter((job) => (!clientId || job.clientId === clientId) && (!actorId || job.actorId === actorId));
@@ -171,7 +174,11 @@ async function savedJobs(clientId?: string, actorId?: string): Promise<Integrati
     ...(clientId ? [{ field: "clientId", op: "==" as const, value: clientId }] : []),
     ...(actorId ? [{ field: "actorId", op: "==" as const, value: actorId }] : []),
   ];
-  return (await INTEGRATION_JOBS.find(where)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 500);
+  // PostgreSQL sorts and limits in the database. The Firestore fallback would
+  // need a composite index for equality plus ordering, so it keeps the
+  // in-memory sort over the filtered set.
+  if (getFirestore() instanceof PostgresFirestore) return INTEGRATION_JOBS.find(where, { orderBy: [{ field: "createdAt", direction: "desc" }], limit: SAVED_JOBS_LIMIT });
+  return (await INTEGRATION_JOBS.find(where)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, SAVED_JOBS_LIMIT);
 }
 
 export async function listIntegrationJobs(session: AuthSession, clientId?: string) {

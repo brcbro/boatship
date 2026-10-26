@@ -166,6 +166,15 @@ function AgentMarkdown({ text }: { text: string }) {
             </a>
           ) : <>{label}</>;
         },
+        // Never auto-load images from model output: an image URL can carry
+        // workspace data to a third party just by rendering. Show a link.
+        img: ({ src, alt }) => {
+          const href = typeof src === "string" && /^https?:\/\//i.test(src) ? src : null;
+          const label = alt?.trim() ? `Image: ${alt.trim()}` : "Image link";
+          return href ? (
+            <a href={href} target="_blank" rel="noreferrer noopener" referrerPolicy="no-referrer" className="font-medium text-[var(--brand)] underline underline-offset-2">{label}</a>
+          ) : <>{label}</>;
+        },
         table: ({ children }) => (
           <div className="my-3 max-w-full overflow-x-auto rounded-[var(--radius-md)] border border-[var(--border)]">
             <table className="min-w-full border-collapse text-left text-xs">{children}</table>
@@ -744,7 +753,7 @@ export function HodiChat({ variant = "page", context = null }: { variant?: HodiC
               {proposal.preview.diff?.length ? <dl className="mt-3 grid gap-x-3 gap-y-1 border-t border-[var(--border)] pt-3 text-xs sm:grid-cols-[8rem_1fr]">{proposal.preview.diff.map((change, index) => <div key={`${change.label}-${index}`} className="contents"><dt className="font-medium text-[var(--ink-muted)]">{change.label}</dt><dd className="break-words text-[var(--ink)]">{change.after}</dd></div>)}</dl> : null}
               <p className="mt-2 text-xs text-[var(--ink-muted)]">Expires {new Date(proposal.expiresAt).toLocaleString()}</p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <Button size="sm" disabled={busy || Boolean(actionBusy)} onClick={() => void decideProposal(proposal, true)}>{actionBusy === proposal.id ? "Working…" : "Approve and create"}</Button>
+                <Button size="sm" disabled={busy || Boolean(actionBusy)} onClick={() => void decideProposal(proposal, true)}>{actionBusy === proposal.id ? "Working…" : proposal.action === "run_connected_app_tools" ? "Approve and run" : "Approve and create"}</Button>
                 <Button size="sm" variant="secondary" disabled={busy || Boolean(actionBusy)} onClick={() => void decideProposal(proposal, false)}>Decline</Button>
               </div>
             </div>)}

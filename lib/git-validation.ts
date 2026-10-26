@@ -1,19 +1,81 @@
 import { createHash } from "crypto";
 import { execFile } from "child_process";
-import { promises as fs } from "fs";
 import path from "path";
 import { promisify } from "util";
-import type {
-  GitChangedFile,
-  GitCheckName,
-  GitCheckResult,
-  GitValidationEvidence,
-  GitValidationRequest,
+
+/**
+ * Checkout paths come from configuration at run time. Loading the file system
+ * module outside bundle analysis keeps Turbopack from tracing the whole
+ * project for these calls; validation never runs on the Worker.
+ */
+const checkoutFs = () => import(/* turbopackIgnore: true */ "node:fs/promises");
+import {
+  isGitCheckName,
+  type GitChangedFile,
+  type GitCheckName,
+  type GitCheckResult,
+  type GitValidationEvidence,
+  type GitValidationRequest,
 } from "@/lib/git-validation-types";
 
 const execFileAsync = promisify(execFile);
 const CHECK_TIMEOUT_MS = 120_000;
 const MAX_OUTPUT_LENGTH = 4_000;
+
+export type GitValidationAvailability =
+  | { available: true; root: string }
+  | { available: false; reason: string };
+
+function onWorkersRuntime() {
+  return typeof navigator !== "undefined" && navigator.userAgent === "Cloudflare-Workers";
+}
+
+/**
+ * Git validation runs git and npm in a local checkout, so it is only offered
+ * where processes can be spawned and an operator has named the directory that
+ * holds checkouts (`BOATSHIP_GIT_CHECKOUT_ROOT`). The hosted Worker has
+ * neither; callers answer 501 with the reason.
+ */
+export function gitValidationAvailability(env: Record<string, string | undefined> = process.env): GitValidationAvailability {
+  if (onWorkersRuntime() || typeof execFile !== "function") {
+    return { available: false, reason: "Git validation is disabled on this hosted deployment; run it where a local checkout is available." };
+  }
+  const root = env.BOATSHIP_GIT_CHECKOUT_ROOT?.trim();
+  if (!root) return { available: false, reason: "Git validation is disabled: BOATSHIP_GIT_CHECKOUT_ROOT is not configured." };
+  if (!path.isAbsolute(root)) return { available: false, reason: "Git validation is disabled: BOATSHIP_GIT_CHECKOUT_ROOT must be an absolute path." };
+  return { available: true, root };
+}
+
+/**
+ * Resolves a requested checkout inside the allowlisted root. Relative paths
+ * are taken from the root; no path means the root itself. Both sides are
+ * resolved through symlinks before the containment check, so a link inside
+ * the root that points outside it is refused. Returns null when refused.
+ */
+export async function resolveCheckoutPath(root: string, requested?: string): Promise<string | null> {
+  if (requested !== undefined && (requested.includes("\0") || !requested.trim())) return null;
+  let realRoot: string;
+  let realCandidate: string;
+  try {
+    // Joined explicitly: path.resolve falls back to the working directory, which makes the bundler trace the whole project.
+    if (!path.isAbsolute(root)) return null;
+    const fs = await checkoutFs();
+    realRoot = await fs.realpath(root);
+    const target = requested?.trim() || ".";
+    realCandidate = await fs.realpath(path.isAbsolute(target) ? target : `${realRoot}${path.sep}${target}`);
+  } catch {
+    return null;
+  }
+  const relative = path.relative(realRoot, realCandidate);
+  if (relative === "") return realCandidate;
+  if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) return null;
+  return realCandidate;
+}
+
+/** A commit-ish the caller supplied: no option-looking or control-character input reaches git. */
+function safeRevision(value: string | undefined) {
+  return value === undefined || /^[A-Za-z0-9][A-Za-z0-9._/@{}^~-]{0,199}$/.test(value);
+}
 
 function trimOutput(value: string) {
   return value.trim().slice(-MAX_OUTPUT_LENGTH);
@@ -114,11 +176,21 @@ export async function validateGitProgress(
   taskId: string,
   request: GitValidationRequest
 ): Promise<GitValidationEvidence> {
-  const repoPath = request.repositoryPath ? path.resolve(request.repositoryPath) : null;
-  if (!repoPath && request.repositoryUrl) {
+  const availability = gitValidationAvailability();
+  if (!availability.available) return blocked(taskId, request, availability.reason);
+  if (request.checks?.some((name) => !isGitCheckName(name))) return blocked(taskId, request, "checks contains an unsupported check.");
+  if (!safeRevision(request.baseSha) || !safeRevision(request.headSha) || !safeRevision(request.branch)) {
+    return blocked(taskId, request, "Branch and commit identifiers must be plain Git revisions.");
+  }
+  if (!request.repositoryPath && request.repositoryUrl) {
     return blocked(taskId, request, "Repository provider access is unavailable; provide an accessible local checkout.");
   }
-  if (!repoPath) return blocked(taskId, request, "Repository path is required; no Git evidence was fabricated.");
+  const repoPath = await resolveCheckoutPath(availability.root, request.repositoryPath);
+  if (!repoPath) return blocked(taskId, request, "Repository path must name a checkout inside the configured checkout root.");
+  // Evidence names the checkout relative to the root, never the server's absolute layout.
+  const fs = await checkoutFs();
+  const displayPath = path.relative(await fs.realpath(availability.root), repoPath).split(path.sep).join("/") || ".";
+  request = { ...request, repositoryPath: displayPath };
 
   try {
     const stat = await fs.stat(repoPath);
@@ -158,7 +230,7 @@ export async function validateGitProgress(
       status: failed ? "failed" : changedFiles.length ? "verified" : "blocked",
       reason: changedFiles.length ? undefined : "No changed files exist between the recorded base and head commits.",
       taskId,
-      repository: { path: repoPath, url: request.repositoryUrl, branch, baseSha, headSha },
+      repository: { path: displayPath, url: request.repositoryUrl, branch, baseSha, headSha },
       changedFiles,
       diffHash: `sha256:${createHash("sha256").update(diff).digest("hex")}`,
       checks,

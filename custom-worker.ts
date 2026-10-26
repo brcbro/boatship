@@ -5,10 +5,12 @@ import { DurableObject } from "cloudflare:workers";
 import { MessageRoom } from "./lib/realtime/message-room";
 import { verifyMessageRealtimeTicket } from "./lib/realtime/message-ticket";
 import { runtimeShard } from "./lib/runtime-routing";
+import { internalCronUrl } from "./lib/cron-url";
 
 type RealtimeEnv = {
   MESSAGE_REALTIME_SECRET?: string;
   BOATSHIP_CRON_SECRET?: string;
+  APP_URL?: string;
   MESSAGE_ROOM: DurableObjectNamespace<MessageRoom>;
   APP_RUNTIME: DurableObjectNamespace<AppRuntime>;
 };
@@ -39,7 +41,7 @@ export default {
     if (!env.BOATSHIP_CRON_SECRET) throw new Error("BOATSHIP_CRON_SECRET is required for scheduled jobs");
     const paths = controller.cron === "30 3 * * 1-5" ? ["product-reminders"] : ["webhook-drain", "integration-drain"];
     const results = await Promise.allSettled(paths.map(async (path) => {
-      const request = new Request(`https://boatship.cohortix.in/api/internal/${path}`, {
+      const request = new Request(internalCronUrl(env.APP_URL, path), {
         method: "POST", headers: { "x-boatship-cron-secret": env.BOATSHIP_CRON_SECRET! },
       });
       const response = await appRuntime(env, request).fetch(request);

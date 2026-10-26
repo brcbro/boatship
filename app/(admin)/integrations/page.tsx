@@ -11,6 +11,7 @@ import {
   Card,
   EmptyState,
   Input,
+  Modal,
   PageHeader,
 } from "@/components/shared/ui";
 import { apiFetch } from "@/lib/api-client";
@@ -91,8 +92,12 @@ function getDriveFiles(result: unknown): DriveFile[] {
 }
 
 function IntegrationsContent() {
-  const { token } = useAuth();
+  const { token, session } = useAuth();
+  // Workspace credentials are admin-only; team members never load or see them.
+  const isAdmin = session?.role === "admin";
   const searchParams = useSearchParams();
+  const [confirmDisconnect, setConfirmDisconnect] = useState<ToolkitRow | null>(null);
+  const [confirmRemoveSecret, setConfirmRemoveSecret] = useState<SecretProvider | null>(null);
   const [data, setData] = useState<IntegrationsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -136,6 +141,11 @@ function IntegrationsContent() {
   }, [token]);
 
   const loadSecretStatuses = useCallback(async () => {
+    if (!isAdmin) {
+      setSecretStatuses([]);
+      setSecretsLoading(false);
+      return;
+    }
     setSecretsLoading(true);
     try {
       const response = await apiFetch<SecretStatusResponse>("/api/settings/secrets", { token });
@@ -145,7 +155,7 @@ function IntegrationsContent() {
     } finally {
       setSecretsLoading(false);
     }
-  }, [token]);
+  }, [token, isAdmin]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -287,10 +297,7 @@ function IntegrationsContent() {
         token,
         body: JSON.stringify({
           tool: "SLACK_SEND_MESSAGE",
-          arguments: {
-            channel: testChannel.trim(),
-            markdown_text: "Boatship connected — client work updates can post here.",
-          },
+          channel: testChannel.trim(),
         }),
       });
       setMessage("Test message sent to Slack.");
@@ -310,15 +317,8 @@ function IntegrationsContent() {
       const response = await apiFetch<{ result: unknown }>("/api/integrations/execute", {
         method: "POST",
         token,
-        body: JSON.stringify({
-          tool: "GOOGLEDRIVE_FIND_FILE",
-          arguments: {
-            pageSize: 5,
-            // Request the fields the UI renders; Drive otherwise may omit the
-            // link and make a successful list appear empty or unusable.
-            fields: "id,name,mimeType,webViewLink",
-          },
-        }),
+        // The server fixes the test arguments (five files with the fields this list renders).
+        body: JSON.stringify({ tool: "GOOGLEDRIVE_FIND_FILE" }),
       });
       const files = getDriveFiles(response.result);
       setDriveFiles(files);
@@ -359,7 +359,7 @@ function IntegrationsContent() {
         <div className="flex items-center justify-between gap-4">
           <div>
             <h2 className="font-[family-name:var(--font-display)] text-lg text-[var(--brand)]">Recent integration work</h2>
-            <p className="mt-1 text-sm text-[var(--ink-muted)]">Client folders, team updates, and CRM contacts are tracked here. Queued work runs every five minutes in the hosted workspace.</p>
+            <p className="mt-1 text-sm text-[var(--ink-muted)]">Client folders, team updates, and CRM contacts are tracked here. Queued work starts as soon as it is added; an hourly run retries anything that was interrupted.</p>
           </div>
           <Button type="button" size="sm" variant="secondary" disabled={jobsLoading} onClick={() => void loadJobs()}>{jobsLoading ? "Refreshing…" : "Refresh"}</Button>
         </div>
@@ -385,7 +385,7 @@ function IntegrationsContent() {
         ) : !jobsError ? <p className="text-sm text-[var(--ink-muted)]">No integration work has been queued yet. New client and task events will appear here.</p> : null}
       </Card>
 
-      <Card className="space-y-5 border-[var(--brand)]/30 bg-[var(--surface-raised)] p-5">
+      {isAdmin ? <Card className="space-y-5 border-[var(--brand)]/30 bg-[var(--surface-raised)] p-5">
         <div className="space-y-1">
           <h2 className="font-[family-name:var(--font-display)] text-lg text-[var(--brand)]">
             AI & integration credentials
@@ -427,7 +427,7 @@ function IntegrationsContent() {
                       {secretBusy === provider ? "Saving…" : status?.configured ? "Replace" : "Save securely"}
                     </Button>
                     {status?.configured ? (
-                      <Button type="button" size="sm" variant="secondary" disabled={secretBusy !== null} onClick={() => void removeSecret(provider)}>
+                      <Button type="button" size="sm" variant="secondary" disabled={secretBusy !== null} onClick={() => setConfirmRemoveSecret(provider)}>
                         {secretBusy === provider ? "Removing…" : "Remove"}
                       </Button>
                     ) : null}
@@ -440,7 +440,7 @@ function IntegrationsContent() {
         <p className="text-xs text-[var(--ink-muted)]">
           Credentials are sent over HTTPS to the server secret API. They are never placed in URLs, local storage, rendered HTML, or client-visible responses. Connected app accounts below continue to use Composio&apos;s secure authorization flow.
         </p>
-      </Card>
+      </Card> : null}
 
       {loading ? (
         <p className="text-sm text-[var(--ink-muted)]">Loading integrations…</p>
@@ -503,7 +503,7 @@ function IntegrationsContent() {
                     variant="secondary"
                     size="sm"
                     disabled={busySlug === tk.slug}
-                    onClick={() => void disconnect(tk)}
+                    onClick={() => setConfirmDisconnect(tk)}
                   >
                     <Unplug className="h-4 w-4" />
                     {busySlug === tk.slug ? "…" : "Disconnect"}
@@ -597,6 +597,60 @@ function IntegrationsContent() {
           </div>
         </Card>
       ) : null}
+
+      <Modal
+        open={confirmDisconnect !== null}
+        onClose={() => setConfirmDisconnect(null)}
+        title={`Disconnect ${confirmDisconnect?.name ?? "this app"}?`}
+        description="Hodi and automatic updates will stop using this account until you connect it again."
+        footer={
+          <>
+            <Button type="button" variant="ghost" onClick={() => setConfirmDisconnect(null)}>Cancel</Button>
+            <Button
+              type="button"
+              variant="danger"
+              disabled={busySlug !== null}
+              onClick={() => {
+                const row = confirmDisconnect;
+                setConfirmDisconnect(null);
+                if (row) void disconnect(row);
+              }}
+            >
+              Disconnect
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-[var(--ink-muted)]">Only your own connection is removed. Teammates keep theirs.</p>
+      </Modal>
+
+      <Modal
+        open={confirmRemoveSecret !== null}
+        onClose={() => setConfirmRemoveSecret(null)}
+        title={`Remove the ${confirmRemoveSecret === "openrouter" ? "OpenRouter" : "Composio"} credential?`}
+        description="This affects everyone in the workspace."
+        footer={
+          <>
+            <Button type="button" variant="ghost" onClick={() => setConfirmRemoveSecret(null)}>Cancel</Button>
+            <Button
+              type="button"
+              variant="danger"
+              disabled={secretBusy !== null}
+              onClick={() => {
+                const provider = confirmRemoveSecret;
+                setConfirmRemoveSecret(null);
+                if (provider) void removeSecret(provider);
+              }}
+            >
+              Remove credential
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-[var(--ink-muted)]">
+          {confirmRemoveSecret === "openrouter" ? "Hodi stops answering until a model credential is added again." : "Connected apps and Hodi tools stop working until a Composio credential is added again."}
+        </p>
+      </Modal>
     </div>
   );
 }

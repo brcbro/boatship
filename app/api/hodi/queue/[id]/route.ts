@@ -1,17 +1,17 @@
 import { handleApi, jsonError } from "@/lib/api";
-import { requireSession, requireRoles } from "@/lib/auth";
+import { requireRoles } from "@/lib/auth";
 import { getHodiQueueItem, updateHodiQueueItem, type HodiQueueStatus } from "@/lib/hodi-queue";
 
 export const runtime = "nodejs";
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(req: Request, { params }: Params) {
-  return handleApi(async () => getHodiQueueItem((await params).id, await requireSession(req)));
+  return handleApi(async () => getHodiQueueItem((await params).id, await requireRoles(req, ["admin", "team"])));
 }
 
 export async function PATCH(req: Request, { params }: Params) {
   return handleApi(async () => {
-    const session = await requireSession(req);
+    const session = await requireRoles(req, ["admin", "team"]);
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
     const status = typeof body.status === "string" ? body.status as HodiQueueStatus : undefined;
     if (status && !["open", "in_progress", "snoozed", "dismissed", "completed"].includes(status)) throw jsonError("Invalid queue status", 400);

@@ -64,7 +64,7 @@ export default function NewClientPage() {
     <div className="mx-auto max-w-3xl">
       <PageHeader
         title="Create a client workspace"
-        description="Capture the essentials once, then start the right onboarding playbook."
+        description="Capture the essentials once, then start the right engagement playbook."
       />
       <IntakeWizard
         token={token}

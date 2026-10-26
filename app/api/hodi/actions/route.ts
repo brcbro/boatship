@@ -1,15 +1,15 @@
 import { handleApi, jsonError } from "@/lib/api";
-import { requireSession, requireRoles } from "@/lib/auth";
+import { requireRoles } from "@/lib/auth";
 import { listHodiActionProposals, reviewHodiActionProposal } from "@/lib/hodi-queue";
 
 export const runtime = "nodejs";
 
 export async function GET(req: Request) {
   return handleApi(async () => {
-    const session = await requireSession(req);
+    const session = await requireRoles(req, ["admin", "team"]);
     const value = new URL(req.url).searchParams.get("status") || "pending";
     if (![
-      "pending", "approved", "rejected", "executing", "consumed", "expired",
+      "pending", "approved", "rejected", "executing", "consumed", "expired", "failed",
     ].includes(value)) throw jsonError("Invalid action proposal status", 400);
     return { proposals: await listHodiActionProposals(session, value) };
   });

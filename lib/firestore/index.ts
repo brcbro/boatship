@@ -2,7 +2,8 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { serviceAccountFromEnv, sharedTokenProvider } from "@/lib/google-auth";
 import { RestFirestore } from "./client";
 import { PostgresFirestore } from "./postgres";
-import type { FirestoreClient, FsData, Precondition, QuerySpec, Where, OrderBy, DocSnapshot } from "./types";
+import { onCommittedWrites, writeCollection, type FirestoreClient, type FsData, type Precondition, type QuerySpec, type Where, type OrderBy, type DocSnapshot } from "./types";
+import { bumpRedisCacheForCollections } from "@/lib/redis-cache";
 
 export * from "./types";
 export { MemoryFirestore } from "./memory";
@@ -11,6 +12,11 @@ export { PostgresFirestore } from "./postgres";
 
 let override: FirestoreClient | null = null;
 let shared: { key: string; client: FirestoreClient } | null = null;
+
+// Every client reports committed writes, so the Redis response cache is
+// invalidated for profile, engagement, contact and notification writes made
+// by any module (routes, account service, scripts run in-process).
+onCommittedWrites((writes) => bumpRedisCacheForCollections(writes.map(writeCollection)).then(() => undefined));
 
 /**
  * Hosted persistence is PostgreSQL (DATABASE_URL, the ClickHouse Cloud
@@ -53,8 +59,9 @@ export function getFirestore(env: Record<string, string | undefined> = process.e
   const url = databaseUrl(env);
   if (url) {
     const table = env.DATABASE_TABLE?.trim() || undefined;
-    const key = `postgres:${url}:${table || ""}`;
-    if (shared?.key !== key) shared = { key, client: new PostgresFirestore({ url, table }) };
+    const ca = env.DATABASE_CA_CERT?.trim() || undefined;
+    const key = `postgres:${url}:${table || ""}:${ca ? "ca" : ""}`;
+    if (shared?.key !== key) shared = { key, client: new PostgresFirestore({ url, table, ca }) };
     return shared.client;
   }
   const account = serviceAccountFromEnv(env);

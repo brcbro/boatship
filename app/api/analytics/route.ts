@@ -6,6 +6,7 @@ import { getRedisCacheVersion, withRedisCache } from "@/lib/redis-cache";
 import type { ClientStatus } from "@/types";
 import { ENGAGEMENTS } from "@/lib/engagements";
 import { isLocalDemoStore } from "@/lib/firestore";
+import { averageOnboardingDays, dueDateKey } from "@/lib/utils";
 
 export const runtime = "nodejs";
 
@@ -102,20 +103,7 @@ export async function GET(req: Request) {
       clientsByStatus[c.status] = (clientsByStatus[c.status] || 0) + 1;
     }
 
-    // Average onboarding time (days) for completed clients
-    const completedOnboarding = engagementRows.filter((item) => item.type === "onboarding" && item.status === "completed" && item.completedAt);
-    const completedClients = clients.filter((c) => c.status === "completed");
-    let avgOnboardingDays = 0;
-    if (completedOnboarding.length) {
-      const totalMs = completedOnboarding.reduce((sum, item) => sum + (new Date(item.completedAt!).getTime() - new Date(item.startDate || item.createdAt).getTime()), 0);
-      avgOnboardingDays = Math.round(totalMs / completedOnboarding.length / 8640000 * 10) / 10;
-    } else if (completedClients.length) {
-      const totalMs = completedClients.reduce((sum, c) => {
-        return sum + (new Date(c.updatedAt).getTime() - new Date(c.createdAt).getTime());
-      }, 0);
-      avgOnboardingDays =
-        Math.round((totalMs / completedClients.length / (1000 * 60 * 60 * 24)) * 10) / 10;
-    }
+    const avgOnboardingDays = averageOnboardingDays(engagementRows, clients);
 
     // Overdue tasks across all clients
     const now = Date.now();
@@ -164,7 +152,8 @@ export async function GET(req: Request) {
         if (
           task.dueDate &&
           task.status !== "completed" &&
-          new Date(task.dueDate).getTime() < now
+          // Due dates are calendar days: a task is overdue from the day after it is due.
+          (dueDateKey(task.dueDate) ?? "") < new Date(now).toISOString().slice(0, 10)
         ) {
           overdueTaskList.push({
             taskId: task.id,

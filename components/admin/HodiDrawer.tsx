@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { Bot, ExternalLink, X } from "lucide-react";
 import Link from "next/link";
@@ -44,6 +44,21 @@ function useRouteContext(pathname: string, token: string | null): HodiContext | 
   }, [base, resolved]);
 }
 
+const XL_QUERY = "(min-width: 1280px)";
+
+/** True below Tailwind's xl breakpoint, where the drawer overlays the page. */
+function useIsNarrow() {
+  return useSyncExternalStore(
+    (onChange) => {
+      const media = window.matchMedia(XL_QUERY);
+      media.addEventListener("change", onChange);
+      return () => media.removeEventListener("change", onChange);
+    },
+    () => !window.matchMedia(XL_QUERY).matches,
+    () => false
+  );
+}
+
 /** Button for the top strip. Hidden on the full `/agent` workspace, where the chat already fills the page. */
 export function HodiDrawerButton({ open, onClick, buttonRef }: { open: boolean; onClick: () => void; buttonRef: React.RefObject<HTMLButtonElement | null> }) {
   return (
@@ -77,15 +92,35 @@ export function HodiDrawer({ open, onClose, triggerRef }: { open: boolean; onClo
   const context = useRouteContext(pathname, token);
   const [everOpened, setEverOpened] = useState(false);
   const panelRef = useRef<HTMLElement>(null);
+  const narrow = useIsNarrow();
+  // Below xl the drawer overlays the page behind a scrim, so it is a modal dialog.
+  const modal = open && narrow;
   // Once opened the panel stays mounted (hidden) so the conversation survives closing it.
   if (open && !everOpened) setEverOpened(true);
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    // Return focus to the top-strip button when the drawer closes.
+    if (wasOpen.current && !open) triggerRef.current?.focus();
+    wasOpen.current = open;
+  }, [open, triggerRef]);
 
   useEffect(() => {
     if (!open) return;
-    const trigger = triggerRef.current;
     const composer = panelRef.current?.querySelector<HTMLTextAreaElement>("textarea:not([disabled])");
     const frame = window.requestAnimationFrame(() => (composer ?? panelRef.current)?.focus());
     function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Tab" && modal && panelRef.current) {
+        // Keep focus inside the overlay while it covers the page.
+        const panel = panelRef.current;
+        const focusable = Array.from(panel.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])')).filter((element) => element.getClientRects().length > 0);
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (!first || !last) { event.preventDefault(); panel.focus(); return; }
+        const active = document.activeElement;
+        if (event.shiftKey && (active === first || !panel.contains(active))) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && (active === last || !panel.contains(active))) { event.preventDefault(); first.focus(); }
+        return;
+      }
       if (event.key !== "Escape") return;
       // Menus inside the chat (chat list, connected apps) close themselves on
       // their own; only close the drawer when focus is in the drawer itself.
@@ -98,9 +133,8 @@ export function HodiDrawer({ open, onClose, triggerRef }: { open: boolean; onClo
     return () => {
       window.cancelAnimationFrame(frame);
       document.removeEventListener("keydown", onKeyDown);
-      trigger?.focus();
     };
-  }, [open, onClose, triggerRef]);
+  }, [open, modal, onClose]);
 
   if (!everOpened) return null;
 
@@ -110,9 +144,11 @@ export function HodiDrawer({ open, onClose, triggerRef }: { open: boolean; onClo
       <aside
         id="hodi-drawer"
         ref={panelRef}
-        role="complementary"
+        role={modal ? "dialog" : "complementary"}
+        aria-modal={modal ? true : undefined}
         aria-label="Hodi"
-        aria-hidden={!open}
+        // Closed but still mounted: keep it out of the tab order and the accessibility tree.
+        inert={!open}
         tabIndex={-1}
         className={cn(
           "fixed inset-y-0 right-0 z-[60] flex w-[min(28rem,100vw)] flex-col border-l border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-pop)] transition-transform duration-200 xl:static xl:z-auto xl:h-auto xl:min-h-0 xl:shrink-0 xl:shadow-none",

@@ -1,6 +1,6 @@
 # Boatship architecture
 
-Last reviewed: 2026-10-23. Describes repository history plus pending audit remediation in the current working tree.
+Last reviewed: 2026-10-26. Describes repository history plus pending audit remediation in the current working tree.
 
 This folder is the entry point for understanding and changing Boatship. It describes the implementation visible in this repository; it is not a claim that every optional integration is configured or deployed. Read the source files linked below for exact behavior.
 
@@ -21,7 +21,7 @@ The [interface redesign record](ui-redesign.md) describes the Regatta visual sys
 
 Audit implementation references: [staff permissions](permissions.md), [document storage and runtime scaling](document-storage.md), [forms and drafts](forms-validation-drafts.md), [durable integration jobs](integration-jobs.md), and [interface changes](interface-audit-remediation.md). The [Firestore port](firestore-port.md) replaced Neon/Prisma on 2026-10-22 and defined the storage interface; the [PostgreSQL store](postgres-store.md) moved all persistence to a ClickHouse Cloud PostgreSQL service behind that interface on 2026-10-23. The database starts empty.
 
-The [audit completion record](audit-remediation.md) maps all ten findings to changes, verification, and remaining release boundaries.
+The [audit completion record](audit-remediation.md) maps all ten findings to changes, verification, and remaining release boundaries. The [October 26 audit record](audit-2026-10-26.md) covers the role-based audit of 2026-10-26: access fixes, Hodi approval for connected-app writes, storage retention, interface fixes and release notes.
 
 Operational references: [runbooks](../docs/operations/README.md) for first admin, releases, restore, and incidents; [dependency advisory triage](../docs/dependency-audit.md).
 

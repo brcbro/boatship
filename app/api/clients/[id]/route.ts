@@ -3,18 +3,9 @@ import { requireRoles, requireSession } from "@/lib/auth";
 import { canAccessClient } from "@/lib/client-access";
 import { isStaff } from "@/lib/rbac";
 import { getStore } from "@/lib/store";
-import type { ClientStatus, PipelineStage } from "@/types";
+import { clientUpdateSchema, isActiveStaffUser, parseClientInput } from "@/lib/client-validation";
 
 export const runtime = "nodejs";
-
-const PIPELINE_STAGES: PipelineStage[] = [
-  "intake",
-  "kyc",
-  "compliance",
-  "kickoff",
-  "go_live",
-  "done",
-];
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -56,51 +47,28 @@ export async function PATCH(req: Request, { params }: Params) {
     if (!existing) throw jsonError("Client not found", 404);
     if (!await canAccessClient(session, id)) throw jsonError("Forbidden", 403);
 
-    const body = (await req.json().catch(() => ({}))) as {
-      name?: string;
-      companyName?: string;
-      primaryContactEmail?: string;
-      status?: ClientStatus;
-      assignedTeamMemberId?: string | null;
-      templateId?: string | null;
-      tags?: string[];
-      customFields?: Record<string, string>;
-      pipelineStage?: PipelineStage;
-      pauseReason?: string | null;
-      pausedAt?: string | null;
-      paused?: boolean;
-    };
+    const parsed = parseClientInput(clientUpdateSchema, await req.json().catch(() => ({})));
+    if (!parsed.ok) throw jsonError(parsed.error, 400);
+    const body = parsed.data;
 
     const patch: Record<string, unknown> = {};
-    if (body.name !== undefined) patch.name = body.name.trim();
-    if (body.companyName !== undefined) patch.companyName = body.companyName.trim();
-    if (body.primaryContactEmail !== undefined) {
-      patch.primaryContactEmail = body.primaryContactEmail.trim().toLowerCase();
-    }
+    if (body.name !== undefined) patch.name = body.name;
+    if (body.companyName !== undefined) patch.companyName = body.companyName;
+    if (body.primaryContactEmail !== undefined) patch.primaryContactEmail = body.primaryContactEmail;
     if (body.status !== undefined) patch.status = body.status;
     if (body.assignedTeamMemberId !== undefined) {
       if (session.role === "team" && body.assignedTeamMemberId !== session.uid) throw jsonError("Forbidden", 403);
+      if (body.assignedTeamMemberId !== null && !isActiveStaffUser(await store.getUser(body.assignedTeamMemberId))) {
+        throw jsonError("assignedTeamMemberId must be an active team member", 400);
+      }
       patch.assignedTeamMemberId = body.assignedTeamMemberId;
     }
     if (body.templateId !== undefined) patch.templateId = body.templateId;
-    if (body.tags !== undefined) {
-      patch.tags = Array.isArray(body.tags)
-        ? body.tags.map((t) => String(t).trim()).filter(Boolean)
-        : [];
+    if (body.tags !== undefined) patch.tags = body.tags;
+    if (body.customFields !== undefined) {
+      patch.customFields = Object.fromEntries(Object.entries(body.customFields).filter(([k]) => k));
     }
-    if (body.customFields !== undefined && typeof body.customFields === "object") {
-      patch.customFields = Object.fromEntries(
-        Object.entries(body.customFields)
-          .map(([k, v]) => [k.trim(), String(v ?? "").trim()])
-          .filter(([k]) => k)
-      );
-    }
-    if (body.pipelineStage !== undefined) {
-      if (!PIPELINE_STAGES.includes(body.pipelineStage)) {
-        throw jsonError("Invalid pipelineStage", 400);
-      }
-      patch.pipelineStage = body.pipelineStage;
-    }
+    if (body.pipelineStage !== undefined) patch.pipelineStage = body.pipelineStage;
 
     // Explicit pause/resume helpers
     if (body.paused === true) {

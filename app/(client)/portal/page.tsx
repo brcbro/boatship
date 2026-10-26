@@ -6,11 +6,13 @@ import { ArrowRight, ClipboardCheck, FileText, MessageCircle, ThumbsUp } from "l
 import { useAuth } from "@/components/shared/AuthProvider";
 import { Badge, Button, ButtonLink, Card, PageHeader, ProgressBar, SectionHeading } from "@/components/shared/ui";
 import { apiFetch } from "@/lib/api-client";
-import { formatDate, statusLabel } from "@/lib/utils";
+import { formatDueDate, statusLabel } from "@/lib/utils";
 import type { ClientWithProgress, FormSubmission, Task } from "@/types";
 
 type ApprovalSummary = { id: string; subject: string; status: string };
-type EngagementSummary = { id: string; name: string; type: string; status: string; targetDate: string | null; taskCount: number; completedTaskCount: number; progress: number };
+type SectionErrors = Partial<Record<"tasks" | "forms" | "approvals" | "engagements", string>>;
+const SECTION_LABELS: Record<keyof SectionErrors, string> = { tasks: "tasks", forms: "forms", approvals: "approvals", engagements: "engagements" };
+type EngagementSummary ={ id: string; name: string; type: string; status: string; targetDate: string | null; taskCount: number; completedTaskCount: number; progress: number };
 
 function taskTone(status: string): "neutral" | "info" | "danger" {
   if (status === "blocked") return "danger";
@@ -28,25 +30,36 @@ export default function PortalDashboardPage() {
   const [engagements, setEngagements] = useState<EngagementSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [sectionErrors, setSectionErrors] = useState<SectionErrors>({});
 
   const load = useCallback(async () => {
     if (!clientId) { setLoading(false); return; }
     setLoading(true);
     setError("");
+    setSectionErrors({});
     try {
       const encodedClientId = encodeURIComponent(clientId);
-      const [clientRes, tasksRes, formsRes, approvalsRes, engagementsRes] = await Promise.all([
+      // Each section loads on its own: one failing request should not hide the rest.
+      const [clientRes, tasksRes, formsRes, approvalsRes, engagementsRes] = await Promise.allSettled([
         apiFetch<{ client: ClientWithProgress }>(`/api/clients/${encodedClientId}`, { token }),
         apiFetch<{ tasks: Task[] }>(`/api/tasks?clientId=${encodedClientId}`, { token }),
         apiFetch<{ forms: FormSubmission[] }>(`/api/forms?clientId=${encodedClientId}`, { token }),
         apiFetch<{ approvals: ApprovalSummary[] }>(`/api/project-operations?clientId=${encodedClientId}`, { token }),
         apiFetch<{ engagements: EngagementSummary[] }>(`/api/clients/${encodedClientId}/engagements`, { token }),
       ]);
-      setClient(clientRes.client);
-      setTasks(tasksRes.tasks.filter((task) => task.type === "client_facing").sort((a, b) => a.order - b.order));
-      setForms(formsRes.forms);
-      setApprovals(approvalsRes.approvals);
-      setEngagements(engagementsRes.engagements);
+      const failures: SectionErrors = {};
+      const reason = (result: PromiseRejectedResult) => result.reason instanceof Error ? result.reason.message : "Request failed";
+      if (clientRes.status === "fulfilled") setClient(clientRes.value.client);
+      else setError(reason(clientRes));
+      if (tasksRes.status === "fulfilled") setTasks(tasksRes.value.tasks.filter((task) => task.type === "client_facing").sort((a, b) => a.order - b.order));
+      else { setTasks([]); failures.tasks = reason(tasksRes); }
+      if (formsRes.status === "fulfilled") setForms(formsRes.value.forms);
+      else { setForms([]); failures.forms = reason(formsRes); }
+      if (approvalsRes.status === "fulfilled") setApprovals(approvalsRes.value.approvals);
+      else { setApprovals([]); failures.approvals = reason(approvalsRes); }
+      if (engagementsRes.status === "fulfilled") setEngagements(engagementsRes.value.engagements);
+      else { setEngagements([]); failures.engagements = reason(engagementsRes); }
+      setSectionErrors(failures);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "We couldn’t load your workspace.");
     } finally { setLoading(false); }
@@ -63,6 +76,9 @@ export default function PortalDashboardPage() {
   const completedTasks = tasks.filter((task) => task.status === "completed").length;
   const waitingCount = pendingApprovals.length + openTasks.length + incompleteForms;
   const firstName = (client?.name || "").trim().split(/\s+/)[0] || "there";
+  const failedSections = (Object.keys(sectionErrors) as Array<keyof SectionErrors>).filter((key) => sectionErrors[key]);
+  // With tasks or approvals missing, "all caught up" could be wrong.
+  const nextStepUnknown = !!(sectionErrors.tasks || sectionErrors.approvals);
 
   if (authLoading || loading) {
     return (
@@ -100,7 +116,14 @@ export default function PortalDashboardPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader eyebrow={client.companyName} title={`Hello, ${firstName}`} description={waitingCount === 0 ? "Nothing is waiting on you right now." : `${waitingCount} thing${waitingCount === 1 ? "" : "s"} need${waitingCount === 1 ? "s" : ""} you this week.`} />
+      <PageHeader eyebrow={client.companyName} title={`Hello, ${firstName}`} description={nextStepUnknown ? "Some of your workspace did not load." : waitingCount === 0 ? "Nothing is waiting on you right now." : `${waitingCount} thing${waitingCount === 1 ? "" : "s"} need${waitingCount === 1 ? "s" : ""} you this week.`} />
+
+      {failedSections.length ? (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-lg)] border border-[var(--danger)]/25 bg-[var(--danger-soft)] px-4 py-3 text-sm text-[var(--danger)]">
+          <span>We couldn’t load your {failedSections.map((key) => SECTION_LABELS[key]).join(", ")}. The rest of the page is up to date.</span>
+          <Button type="button" size="sm" variant="secondary" onClick={() => void load()}>Try again</Button>
+        </div>
+      ) : null}
 
       <section aria-labelledby="next-heading" className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(16rem,0.5fr)]">
         <div className="relative overflow-hidden rounded-[var(--radius-xl)] bg-[var(--accent)] p-6 text-[var(--on-accent)] sm:p-8">
@@ -117,11 +140,16 @@ export default function PortalDashboardPage() {
               <p className="mt-3 font-[family-name:var(--font-display)] text-[1.75rem] font-extrabold leading-[1.05] tracking-[-0.02em] sm:text-[2.1rem]">{nextTask.title}</p>
               <p className="mt-2 flex flex-wrap items-center gap-2 text-sm opacity-85">
                 {nextTask.engagementId ? <span>{engagements.find((item) => item.id === nextTask.engagementId)?.name}</span> : null}
-                {nextTask.dueDate ? <span>· Due {formatDate(nextTask.dueDate)}</span> : null}
+                {nextTask.dueDate ? <span>· Due {formatDueDate(nextTask.dueDate)}</span> : null}
                 <Badge tone={taskTone(nextTask.status)} className="bg-[var(--on-accent)]/15 text-[var(--on-accent)]">{statusLabel(nextTask.status)}</Badge>
               </p>
               {nextTask.description ? <p className="mt-3 max-w-prose text-sm leading-6 opacity-90">{nextTask.description}</p> : null}
               <Link href={`/portal/tasks?taskId=${encodeURIComponent(nextTask.id)}`} className="mt-6 inline-flex min-h-11 items-center gap-2 rounded-[var(--radius-md)] bg-[var(--on-accent)] px-4 text-sm font-semibold text-[var(--accent)] transition-transform hover:translate-x-0.5">Open task <ArrowRight className="h-4 w-4" aria-hidden="true" /></Link>
+            </>
+          ) : nextStepUnknown ? (
+            <>
+              <p className="mt-3 font-[family-name:var(--font-display)] text-[1.75rem] font-extrabold leading-[1.05] tracking-[-0.02em] sm:text-[2.1rem]">Your next step didn’t load</p>
+              <p className="mt-2 text-sm opacity-85">We couldn’t check your {[sectionErrors.tasks ? "tasks" : "", sectionErrors.approvals ? "approvals" : ""].filter(Boolean).join(" and ")}. Try again in a moment.</p>
             </>
           ) : (
             <>
@@ -154,14 +182,16 @@ export default function PortalDashboardPage() {
               <span className="flex items-start justify-between gap-3">
                 <span className="min-w-0">
                   <span className="block truncate font-[family-name:var(--font-display)] text-[17px] font-bold tracking-[-0.01em] text-[var(--ink)]">{item.name}</span>
-                  <span className="mt-1 block text-xs text-[var(--ink-muted)]">{statusLabel(item.status)}{item.targetDate ? ` · Target ${formatDate(item.targetDate)}` : ""}</span>
+                  <span className="mt-1 block text-xs text-[var(--ink-muted)]">{statusLabel(item.status)}{item.targetDate ? ` · Target ${formatDueDate(item.targetDate)}` : ""}</span>
                 </span>
                 <ArrowRight className="h-4 w-4 shrink-0 text-[var(--ink-faint)] transition-colors group-hover:text-[var(--brand)]" aria-hidden="true" />
               </span>
               <span className="mt-4 block"><ProgressBar value={item.progress} label={`${item.name} progress`} /></span>
               <span className="mt-2 block text-xs tabular-nums text-[var(--ink-muted)]">{item.completedTaskCount} of {item.taskCount} tasks · {item.progress}%</span>
             </Link>
-          )) : <Card className="text-sm text-[var(--ink-muted)]">No current engagements right now.</Card>}
+          )) : sectionErrors.engagements
+            ? <Card className="text-sm text-[var(--danger)]">Your engagements did not load.</Card>
+            : <Card className="text-sm text-[var(--ink-muted)]">No current engagements right now.</Card>}
         </div>
       </section>
 
@@ -173,7 +203,7 @@ export default function PortalDashboardPage() {
               <Link key={task.id} href={`/portal/tasks?taskId=${encodeURIComponent(task.id)}`} className="flex min-h-14 items-center justify-between gap-3 py-3 text-[var(--ink)] hover:text-[var(--brand)]">
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-medium">{task.title}</span>
-                  <span className="block text-xs text-[var(--ink-muted)]">{task.dueDate ? `Due ${formatDate(task.dueDate)}` : statusLabel(task.status)}</span>
+                  <span className="block text-xs text-[var(--ink-muted)]">{task.dueDate ? `Due ${formatDueDate(task.dueDate)}` : statusLabel(task.status)}</span>
                 </span>
                 <Badge tone={taskTone(task.status)}>{statusLabel(task.status)}</Badge>
               </Link>

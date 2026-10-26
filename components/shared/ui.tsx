@@ -31,7 +31,7 @@ export function buttonClasses({ variant = "primary", size = "md", className }: {
     variant === "accent" && "bg-[var(--accent)] text-[var(--on-accent)] shadow-[0_8px_20px_-10px_var(--accent)] hover:bg-[var(--accent-strong)]",
     variant === "secondary" && "border border-[var(--border-strong)] bg-[var(--surface-raised)] text-[var(--ink)] hover:border-[var(--ink-faint)] hover:bg-[var(--surface-2)]",
     variant === "ghost" && "text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]",
-    variant === "danger" && "bg-[var(--danger)] text-white hover:brightness-95",
+    variant === "danger" && "bg-[var(--danger)] text-[var(--on-danger)] hover:brightness-95",
     className
   );
 }
@@ -493,6 +493,68 @@ export function Modal({
         </div>
       </div>
     </ModalContext.Provider>
+  );
+}
+
+/**
+ * A confirmation step for bulk, destructive or credential-changing actions.
+ * Put what will change (counts and names) in `children`.
+ */
+export function ConfirmDialog({
+  open,
+  title,
+  description,
+  children,
+  confirmLabel,
+  busyLabel,
+  tone = "primary",
+  busy = false,
+  confirmDisabled = false,
+  onConfirm,
+  onCancel,
+}: {
+  open: boolean;
+  title: ReactNode;
+  description?: ReactNode;
+  children?: ReactNode;
+  confirmLabel: string;
+  busyLabel?: string;
+  tone?: "primary" | "danger";
+  busy?: boolean;
+  confirmDisabled?: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <Modal
+      open={open}
+      onClose={busy ? () => undefined : onCancel}
+      title={title}
+      description={description}
+      size="sm"
+      footer={
+        <>
+          <Button type="button" variant="secondary" onClick={onCancel} disabled={busy}>Cancel</Button>
+          <Button type="button" variant={tone} onClick={onConfirm} disabled={busy || confirmDisabled}>
+            {busy ? busyLabel || "Working…" : confirmLabel}
+          </Button>
+        </>
+      }
+    >
+      {children}
+    </Modal>
+  );
+}
+
+/** A short list of names for a confirmation, e.g. "Acme, Globex and 3 more". */
+export function NameList({ names, max = 5 }: { names: string[]; max?: number }) {
+  const shown = names.slice(0, max);
+  const rest = names.length - shown.length;
+  return (
+    <ul className="mt-2 space-y-1 text-sm text-[var(--ink)]">
+      {shown.map((name, index) => <li key={`${name}-${index}`} className="truncate">• {name}</li>)}
+      {rest > 0 ? <li className="text-[var(--ink-muted)]">and {rest} more</li> : null}
+    </ul>
   );
 }
 

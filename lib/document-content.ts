@@ -3,7 +3,9 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { Buffer } from "node:buffer";
 import { Collection, isHostedStore, nowIso } from "@/lib/firestore";
+import { ownedBytes } from "@/lib/firestore/bytes";
 import { documentObjectKey, getDocumentObjectStore, type DocumentObjectStore } from "@/lib/document-objects";
+import { DocumentInputError, documentByteRange } from "@/lib/document-files";
 import { readSnapshotSlice } from "@/lib/store";
 import type { DocumentRecord, DocumentVersion } from "@/types";
 
@@ -33,7 +35,8 @@ export async function saveDocumentContent(documentId: string, clientId: string, 
     if (!objects && bytes.length > INLINE_BYTES_LIMIT) throw new Error("Files over 900 KB need an object store: PostgreSQL (DATABASE_URL) or Firebase Storage (FIREBASE_STORAGE_BUCKET).");
     if (objects && objectKey) await objects.put(objectKey, bytes, contentType);
     try {
-      await DOCUMENT_CONTENT.create(id, { id, documentId, clientId, contentType, size: bytes.length, bytes: objectKey ? null : Uint8Array.from(bytes), objectKey, createdAt: nowIso() });
+      // The storage client encodes the bytes itself, so no defensive copy is needed here.
+      await DOCUMENT_CONTENT.create(id, { id, documentId, clientId, contentType, size: bytes.length, bytes: objectKey ? null : bytes, objectKey, createdAt: nowIso() });
     } catch (error) {
       if (objects && objectKey) await objects.delete([objectKey]).catch(() => undefined);
       throw error;
@@ -55,14 +58,53 @@ export async function readDocumentContent(document: DocumentRecord, version: Doc
         if (!objects) { console.error("Document bytes are in object storage but no object store is configured"); return null; }
         return objects.get(content.objectKey);
       }
-      return content.bytes ? Uint8Array.from(content.bytes) : null;
+      // Freshly decoded by the storage client for this read; returned without another copy.
+      return content.bytes ?? null;
     }
     if (!/^[0-9a-f-]{36}$/i.test(version.contentId)) return null;
-    try { return Uint8Array.from(await fs.readFile(path.join(localDirectory, `${version.contentId}.bin`))); }
+    try { return ownedBytes(await fs.readFile(path.join(localDirectory, `${version.contentId}.bin`))); }
     catch (error) { if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") return null; throw error; }
   }
   // Legacy files remain readable in local demo fixtures or during rollout.
-  return version.contentBase64 ? Uint8Array.from(Buffer.from(version.contentBase64.replace(/^data:[^,]*,/, ""), "base64")) : null;
+  return version.contentBase64 ? ownedBytes(Buffer.from(version.contentBase64.replace(/^data:[^,]*,/, ""), "base64")) : null;
+}
+
+export type DocumentContentRead =
+  | { kind: "full" | "partial"; bytes: Uint8Array; size: number; head: Uint8Array; range: { start: number; end: number } | null }
+  | { kind: "unsatisfiable"; size: number };
+
+/**
+ * Range-aware read for the content route. With a Range header and an object
+ * store that supports partial reads (the PostgreSQL blob table), only the
+ * requested bytes and a 16-byte head for type sniffing leave the database;
+ * otherwise the file is read whole and sliced (a view, not a copy). Returns
+ * null when the content is missing or empty; "unsatisfiable" maps to 416.
+ */
+export async function readDocumentContentRange(document: DocumentRecord, version: DocumentRecord | DocumentVersion, rangeHeader: string | null): Promise<DocumentContentRead | null> {
+  const sized = (size: number) => {
+    try { return documentByteRange(rangeHeader, size); }
+    catch (error) { if (error instanceof DocumentInputError) return "unsatisfiable" as const; throw error; }
+  };
+  if (rangeHeader && version.contentId && relational()) {
+    const content = await DOCUMENT_CONTENT.get(version.contentId);
+    if (!content || content.documentId !== document.id || content.clientId !== document.clientId || !content.size) return null;
+    const objects = content.objectKey ? getDocumentObjectStore() : null;
+    if (content.objectKey && objects?.getRange) {
+      const range = sized(content.size);
+      if (range === "unsatisfiable") return { kind: "unsatisfiable", size: content.size };
+      if (range) {
+        const part = await objects.getRange(content.objectKey, range.start, range.end);
+        if (!part || !part.size) return null;
+        // The record's size is authoritative only while it matches the stored object.
+        if (part.size === content.size) return { kind: "partial", bytes: part.bytes, size: part.size, head: part.head, range };
+      }
+    }
+  }
+  const bytes = await readDocumentContent(document, version);
+  if (!bytes?.length) return null;
+  const range = sized(bytes.length);
+  if (range === "unsatisfiable") return { kind: "unsatisfiable", size: bytes.length };
+  return { kind: range ? "partial" : "full", bytes: range ? bytes.subarray(range.start, range.end + 1) : bytes, size: bytes.length, head: bytes.subarray(0, 16), range };
 }
 
 export async function removeUnreferencedDocumentContent(id: string) {
@@ -104,7 +146,7 @@ export async function migrateDocumentContentToObjects(limit = 5, objects: Docume
   let moved = 0;
   for (const row of rows) {
     const objectKey = documentObjectKey(row.clientId, row.documentId, row.id);
-    await objects.put(objectKey, Uint8Array.from(row.bytes!), row.contentType);
+    await objects.put(objectKey, row.bytes!, row.contentType);
     await DOCUMENT_CONTENT.update(row.id, { objectKey, bytes: null });
     moved += 1;
   }

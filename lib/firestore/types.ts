@@ -43,6 +43,33 @@ export interface FirestoreClient extends FirestoreReader {
   runTransaction<R>(body: (tx: FirestoreTransaction) => Promise<R>, options?: { attempts?: number }): Promise<R>;
 }
 
+/**
+ * Called after writes have committed (a plain commit or a transaction's final
+ * attempt), never for an attempt that rolled back. Every client reports here,
+ * so cache invalidation keyed on collections does not depend on each caller
+ * remembering to do it.
+ */
+export type CommittedWritesListener = (writes: Write[]) => void | Promise<void>;
+const committedWritesListeners = new Set<CommittedWritesListener>();
+
+/** Registers a listener; returns a function that removes it. */
+export function onCommittedWrites(listener: CommittedWritesListener): () => void {
+  committedWritesListeners.add(listener);
+  return () => { committedWritesListeners.delete(listener); };
+}
+
+/** Clients call this once their writes are durable. Listener failures are logged, never thrown. */
+export async function notifyCommittedWrites(writes: Write[]): Promise<void> {
+  if (!writes.length || !committedWritesListeners.size) return;
+  for (const listener of committedWritesListeners) {
+    try { await listener(writes); } catch (error) { console.error("Committed-writes listener failed", error); }
+  }
+}
+
+export function writeCollection(write: Write): string {
+  return "set" in write ? write.set.collection : "update" in write ? write.update.collection : write.delete.collection;
+}
+
 export class FirestoreError extends Error {
   constructor(message: string, readonly status: string, readonly httpStatus: number) {
     super(message);

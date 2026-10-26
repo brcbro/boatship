@@ -5,6 +5,7 @@ import { getStore } from "@/lib/store";
 import { dispatchWebhooks } from "@/lib/webhooks";
 import { getRedisCacheVersion, redisCacheKey, withRedisCache } from "@/lib/redis-cache";
 import { filterAssignedClients } from "@/lib/client-access";
+import { CLIENT_STATUSES, PIPELINE_STAGES, clientCreateSchema, isActiveStaffUser, parseClientInput } from "@/lib/client-validation";
 import type { ClientStatus, ClientWithProgress, PipelineStage } from "@/types";
 
 export const runtime = "nodejs";
@@ -24,6 +25,8 @@ export async function GET(req: Request) {
     }
     const status = searchParams.get("status") as ClientStatus | null;
     const pipelineStage = searchParams.get("pipelineStage") as PipelineStage | null;
+    if (status && !(CLIENT_STATUSES as readonly string[]).includes(status)) throw jsonError(`status must be one of ${CLIENT_STATUSES.join(", ")}`, 400);
+    if (pipelineStage && !(PIPELINE_STAGES as readonly string[]).includes(pipelineStage)) throw jsonError(`pipelineStage must be one of ${PIPELINE_STAGES.join(", ")}`, 400);
     const assignedTeamMemberId = searchParams.get("assignedTeamMemberId") || undefined;
     const q = searchParams.get("q") || undefined;
     const tag = searchParams.get("tag") || undefined;
@@ -67,42 +70,28 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   return handleApi(async () => {
     const session = await requireRoles(req, ["admin", "team"]);
-    const body = (await req.json().catch(() => ({}))) as {
-      name?: string;
-      companyName?: string;
-      primaryContactEmail?: string;
-      assignedTeamMemberId?: string | null;
-      templateId?: string | null;
-      status?: ClientStatus;
-      tags?: string[];
-      customFields?: Record<string, string>;
-    };
+    const parsed = parseClientInput(clientCreateSchema, await req.json().catch(() => ({})));
+    if (!parsed.ok) throw jsonError(parsed.error, 400);
+    const body = parsed.data;
 
-    if (typeof body.name !== "string" || typeof body.companyName !== "string" || typeof body.primaryContactEmail !== "string" || !body.name.trim() || !body.companyName.trim() || !body.primaryContactEmail.trim()) {
-      throw jsonError("name, companyName, and primaryContactEmail are required", 400);
-    }
-    if (body.name.length > 255 || body.companyName.length > 255 || body.primaryContactEmail.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.primaryContactEmail.trim())) throw jsonError("Enter a valid contact email and names of at most 255 characters.", 400);
-
-    const tags = Array.isArray(body.tags)
-      ? body.tags.map((t) => String(t).trim()).filter(Boolean)
+    const tags = body.tags;
+    const customFields = body.customFields
+      ? Object.fromEntries(
+          Object.entries(body.customFields).filter(([k, v]) => k && v)
+        )
       : undefined;
-    const customFields =
-      body.customFields && typeof body.customFields === "object"
-        ? Object.fromEntries(
-            Object.entries(body.customFields)
-              .map(([k, v]) => [k.trim(), String(v ?? "").trim()])
-              .filter(([k, v]) => k && v)
-          )
-        : undefined;
 
     const store = await getStore();
     if (session.role === "team" && body.assignedTeamMemberId !== undefined && body.assignedTeamMemberId !== session.uid) {
       throw jsonError("Forbidden", 403);
     }
+    if (body.assignedTeamMemberId && !isActiveStaffUser(await store.getUser(body.assignedTeamMemberId))) {
+      throw jsonError("assignedTeamMemberId must be an active team member", 400);
+    }
     const client = await store.createClient({
-      name: body.name.trim(),
-      companyName: body.companyName.trim(),
-      primaryContactEmail: body.primaryContactEmail.trim().toLowerCase(),
+      name: body.name,
+      companyName: body.companyName,
+      primaryContactEmail: body.primaryContactEmail,
       assignedTeamMemberId: body.assignedTeamMemberId ?? session.uid,
       templateId: body.templateId ?? "seed_standard",
       status: body.status,
