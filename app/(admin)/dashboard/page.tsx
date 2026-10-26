@@ -215,7 +215,7 @@ export default function DashboardPage() {
           </div>
         </Card>
         <Card>
-          <p className="text-sm text-[var(--ink-muted)]">Approx. onboarding days</p>
+          <p className="text-sm text-[var(--ink-muted)]">Avg. days to complete an onboarding engagement</p>
           <p className="mt-2 font-[family-name:var(--font-display)] text-3xl text-[var(--ink)]">
             {analytics?.avgOnboardingDays ?? 0}
           </p>
@@ -251,7 +251,7 @@ export default function DashboardPage() {
                   <th className="px-4 py-2.5 font-medium">Name</th>
                   <th className="hidden px-4 py-2.5 font-medium sm:table-cell">Company</th>
                   <th className="px-4 py-2.5 font-medium">Status</th>
-                  <th className="hidden px-4 py-2.5 font-medium md:table-cell">Onboarding health</th>
+                  <th className="hidden px-4 py-2.5 font-medium md:table-cell">Engagement health</th>
                   <th className="px-4 py-2.5 font-medium">Progress</th>
                   <th className="hidden px-4 py-2.5 font-medium sm:table-cell">Updated</th>
                 </tr>

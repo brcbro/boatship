@@ -65,6 +65,32 @@ export function formatDate(value: string | null | undefined) {
   });
 }
 
+const UTC_MIDNIGHT = /^(\d{4}-\d{2}-\d{2})T00:00(?::00(?:\.0{1,3})?)?(?:Z|\+00:00)$/;
+
+/**
+ * The calendar day a due date names, as `YYYY-MM-DD`. Due dates are picked as
+ * days and stored either as `YYYY-MM-DD` or as UTC midnight of that day, so
+ * both forms map back to the same day in every timezone.
+ */
+export function dueDateKey(value: string | null | undefined): string | null {
+  if (!value) return null;
+  if (isDateOnly(value)) return value;
+  const midnight = UTC_MIDNIGHT.exec(value);
+  if (midnight) return midnight[1];
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : localDateKey(date);
+}
+
+/** A due date picked as a day, stored as UTC midnight so existing readers keep working. */
+export function dueDateToStorage(day: string): string | null {
+  return isDateOnly(day) ? `${day}T00:00:00.000Z` : null;
+}
+
+/** Formats a due date as its calendar day, never shifted by the viewer's timezone. */
+export function formatDueDate(value: string | null | undefined) {
+  return formatDate(dueDateKey(value));
+}
+
 export function formatDateTime(value: string | null | undefined) {
   if (!value) return "—";
   const date = parseDateValue(value);

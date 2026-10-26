@@ -21,7 +21,7 @@ import {
   Textarea,
 } from "@/components/shared/ui";
 import { apiFetch } from "@/lib/api-client";
-import { formatDate, formatDateTime, statusLabel } from "@/lib/utils";
+import { formatDate, formatDueDate, formatDateTime, statusLabel } from "@/lib/utils";
 import { TaskBoard } from "@/components/shared/TaskBoard";
 import { DocumentViewer } from "@/components/shared/DocumentViewer";
 import { hasPermission } from "@/lib/rbac";
@@ -790,9 +790,9 @@ function ClientDetailInner() {
     .filter((task) => task.dueDate && task.status !== "completed")
     .sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""))[0];
   const nextMilestone = upcomingEngagement
-    ? `${upcomingEngagement.name} · ${formatDate(upcomingEngagement.targetDate!)}`
+    ? `${upcomingEngagement.name} · ${formatDueDate(upcomingEngagement.targetDate!)}`
     : upcomingTask
-      ? `${upcomingTask.title} · ${formatDate(upcomingTask.dueDate!)}`
+      ? `${upcomingTask.title} · ${formatDueDate(upcomingTask.dueDate!)}`
       : "Nothing scheduled";
 
   return (
@@ -1048,7 +1048,7 @@ function ClientDetailInner() {
                   </div>
                   <div className="mt-4 flex justify-between text-sm"><span>{engagement.completedTaskCount} of {engagement.taskCount} tasks</span><span>{engagement.progress}%</span></div>
                   <ProgressBar value={engagement.progress} />
-                  <p className="mt-3 text-xs text-[var(--ink-muted)]">Owner: {users.find((user) => user.uid === engagement.ownerId)?.name || "Unassigned"}{engagement.targetDate ? ` · Target ${formatDate(engagement.targetDate)}` : ""}</p>
+                  <p className="mt-3 text-xs text-[var(--ink-muted)]">Owner: {users.find((user) => user.uid === engagement.ownerId)?.name || "Unassigned"}{engagement.targetDate ? ` · Target ${formatDueDate(engagement.targetDate)}` : ""}</p>
                   <div className="mt-4 flex flex-wrap items-end gap-3">
                     <div className="min-w-40 flex-1">{engagement.id === `onboarding_${id}` ? <p className="text-sm text-[var(--ink-muted)]">Onboarding status is managed in the legacy controls on the Overview tab.</p> : <><Dropdown label="Status" value={engagement.status} disabled={busy || !canManageClient} onChange={(status) => void updateEngagement(engagement.id, { status })} options={(["planned", "active", "paused", "completed", "cancelled"] as Engagement["status"][]).map((status) => ({ value: status, label: statusLabel(status) }))} /></>}</div>
                     <Button type="button" variant="secondary" onClick={() => { setSelectedEngagementId(engagement.id); setTab("tasks"); }}>Open tasks</Button>

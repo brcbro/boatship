@@ -6,7 +6,7 @@ import { ArrowRight } from "lucide-react";
 import { useAuth } from "@/components/shared/AuthProvider";
 import { Badge, Card, PageHeader } from "@/components/shared/ui";
 import { apiFetch } from "@/lib/api-client";
-import { formatDate, statusLabel } from "@/lib/utils";
+import { formatDate, formatDueDate, statusLabel } from "@/lib/utils";
 
 type Engagement = {
   id: string;
@@ -59,7 +59,7 @@ function EngagementCard({ engagement }: { engagement: Engagement }) {
   const item = engagement;
   return <Link href={`/portal/engagements/${encodeURIComponent(item.id)}`} className="group rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-raised)] p-5 transition hover:border-[var(--brand)]/40 hover:bg-[var(--surface-2)]">
     <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-[var(--ink-muted)]">{statusLabel(item.type)}</p><h3 className="mt-1 text-lg font-semibold text-[var(--ink)]">{item.name}</h3></div><ArrowRight className="h-5 w-5 shrink-0 text-[var(--brand)] transition group-hover:translate-x-0.5" aria-hidden="true" /></div>
-    <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--ink-muted)]"><Badge tone={item.status === "active" ? "info" : "neutral"}>{statusLabel(item.status)}</Badge><span>{item.progress}% of your tasks complete</span>{item.targetDate ? <span>Target {formatDate(item.targetDate)}</span> : null}{item.completedAt ? <span>Finished {formatDate(item.completedAt)}</span> : null}</div>
+    <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--ink-muted)]"><Badge tone={item.status === "active" ? "info" : "neutral"}>{statusLabel(item.status)}</Badge><span>{item.progress}% of your tasks complete</span>{item.targetDate ? <span>Target {formatDueDate(item.targetDate)}</span> : null}{item.completedAt ? <span>Finished {formatDate(item.completedAt)}</span> : null}</div>
     <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-[var(--surface-2)]"><div className="h-full rounded-full bg-[var(--brand)]" style={{ width: `${Math.max(0, Math.min(100, item.progress))}%` }} /></div>
   </Link>;
 }
