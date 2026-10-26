@@ -19,12 +19,18 @@ import {
   setStoredToken,
 } from "@/lib/api-client";
 import { homePathForRole } from "@/lib/rbac";
+import { safeNextPath } from "@/lib/utils";
 
 type AuthContextValue = {
   session: AuthSession | null;
   token: string | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<AuthSession>;
+  /**
+   * Set when the first session check failed with a network or server error,
+   * so the session is unknown rather than absent. Shells show a retry state.
+   */
+  sessionError: string | null;
+  login: (email: string, password: string, next?: string | null) => Promise<AuthSession>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
 };
@@ -37,35 +43,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sessionError, setSessionError] = useState<string | null>(null);
   const hasValidatedSession = useRef(false);
+  // One request at a time: a pathname change (or StrictMode's second effect
+  // run) while the first check is in flight reuses it instead of fetching again.
+  const inFlight = useRef<Promise<void> | null>(null);
+  const pathnameRef = useRef(pathname);
+  useEffect(() => {
+    pathnameRef.current = pathname;
+  }, [pathname]);
 
-  const refresh = useCallback(async () => {
-    try {
-      const data = await apiFetch<{ session: AuthSession | null }>("/api/auth/session");
-      if (!data.session) {
+  const clearLocalSession = useCallback(() => {
+    setStoredSession(null);
+    setStoredToken(null);
+    setToken(null);
+    setSession(null);
+  }, []);
+
+  const refresh = useCallback(() => {
+    if (inFlight.current) return inFlight.current;
+    const run = (async () => {
+      try {
+        const data = await apiFetch<{ session: AuthSession | null }>("/api/auth/session");
         hasValidatedSession.current = true;
-        setSession(null);
-        setStoredSession(null);
-        setStoredToken(null);
-        setToken(null);
-        if (pathname !== "/login") {
-          router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+        setSessionError(null);
+        if (!data.session) {
+          clearLocalSession();
+          const current = pathnameRef.current;
+          if (current !== "/login") {
+            router.replace(`/login?next=${encodeURIComponent(current)}`);
+          }
+          return;
         }
-        return;
+        setSession(data.session);
+        setStoredSession(data.session);
+        setToken(getStoredToken());
+      } catch (error) {
+        // A temporary database/network failure is not proof that the session is
+        // invalid, so keep any verified state. Before the first successful check
+        // there is no verified state: report it so the shell offers a retry
+        // instead of rendering pages with no session.
+        if (!hasValidatedSession.current) {
+          setSessionError(error instanceof Error ? error.message : "Unable to reach Boatship");
+        }
+      } finally {
+        setLoading(false);
+        inFlight.current = null;
       }
-      hasValidatedSession.current = true;
-      setSession(data.session);
-      setStoredSession(data.session);
-      const t = getStoredToken();
-      setToken(t);
-    } catch {
-      // A temporary database/network failure is not proof that the session is
-      // invalid. Keep the current verified state instead of ejecting the user
-      // from whichever workspace section they are using.
-    } finally {
-      setLoading(false);
-    }
-  }, [pathname, router]);
+    })();
+    inFlight.current = run;
+    return run;
+  }, [clearLocalSession, router]);
 
   useEffect(() => {
     // The marketing home page is public. Avoid a Worker invocation plus the
@@ -87,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [pathname, refresh]);
 
   const login = useCallback(
-    async (email: string, password: string) => {
+    async (email: string, password: string, next?: string | null) => {
       const data = await apiFetch<{ token: string; session: AuthSession }>("/api/auth/login", {
         method: "POST",
         body: JSON.stringify({ email, password }),
@@ -96,26 +124,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStoredSession(data.session);
       setToken(data.token);
       setSession(data.session);
+      setSessionError(null);
       hasValidatedSession.current = true;
-      router.push(homePathForRole(data.session.role));
+      router.push(safeNextPath(next, data.session.role) ?? homePathForRole(data.session.role));
       return data.session;
     },
     [router]
   );
 
   const logout = useCallback(async () => {
-    await apiFetch("/api/auth/logout", { method: "POST" });
-    setStoredToken(null);
-    setStoredSession(null);
-    setToken(null);
-    setSession(null);
-    hasValidatedSession.current = false;
-    router.push("/login");
-  }, [router]);
+    let confirmed = false;
+    try {
+      await apiFetch("/api/auth/logout", { method: "POST" });
+      confirmed = true;
+    } finally {
+      // Sign out locally even when the server call fails, so a shared device is
+      // never left signed in. The caller still sees the error, and the login
+      // page says the server did not confirm.
+      clearLocalSession();
+      hasValidatedSession.current = false;
+      router.push(confirmed ? "/login" : "/login?signout=unconfirmed");
+    }
+  }, [clearLocalSession, router]);
 
   const value = useMemo(
-    () => ({ session, token, loading: pathname === "/" ? false : loading, login, logout, refresh }),
-    [session, token, loading, pathname, login, logout, refresh]
+    () => ({ session, token, loading: pathname === "/" ? false : loading, sessionError, login, logout, refresh }),
+    [session, token, loading, sessionError, pathname, login, logout, refresh]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

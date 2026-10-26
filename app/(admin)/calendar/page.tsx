@@ -30,6 +30,7 @@ import {
   Textarea,
 } from "@/components/shared/ui";
 import { apiFetch } from "@/lib/api-client";
+import { hasPermission } from "@/lib/rbac";
 import { cn, formatDate, statusLabel } from "@/lib/utils";
 
 type CalendarEvent = {
@@ -85,7 +86,9 @@ function eventTime(event: CalendarEvent) {
 }
 
 export default function CalendarPage() {
-  const { token } = useAuth();
+  const { token, session } = useAuth();
+  // Creating events and connecting Google call APIs that need integrations.manage.
+  const canManageCalendar = !!session && hasPermission(session, "integrations.manage");
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [google, setGoogle] = useState<GoogleStatus>(EMPTY_GOOGLE_STATUS);
   const [loading, setLoading] = useState(true);
@@ -223,7 +226,7 @@ export default function CalendarPage() {
           end: `${eventDate}T${endTime}:00`,
           description: description.trim(),
           attendeeEmails: attendees.split(",").map((email) => email.trim()).filter(Boolean),
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata",
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
           createMeetingRoom,
         }),
       });
@@ -265,7 +268,7 @@ export default function CalendarPage() {
         description="Google Calendar events and Boatship task deadlines in one view."
         actions={
           <div className="flex flex-wrap items-center justify-end gap-2">
-            {google.connected ? (
+            {google.connected && canManageCalendar ? (
               <Button type="button" size="sm" onClick={openCreateForm}>
                 <CalendarPlus className="h-4 w-4" aria-hidden="true" />
                 New event
@@ -320,13 +323,17 @@ export default function CalendarPage() {
           <div>
             <h2 className="font-medium text-[var(--ink)]">Connect Google Calendar</h2>
             <p className="mt-1 text-sm text-[var(--ink-muted)]">
-              Authorize your primary calendar to view and create events from Boatship.
+              {canManageCalendar
+                ? "Authorize your primary calendar to view and create events from Boatship."
+                : "Connecting a calendar needs the integrations permission. Ask an admin to grant it; task deadlines still show below."}
             </p>
           </div>
-          <Button type="button" disabled={connecting || !google.configured} onClick={() => void connectGoogle()}>
-            <Link2 className="h-4 w-4" aria-hidden="true" />
-            {connecting ? "Opening Google…" : "Connect Google Calendar"}
-          </Button>
+          {canManageCalendar ? (
+            <Button type="button" disabled={connecting || !google.configured} onClick={() => void connectGoogle()}>
+              <Link2 className="h-4 w-4" aria-hidden="true" />
+              {connecting ? "Opening Google…" : "Connect Google Calendar"}
+            </Button>
+          ) : null}
         </Card>
       ) : null}
 
@@ -448,7 +455,7 @@ export default function CalendarPage() {
           <Card>
             <div className="mb-3 flex items-center justify-between gap-3">
               <h3 className="font-[family-name:var(--font-display)] text-base">{format(selected, "EEE, MMM d")}</h3>
-              {google.connected ? <Button type="button" variant="ghost" size="sm" onClick={openCreateForm}>Add event</Button> : null}
+              {google.connected && canManageCalendar ? <Button type="button" variant="ghost" size="sm" onClick={openCreateForm}>Add event</Button> : null}
             </div>
             {selectedEvents.length === 0 ? (
               <p className="text-sm text-[var(--ink-muted)]">No events or task deadlines this day.</p>

@@ -7,10 +7,10 @@ import type { HodiAutomationReview, HodiAutomationRule } from "@/lib/hodi-automa
 const SESSION_KEY = "boatship-hodi-automation-rules";
 
 const authorityStyle: Record<HodiAutomationRule["authority"], string> = {
-  Observe: "bg-sky-50 text-sky-700 ring-sky-200",
-  Draft: "bg-violet-50 text-violet-700 ring-violet-200",
-  "Internal autopilot": "bg-[var(--warning-soft)] text-amber-800 ring-amber-200",
-  "External approved": "bg-rose-50 text-rose-700 ring-rose-200",
+  Observe: "bg-[var(--info-soft)] text-[var(--info)] ring-[var(--info)]/30",
+  Draft: "bg-[var(--accent-soft)] text-[var(--ink)] ring-[var(--accent)]/40",
+  "Internal autopilot": "bg-[var(--warning-soft)] text-[var(--ink)] ring-[var(--warning)]/40",
+  "External approved": "bg-[var(--danger-soft)] text-[var(--danger)] ring-[var(--danger)]/30",
 };
 
 export default function AutomationsPage() {
@@ -78,17 +78,17 @@ export default function AutomationsPage() {
       <section className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-raised)] shadow-sm">
         <div className="grid gap-6 bg-[var(--nav-bg)] px-6 py-8 text-[var(--nav-fg-strong)] md:grid-cols-[1fr_auto] md:px-9 md:py-10">
           <div>
-            <div className="mb-3 flex items-center gap-2 text-sm font-medium text-cyan-100"><Sparkles className="h-4 w-4" /> Hodi automation</div>
+            <div className="mb-3 flex items-center gap-2 text-sm font-medium text-[var(--nav-fg)]"><Sparkles className="h-4 w-4" /> Hodi automation</div>
             <h1 className="font-[family-name:var(--font-display)] text-3xl tracking-tight md:text-4xl">Run a client work check.</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-cyan-50/85">Choose a rule, run it manually, and review the result. Rule selection is temporary; scheduled background runs are not active.</p>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--nav-fg)]">Choose a rule, run it manually, and review the result. Rule selection is temporary; scheduled background runs are not active.</p>
           </div>
-          <div className="self-end rounded-[var(--radius-lg)] border border-white/15 bg-white/10 px-5 py-4 backdrop-blur">
-            <p className="text-xs font-medium uppercase tracking-[0.16em] text-cyan-100">Selected this session</p>
-            <p className="mt-1 text-3xl font-semibold">{enabledCount}<span className="text-base font-normal text-cyan-100"> / {rules.length}</span></p>
+          <div className="self-end rounded-[var(--radius-lg)] border border-[var(--nav-border)] bg-[var(--nav-active)] px-5 py-4 backdrop-blur">
+            <p className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--nav-fg)]">Selected this session</p>
+            <p className="mt-1 text-3xl font-semibold">{enabledCount}<span className="text-base font-normal text-[var(--nav-fg)]"> / {rules.length}</span></p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3 px-6 py-4 text-sm text-[var(--ink-muted)] md:px-9">
-          <ShieldCheck className="h-4 w-4 text-emerald-600" /> Rule selection is saved only for this browser session. Scheduled background runs are not enabled yet.
+          <ShieldCheck className="h-4 w-4 text-[var(--success)]" /> Rule selection is saved only for this browser session. Scheduled background runs are not enabled yet.
         </div>
       </section>
 
@@ -103,7 +103,7 @@ export default function AutomationsPage() {
               return <article key={rule.id} className="flex flex-col rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-raised)] p-5 shadow-sm">
                 <div className="flex items-start justify-between gap-4">
                   <div><h3 className="font-semibold text-[var(--ink)]">{rule.name}</h3><p className="mt-2 text-sm leading-6 text-[var(--ink-muted)]">{rule.description}</p></div>
-                  <button type="button" onClick={() => toggleRule(rule.id)} aria-pressed={isEnabled} className={`relative h-7 w-12 shrink-0 rounded-full transition ${isEnabled ? "bg-[var(--brand)]" : "bg-slate-200"}`}>
+                  <button type="button" onClick={() => toggleRule(rule.id)} aria-pressed={isEnabled} className={`relative h-7 w-12 shrink-0 rounded-full transition ${isEnabled ? "bg-[var(--brand)]" : "bg-[var(--border-strong)]"}`}>
                     <span className={`absolute top-1 h-5 w-5 rounded-full bg-[var(--surface-raised)] shadow transition ${isEnabled ? "left-6" : "left-1"}`} />
                     <span className="sr-only">{isEnabled ? "Deselect" : "Select"} {rule.name} for this session</span>
                   </button>
@@ -129,7 +129,7 @@ export default function AutomationsPage() {
       </section>
 
       {error ? <p role="alert" className="rounded-[var(--radius-md)] border border-[var(--danger)]/30 bg-[var(--danger-soft)] px-4 py-3 text-sm text-[var(--danger)]">{error}</p> : null}
-      {review ? <section className="rounded-[var(--radius-lg)] border border-[var(--success)]/30 bg-[var(--success-soft)]/50 p-6 shadow-sm"><div className="flex items-start gap-3"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" /><div><p className="text-sm font-medium text-[var(--success)]">{review.status === "observed" ? "Check complete" : "Ready for review"}</p><h2 className="mt-1 text-xl font-semibold text-[var(--ink)]">{review.title}</h2><p className="mt-2 text-sm leading-6 text-[var(--ink-muted)]">{review.summary}</p><p className="mt-4 text-sm font-medium text-[var(--ink)]">Evidence Hodi would check</p><ul className="mt-2 flex flex-wrap gap-2">{review.evidence.map((item) => <li key={item} className="rounded-full border border-[var(--success)]/30 bg-[var(--surface-raised)] px-3 py-1 text-xs text-[var(--success)]">{item}</li>)}</ul><p className="mt-4 text-sm text-[var(--ink)]"><strong>Next step:</strong> {review.nextStep}</p><p className="mt-3 text-xs text-[var(--ink-muted)]">No external action has been sent. Generated {new Date(review.generatedAt).toLocaleString()}.</p></div></div></section> : null}
+      {review ? <section className="rounded-[var(--radius-lg)] border border-[var(--success)]/30 bg-[var(--success-soft)]/50 p-6 shadow-sm"><div className="flex items-start gap-3"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[var(--success)]" /><div><p className="text-sm font-medium text-[var(--success)]">{review.status === "observed" ? "Check complete" : "Ready for review"}</p><h2 className="mt-1 text-xl font-semibold text-[var(--ink)]">{review.title}</h2><p className="mt-2 text-sm leading-6 text-[var(--ink-muted)]">{review.summary}</p><p className="mt-4 text-sm font-medium text-[var(--ink)]">Evidence Hodi would check</p><ul className="mt-2 flex flex-wrap gap-2">{review.evidence.map((item) => <li key={item} className="rounded-full border border-[var(--success)]/30 bg-[var(--surface-raised)] px-3 py-1 text-xs text-[var(--success)]">{item}</li>)}</ul><p className="mt-4 text-sm text-[var(--ink)]"><strong>Next step:</strong> {review.nextStep}</p><p className="mt-3 text-xs text-[var(--ink-muted)]">No external action has been sent. Generated {new Date(review.generatedAt).toLocaleString()}.</p></div></div></section> : null}
     </div>
   );
 }

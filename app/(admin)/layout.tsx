@@ -2,24 +2,13 @@
 
 import { AdminShell } from "@/components/admin/AdminShell";
 import { useAuth } from "@/components/shared/AuthProvider";
+import { SessionLoading, SessionRetry } from "@/components/shared/SessionStatus";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { loading } = useAuth();
+  const { loading, session, sessionError } = useAuth();
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div
-            className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--brand)]"
-            role="status"
-            aria-label="Loading"
-          />
-          <p className="text-sm text-[var(--ink-muted)]">Loading…</p>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <SessionLoading />;
+  if (!session && sessionError) return <SessionRetry />;
 
   return <AdminShell>{children}</AdminShell>;
 }

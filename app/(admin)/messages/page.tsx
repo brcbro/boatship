@@ -260,7 +260,7 @@ function AdminMessagesInner() {
                   <p className="truncate text-sm text-[var(--ink-muted)]">{selected?.name || "Client conversation"}</p>
                 </div>
               </div>
-              <span className="inline-flex shrink-0 items-center gap-2 self-start rounded-full border border-emerald-600/15 bg-[var(--success-soft)] px-2.5 py-1 text-xs font-medium text-[var(--success)] sm:self-auto">
+              <span className="inline-flex shrink-0 items-center gap-2 self-start rounded-full border border-[var(--success)]/20 bg-[var(--success-soft)] px-2.5 py-1 text-xs font-medium text-[var(--success)] sm:self-auto">
                 <span className="h-1.5 w-1.5 rounded-full bg-[var(--success)]" aria-hidden="true" />
                 {liveConnected ? "Live updates" : "Checking for updates"}
               </span>

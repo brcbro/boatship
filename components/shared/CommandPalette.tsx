@@ -1,14 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Search } from "lucide-react";
 import { useAuth } from "@/components/shared/AuthProvider";
 import { apiFetch } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { Kbd } from "@/components/shared/ui";
-import { NAV_GROUPS, SETTINGS_ITEMS } from "@/components/admin/navigation";
+import { NAV_GROUPS, SETTINGS_ITEMS, visibleNavItems } from "@/components/admin/navigation";
 
 type SearchResult = {
   type: "client" | "task" | "document" | "vessel";
@@ -19,11 +18,6 @@ type SearchResult = {
 };
 
 type NavLink = { href: string; label: string };
-
-const ADMIN_LINKS: NavLink[] = [
-  ...NAV_GROUPS.flatMap((group) => group.items.map((item) => ({ href: item.href, label: item.label }))),
-  ...SETTINGS_ITEMS.map((item) => ({ href: item.href, label: item.href === "/settings" ? "Settings" : `Settings · ${item.label}` })),
-];
 
 const CLIENT_LINKS: NavLink[] = [
   { href: "/portal", label: "Home" },
@@ -51,16 +45,27 @@ function typeLabel(type: SearchResult["type"]) {
 }
 
 export function CommandPalette({ variant }: { variant: "admin" | "client" }) {
-  const { token, loading: authLoading } = useAuth();
+  const { token, session, loading: authLoading } = useAuth();
   const router = useRouter();
+  const listboxId = useId();
+  const optionPrefix = useId();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState("");
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
 
-  const links = variant === "admin" ? ADMIN_LINKS : CLIENT_LINKS;
+  const links = useMemo<NavLink[]>(() => {
+    if (variant === "client") return CLIENT_LINKS;
+    return [
+      ...NAV_GROUPS.flatMap((group) => visibleNavItems(group.items, session).map((item) => ({ href: item.href, label: item.label }))),
+      ...visibleNavItems(SETTINGS_ITEMS, session).map((item) => ({ href: item.href, label: item.href === "/settings" ? "Settings" : `Settings · ${item.label}` })),
+    ];
+  }, [variant, session]);
 
   const filteredLinks = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -86,21 +91,32 @@ export function CommandPalette({ variant }: { variant: "admin" | "client" }) {
     return [...nav, ...search];
   }, [filteredLinks, results]);
 
+  const activeIndex = items.length ? Math.min(active, items.length - 1) : -1;
+  const optionId = (index: number) => `${optionPrefix}-option-${index}`;
+
+  const show = useCallback((toggle: boolean) => {
+    setOpen((current) => {
+      const next = toggle ? !current : true;
+      if (next && !current) {
+        returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      }
+      return next;
+    });
+    setQ("");
+    setResults([]);
+    setSearchError("");
+    setActive(0);
+  }, []);
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setOpen((v) => !v);
-        setQ("");
-        setResults([]);
-        setActive(0);
+        show(true);
       }
     }
     function onOpen() {
-      setOpen(true);
-      setQ("");
-      setResults([]);
-      setActive(0);
+      show(false);
     }
     window.addEventListener("keydown", onKey);
     window.addEventListener(OPEN_EVENT, onOpen);
@@ -108,18 +124,31 @@ export function CommandPalette({ variant }: { variant: "admin" | "client" }) {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener(OPEN_EVENT, onOpen);
     };
-  }, []);
+  }, [show]);
 
   useEffect(() => {
     if (!open) return;
     const t = setTimeout(() => inputRef.current?.focus(), 20);
-    return () => clearTimeout(t);
+    return () => {
+      clearTimeout(t);
+      // Return focus to whatever opened the palette (the search button or the page).
+      const target = returnFocusRef.current;
+      returnFocusRef.current = null;
+      if (target && target.isConnected) window.requestAnimationFrame(() => target.focus());
+    };
   }, [open]);
+
+  useEffect(() => {
+    if (activeIndex < 0) return;
+    document.getElementById(optionId(activeIndex))?.scrollIntoView({ block: "nearest" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeIndex]);
 
   const runSearch = useCallback(
     async (query: string) => {
       if (authLoading || !query.trim()) {
         setResults([]);
+        setSearchError("");
         return;
       }
       setSearching(true);
@@ -129,8 +158,10 @@ export function CommandPalette({ variant }: { variant: "admin" | "client" }) {
           { token }
         );
         setResults(data.results || []);
-      } catch {
+        setSearchError("");
+      } catch (error) {
         setResults([]);
+        setSearchError(error instanceof Error ? error.message : "Search failed");
       } finally {
         setSearching(false);
       }
@@ -148,6 +179,7 @@ export function CommandPalette({ variant }: { variant: "admin" | "client" }) {
     setOpen(false);
     setQ("");
     setResults([]);
+    setSearchError("");
     setActive(0);
   }
 
@@ -162,6 +194,16 @@ export function CommandPalette({ variant }: { variant: "admin" | "client" }) {
       close();
       return;
     }
+    if (e.key === "Tab" && dialogRef.current) {
+      // Trap focus inside the dialog.
+      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>('input, button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])')).filter((element) => element.getClientRects().length > 0);
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!first || !last) return;
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      return;
+    }
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setActive((i) => Math.min(i + 1, Math.max(items.length - 1, 0)));
@@ -172,23 +214,27 @@ export function CommandPalette({ variant }: { variant: "admin" | "client" }) {
       setActive((i) => Math.max(i - 1, 0));
       return;
     }
-    if (e.key === "Enter" && items[Math.min(active, items.length - 1)]) {
+    if (e.key === "Enter" && activeIndex >= 0) {
       e.preventDefault();
-      go(items[Math.min(active, items.length - 1)].href);
+      go(items[activeIndex].href);
     }
   }
 
   if (!open) return null;
 
+  const firstSearchIndex = items.findIndex((item) => item.kind === "search");
+
   return (
     <div className="fixed inset-0 z-[90] flex items-start justify-center px-4 pt-[12vh] sm:pt-[15vh]">
       <button
         type="button"
+        tabIndex={-1}
         aria-label="Close command palette"
         className="absolute inset-0 bg-[var(--scrim)] backdrop-blur-[2px]"
         onClick={close}
       />
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label="Command palette"
@@ -196,7 +242,7 @@ export function CommandPalette({ variant }: { variant: "admin" | "client" }) {
         onKeyDown={onKeyDown}
       >
         <div className="flex items-center gap-3 border-b border-[var(--border)] px-4 py-3">
-          <Search className="h-4 w-4 shrink-0 text-[var(--ink-muted)]" />
+          <Search className="h-4 w-4 shrink-0 text-[var(--ink-muted)]" aria-hidden="true" />
           <input
             ref={inputRef}
             value={q}
@@ -206,62 +252,63 @@ export function CommandPalette({ variant }: { variant: "admin" | "client" }) {
             }}
             placeholder="Search or jump to…"
             className="min-w-0 flex-1 bg-transparent text-sm text-[var(--ink)] outline-none placeholder:text-[var(--ink-faint)]"
-            aria-label="Search"
+            role="combobox"
+            aria-label="Search or jump to a page"
+            aria-expanded={items.length > 0}
+            aria-controls={listboxId}
+            aria-autocomplete="list"
+            aria-activedescendant={activeIndex >= 0 ? optionId(activeIndex) : undefined}
           />
           <span className="hidden sm:inline"><Kbd>Esc</Kbd></span>
         </div>
 
         <div className="max-h-[min(60vh,420px)] overflow-y-auto py-2">
-          {items.length === 0 ? (
-            <p className="px-4 py-6 text-center text-sm text-[var(--ink-muted)]">
+          {searchError ? (
+            <p role="alert" className="mx-4 mb-2 rounded-[var(--radius-md)] bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger)]">
+              Search failed: {searchError}
+            </p>
+          ) : null}
+          {items.length === 0 && !searchError ? (
+            <p role="status" className="px-4 py-6 text-center text-sm text-[var(--ink-muted)]">
               {searching ? "Searching…" : "No matches"}
             </p>
-          ) : (
-            <ul className="px-2">
-              {filteredLinks.length > 0 ? (
-                <li className="px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--ink-faint)]">
-                  Navigate
+          ) : null}
+          <ul id={listboxId} role="listbox" aria-label="Pages and results" className="px-2">
+            {items.map((item, idx) => {
+              const selected = idx === activeIndex;
+              const header = idx === 0 && item.kind === "nav" ? "Navigate" : idx === firstSearchIndex ? "Results" : null;
+              return (
+                <li key={item.id} role="presentation">
+                  {header ? (
+                    <div aria-hidden="true" className={cn("px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--ink-faint)]", header === "Navigate" ? "pt-2" : "pt-3")}>
+                      {header}
+                    </div>
+                  ) : null}
+                  <div
+                    id={optionId(idx)}
+                    role="option"
+                    aria-selected={selected}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => go(item.href)}
+                    onMouseEnter={() => setActive(idx)}
+                    className={cn(
+                      "flex w-full cursor-pointer items-center justify-between gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-left text-sm transition-colors",
+                      selected ? "bg-[var(--brand-soft)] text-[var(--ink)]" : "text-[var(--ink)] hover:bg-[var(--surface-2)]"
+                    )}
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium">{item.title}</span>
+                      {item.subtitle ? (
+                        <span className="mt-0.5 block truncate text-xs text-[var(--ink-muted)]">
+                          {item.subtitle}
+                        </span>
+                      ) : null}
+                    </span>
+                  </div>
                 </li>
-              ) : null}
-              {items.map((item, idx) => {
-                const isNav = item.kind === "nav";
-                const showSearchHeader =
-                  !isNav && items[idx - 1]?.kind === "nav";
-                return (
-                  <li key={item.id}>
-                    {showSearchHeader ? (
-                      <div className="px-2 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--ink-faint)]">
-                        Results
-                      </div>
-                    ) : null}
-                    <Link
-                      href={item.href}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        go(item.href);
-                      }}
-                      onMouseEnter={() => setActive(idx)}
-                      className={cn(
-                        "flex w-full items-center justify-between gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-left text-sm transition-colors",
-                        idx === Math.min(active, items.length - 1)
-                          ? "bg-[var(--brand-soft)] text-[var(--ink)]"
-                          : "text-[var(--ink)] hover:bg-[var(--surface-2)]"
-                      )}
-                    >
-                      <span className="min-w-0">
-                        <span className="block truncate font-medium">{item.title}</span>
-                        {item.subtitle ? (
-                          <span className="mt-0.5 block truncate text-xs text-[var(--ink-muted)]">
-                            {item.subtitle}
-                          </span>
-                        ) : null}
-                      </span>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+              );
+            })}
+          </ul>
         </div>
 
         <div className="border-t border-[var(--border)] px-4 py-2 text-[11px] text-[var(--ink-muted)]">

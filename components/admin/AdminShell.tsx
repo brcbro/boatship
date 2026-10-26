@@ -11,8 +11,7 @@ import { NotificationBell } from "@/components/shared/NotificationBell";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { Kbd } from "@/components/shared/ui";
 import { cn, statusLabel } from "@/lib/utils";
-import { hasPermission } from "@/lib/rbac";
-import { NAV_GROUPS, SETTINGS_ITEMS, isActivePath, isSettingsPath, type NavItem } from "./navigation";
+import { NAV_GROUPS, SETTINGS_ITEMS, isActivePath, isSettingsPath, visibleNavItems, type NavItem } from "./navigation";
 import { HodiDrawer, HodiDrawerButton } from "./HodiDrawer";
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
@@ -23,6 +22,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [logoutError, setLogoutError] = useState("");
   const [hodiOpen, setHodiOpen] = useState(false);
   const hodiButtonRef = useRef<HTMLButtonElement>(null);
   const closeHodi = useCallback(() => setHodiOpen(false), []);
@@ -72,15 +72,21 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
   async function onLogout() {
     setLoggingOut(true);
+    setLogoutError("");
     try {
       await logout();
+    } catch (error) {
+      // AuthProvider has already signed out locally and is moving to the login
+      // page, which explains that the server did not confirm. This covers the
+      // moment before navigation completes.
+      setLogoutError(error instanceof Error ? `Signed out on this device. The server did not confirm: ${error.message}` : "Signed out on this device. The server did not confirm.");
     } finally {
       setLoggingOut(false);
     }
   }
 
   function visible(items: readonly NavItem[]) {
-    return items.filter((item) => (!item.adminOnly || session?.role === "admin") && (!item.permission || (!!session && hasPermission(session, item.permission))));
+    return visibleNavItems(items, session);
   }
 
   function navLink(item: NavItem, compact: boolean) {
@@ -115,7 +121,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             {compact ? <span className="sr-only">Back to work</span> : "Back to work"}
           </Link>
-          {!compact ? <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--nav-fg)]/60">Settings</p> : null}
+          {!compact ? <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--nav-fg)]">Settings</p> : null}
           {visible(SETTINGS_ITEMS).map((item) => navLink(item, compact))}
         </nav>
       );
@@ -127,7 +133,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           if (items.length === 0) return null;
           return (
             <div key={group.label} className="flex flex-col gap-0.5">
-              {compact ? <span className="sr-only">{group.label}</span> : <p className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--nav-fg)]/60">{group.label}</p>}
+              {compact ? <span className="sr-only">{group.label}</span> : <p className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--nav-fg)]">{group.label}</p>}
               {items.map((item) => navLink(item, compact))}
             </div>
           );
@@ -158,7 +164,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           {compact ? null : (
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[13px] font-semibold text-[var(--nav-fg-strong)]">{loading ? "…" : session?.name || "Staff"}</span>
-              <span className="block truncate text-[11px] text-[var(--nav-fg)]/70">{session?.role ? statusLabel(session.role) : ""}</span>
+              <span className="block truncate text-[11px] text-[var(--nav-fg)]">{session?.role ? statusLabel(session.role) : ""}</span>
             </span>
           )}
           {compact ? null : (
@@ -167,6 +173,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             </button>
           )}
         </div>
+        {logoutError && !compact ? <p role="alert" className="px-1 text-[11px] leading-4 text-[var(--nav-fg-strong)]">{logoutError}</p> : null}
       </div>
     );
   }

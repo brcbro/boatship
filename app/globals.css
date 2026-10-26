@@ -21,7 +21,7 @@
   /* Text */
   --ink: #121826;
   --ink-muted: #5c6170;
-  --ink-faint: #8a8f9e;
+  --ink-faint: #626776; /* 4.5:1+ on every light surface */
   --foreground: var(--ink);
 
   /* Brand cobalt: navigation, links, selected states, standard primary actions */
@@ -39,6 +39,7 @@
   /* Status */
   --danger: #c8321e;
   --danger-soft: #fbe3df;
+  --on-danger: #ffffff;
   --success: #1f8a5a;
   --success-soft: #dcf2e7;
   --warning: #b5730a;
@@ -84,7 +85,7 @@
   --border-strong: #38425f;
   --ink: #eef0f7;
   --ink-muted: #98a0b6;
-  --ink-faint: #6b7390;
+  --ink-faint: #8a91ab; /* 4.5:1+ on every dark surface */
   --brand: #6f8cff;
   --brand-strong: #8ba2ff;
   --brand-soft: #1f2b5e;
@@ -95,6 +96,7 @@
   --on-accent: #16100c;
   --danger: #ff6b5b;
   --danger-soft: #3d1a16;
+  --on-danger: #16100c;
   --success: #4cc38a;
   --success-soft: #11301f;
   --warning: #f0b454;
@@ -129,7 +131,7 @@
     --border-strong: #38425f;
     --ink: #eef0f7;
     --ink-muted: #98a0b6;
-    --ink-faint: #6b7390;
+    --ink-faint: #8a91ab; /* 4.5:1+ on every dark surface */
     --brand: #6f8cff;
     --brand-strong: #8ba2ff;
     --brand-soft: #1f2b5e;
@@ -140,6 +142,7 @@
     --on-accent: #16100c;
     --danger: #ff6b5b;
     --danger-soft: #3d1a16;
+    --on-danger: #16100c;
     --success: #4cc38a;
     --success-soft: #11301f;
     --warning: #f0b454;

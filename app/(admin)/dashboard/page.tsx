@@ -167,7 +167,7 @@ export default function DashboardPage() {
         <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_14rem]">
           <div className="space-y-2">
             {needsAttention.length ? needsAttention.slice(0, 5).map((client) => (
-              <Link key={client.id} href={`/clients/${client.id}`} className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-md)] bg-[var(--surface-2)] px-4 py-3 transition hover:bg-slate-100">
+              <Link key={client.id} href={`/clients/${client.id}`} className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-md)] bg-[var(--surface-2)] px-4 py-3 transition hover:bg-[var(--brand-soft)]">
                 <span className="font-medium text-[var(--ink)]">{client.companyName || client.name}</span>
                 <Badge tone={healthByClientId[client.id] ? healthTone(healthByClientId[client.id].state) : "danger"}>
                   {healthByClientId[client.id] ? healthLabels[healthByClientId[client.id].state] : statusLabel(client.status)}
@@ -176,7 +176,7 @@ export default function DashboardPage() {
             )) : <p className="rounded-[var(--radius-md)] bg-[var(--surface-2)] px-4 py-4 text-sm text-[var(--ink-muted)]">No clients are currently marked as blocked or waiting.</p>}
             {needsAttention.length > 5 ? <Link href="/clients" className="inline-block pt-1 text-sm font-medium text-[var(--brand)] hover:underline">View all {needsAttention.length} clients</Link> : null}
           </div>
-          <Link href="/workload" className="rounded-[var(--radius-md)] bg-[var(--surface-2)] px-4 py-4 transition hover:bg-slate-100">
+          <Link href="/workload" className="rounded-[var(--radius-md)] bg-[var(--surface-2)] px-4 py-4 transition hover:bg-[var(--brand-soft)]">
             <span className="block text-sm text-[var(--ink-muted)]">Overdue client tasks</span>
             <span className="mt-2 block font-[family-name:var(--font-display)] text-3xl tabular-nums text-[var(--ink)]">{analytics?.overdueTasks ?? 0}</span>
             <span className="mt-2 block text-sm font-medium text-[var(--brand)]">View team workload →</span>
@@ -260,7 +260,7 @@ export default function DashboardPage() {
                 {clients.map((c) => (
                   <tr
                     key={c.id}
-                    className="border-t border-[var(--border)] hover:bg-slate-50/80"
+                    className="border-t border-[var(--border)] hover:bg-[var(--surface-2)]"
                   >
                     <td className="px-4 py-2.5">
                       <Link

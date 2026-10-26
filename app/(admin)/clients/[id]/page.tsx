@@ -8,11 +8,13 @@ import {
   Badge,
   Button,
   Card,
+  ConfirmDialog,
   Dropdown,
   EmptyState,
   Input,
   Label,
   Modal,
+  NameList,
   ProgressBar,
   RecordHeader,
   Tabs,
@@ -139,6 +141,7 @@ function ClientDetailInner() {
   const [includeAccountDocuments, setIncludeAccountDocuments] = useState(true);
   const [documentCheckedAt, setDocumentCheckedAt] = useState(() => Date.now());
   const [selectedDocs, setSelectedDocs] = useState<Set<string>>(new Set());
+  const [pendingDocReview, setPendingDocReview] = useState<{ status: "approved" | "rejected"; ids: string[] } | null>(null);
   const [forms, setForms] = useState<FormSubmission[]>([]);
   const [formTemplates, setFormTemplates] = useState<FormTemplate[]>([]);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
@@ -596,8 +599,14 @@ function ClientDetailInner() {
     }
   }
 
-  async function bulkReviewDocuments(status: DocumentStatus) {
+  function requestBulkReview(status: "approved" | "rejected") {
     if (!selectedDocs.size) return;
+    setPendingDocReview({ status, ids: Array.from(selectedDocs) });
+  }
+
+  async function bulkReviewDocuments() {
+    if (!pendingDocReview) return;
+    const { status, ids } = pendingDocReview;
     setBusy(true);
     setError("");
     setMessage("");
@@ -608,7 +617,7 @@ function ClientDetailInner() {
           method: "POST",
           token,
           body: JSON.stringify({
-            ids: Array.from(selectedDocs),
+            ids,
             status,
           }),
         }
@@ -620,6 +629,7 @@ function ClientDetailInner() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Bulk review failed");
     } finally {
+      setPendingDocReview(null);
       setBusy(false);
     }
   }
@@ -1113,7 +1123,7 @@ function ClientDetailInner() {
                 type="button"
                 size="sm"
                 disabled={busy || !selectedDocs.size}
-                onClick={() => void bulkReviewDocuments("approved")}
+                onClick={() => requestBulkReview("approved")}
               >
                 Approve selected ({selectedDocs.size})
               </Button>
@@ -1122,10 +1132,23 @@ function ClientDetailInner() {
                 size="sm"
                 variant="danger"
                 disabled={busy || !selectedDocs.size}
-                onClick={() => void bulkReviewDocuments("rejected")}
+                onClick={() => requestBulkReview("rejected")}
               >
                 Reject selected
               </Button>
+              <ConfirmDialog
+                open={!!pendingDocReview}
+                title={pendingDocReview ? `${pendingDocReview.status === "approved" ? "Approve" : "Reject"} ${pendingDocReview.ids.length} document${pendingDocReview.ids.length === 1 ? "" : "s"}?` : ""}
+                description="The client sees the new review status on each file."
+                tone={pendingDocReview?.status === "rejected" ? "danger" : "primary"}
+                confirmLabel={pendingDocReview?.status === "rejected" ? "Reject" : "Approve"}
+                busyLabel="Saving…"
+                busy={busy}
+                onCancel={() => setPendingDocReview(null)}
+                onConfirm={() => void bulkReviewDocuments()}
+              >
+                <NameList names={(pendingDocReview?.ids || []).map((id) => documents.find((doc) => doc.id === id)?.fileName || id)} />
+              </ConfirmDialog>
             </div> : <p className="text-sm text-[var(--ink-muted)]">You can view files and review notes. Document review permission is required to approve or reject files.</p>}
             {visibleDocuments.map((doc) => (
               <Card key={doc.id}>
