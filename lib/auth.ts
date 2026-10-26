@@ -23,7 +23,7 @@ const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 14;
  * issued; a later status, role, permission or password change bumps the
  * user's version and every earlier session stops verifying on every runtime
  * instance, whether or not its record was deleted. Records written before
- * 2026-10-23 lack both fields.
+ * 2026-10-23 lack both fields; a missing version is treated as 0.
  */
 export type AuthSessionDoc = { tokenHash: string; userId: string; expiresAt: string; createdAt: string; publicId?: string; authzVersion?: number };
 export const AUTH_SESSIONS = new Collection<AuthSessionDoc>("AuthSession");
@@ -90,7 +90,12 @@ export async function listDatabaseSessions(userId: string) {
   return records.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
-/** Revokes every session of a user except the one whose token hash is given; returns the count. */
+/**
+ * Revokes every session of a user except the one whose token hash is given;
+ * returns the count of browser sessions revoked. Every MCP token of the user
+ * is revoked too: password change, reset, status change and "sign out
+ * everywhere" all end here, and no bearer token may outlive them.
+ */
 export async function revokeOtherDatabaseSessions(userId: string, keepTokenHash?: string | null) {
   const records = await AUTH_SESSIONS.find([{ field: "userId", op: "==", value: userId }]);
   const targets = records.filter((record) => record.tokenHash !== keepTokenHash);
@@ -98,6 +103,9 @@ export async function revokeOtherDatabaseSessions(userId: string, keepTokenHash?
     forgetSession(record.tokenHash);
     await AUTH_SESSIONS.delete(record.tokenHash);
   }
+  // Loaded lazily because lib/mcp-auth imports this module.
+  const { revokeUserMcpIdentities } = await import("@/lib/mcp-auth");
+  await revokeUserMcpIdentities(userId);
   return targets.length;
 }
 
@@ -124,7 +132,9 @@ async function getDatabaseSession(token: string, options: VerifyOptions = {}): P
   }
 
   const user = await (await getStore()).getUser(record.userId);
-  const stale = record.authzVersion !== undefined && user !== null && record.authzVersion !== currentAuthzVersion(user);
+  // Records written before the version field existed count as version 0, so
+  // a credential or status change made since then still invalidates them.
+  const stale = user !== null && (record.authzVersion ?? 0) !== currentAuthzVersion(user);
   if (!user || !accountCanAuthenticate(user) || isUnsafeDemoUser(user) || stale) {
     // The account is gone, cannot sign in, or the session was issued before a
     // change that invalidates sessions (password, status, role, permissions).
