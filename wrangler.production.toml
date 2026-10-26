@@ -5,6 +5,10 @@ compatibility_flags = ["nodejs_compat"]
 # No custom domain on this account yet; the Worker is served from its workers.dev address.
 workers_dev = true
 
+[vars]
+# Email reset/invite links and cron requests use this origin; request Host headers are never trusted in production.
+APP_URL = "https://boatship-onboarding.boatship.workers.dev"
+
 [assets]
 directory = ".open-next/assets"
 binding = "ASSETS"
@@ -16,7 +20,13 @@ id = "e2402d36445b43f0899f50bb147ee243"
 
 [observability]
 enabled = true
+# Samples 10% of request logs and traces, so sampled-out errors leave no log line.
 head_sampling_rate = 0.1
+
+[observability.issues]
+# Real-time Issues groups uncaught exceptions. It is the only error-specific
+# switch in the Wrangler schema, which does not say whether it is sampled.
+enabled = true
 
 [triggers]
 # Queue drains start after each enqueue; the hourly run only retries interrupted work.

@@ -1,7 +1,17 @@
-name = "boatship-onboarding"
+# LOCAL PREVIEW ONLY — DO NOT DEPLOY WITH THIS FILE.
+# `npm run preview` and `npm run cf:dry-run` read this default config. It has no
+# Hyperdrive binding, no cron triggers and no route, so a deployed copy would be
+# broken. Production deploys use wrangler.production.toml (`npm run deploy`).
+# The distinct name keeps an accidental `wrangler deploy` off the production Worker.
+name = "boatship-onboarding-preview"
 main = "custom-worker.ts"
 compatibility_date = "2026-09-13"
 compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+
+[vars]
+# Preview builds run with NODE_ENV=production, which requires a configured origin.
+APP_URL = "http://localhost:8787"
 
 [assets]
 directory = ".open-next/assets"
@@ -26,7 +36,3 @@ new_sqlite_classes = ["MessageRoom"]
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["AppRuntime"]
-
-[[routes]]
-pattern = "boatship.cohortix.in"
-custom_domain = true

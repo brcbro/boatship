@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { securityHeaders } from "./lib/security-headers";
 
 const nextConfig: NextConfig = {
   // OpenNext Cloudflare adapter consumes this config at deploy time.
@@ -19,6 +20,11 @@ const nextConfig: NextConfig = {
   // Next 16 uses Turbopack by default; declare it so no webpack override applies.
   turbopack: {},
   experimental: { globalNotFound: true },
+  // OpenNext applies these from the routes manifest on the Worker, including
+  // the public homepage that the proxy matcher skips.
+  async headers() {
+    return [{ source: "/:path*", headers: securityHeaders(process.env.NODE_ENV === "development") }];
+  },
 };
 
 export default nextConfig;

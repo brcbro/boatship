@@ -379,6 +379,8 @@ export interface WebhookEndpoint {
   active: boolean;
   createdAt: string;
   updatedAt: string;
+  /** Staff uid for MCP subscriptions; deliveries are limited to clients they can access. */
+  ownerId?: string;
 }
 
 export interface WebhookDelivery {

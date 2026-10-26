@@ -1,13 +1,23 @@
-import { getStore } from "@/lib/store";
-import { sha256Hex } from "@/lib/password";
-import type { WebhookEvent } from "@/types";
-import { validateWebhookUrl } from "@/lib/webhook-security";
+import { getStore, type DataStore } from "@/lib/store";
+import type { WebhookEndpoint, WebhookEvent } from "@/types";
+import { signWebhookBody, validateWebhookUrl, webhookOwnerId, webhookOwnerScope } from "@/lib/webhook-security";
+import { canAccessClient } from "@/lib/client-access";
 import { drainAfterResponse } from "@/lib/queue-drain";
+
+/** Whether this hook may receive this payload; see `webhookOwnerScope`. */
+async function hookMayReceive(store: DataStore, hook: WebhookEndpoint, payload: Record<string, unknown>) {
+  const ownerId = webhookOwnerId(hook);
+  if (!ownerId) return true;
+  const scope = webhookOwnerScope(await store.getUser(ownerId), payload);
+  return scope ? canAccessClient(scope.session, scope.clientId) : false;
+}
 
 /** Persist delivery intent before the request returns; a background drain sends it and the hourly cron retries. */
 export async function dispatchWebhooks(event: WebhookEvent, payload: Record<string, unknown>) {
   const store = await getStore();
-  const hooks = (await store.listWebhooks()).filter((hook) => hook.active && hook.events.includes(event));
+  const subscribed = (await store.listWebhooks()).filter((hook) => hook.active && hook.events.includes(event));
+  const allowed = await Promise.all(subscribed.map((hook) => hookMayReceive(store, hook, payload)));
+  const hooks = subscribed.filter((_, index) => allowed[index]);
   await store.addWebhookDeliveries(hooks.map((hook) => ({
     webhookId: hook.id, event, payload, statusCode: null, success: false, error: null,
     state: "pending", attempts: 0, nextAttemptAt: new Date().toISOString(),
@@ -28,16 +38,21 @@ export async function drainWebhooks(limit = 20) {
     let error: string | null = null;
     try {
       if (!hook?.active) throw new Error("Webhook is missing or inactive");
+      // Re-checked at send time: form submissions queue deliveries without
+      // dispatchWebhooks, and the owner's access can change while queued.
+      if (!(await hookMayReceive(store, hook, delivery.payload))) throw new Error("Webhook owner cannot access this event's client");
       const urlError = validateWebhookUrl(hook.url);
       if (urlError) throw new Error(`Webhook destination rejected: ${urlError}`);
       const body = JSON.stringify({ event: delivery.event, sentAt: new Date().toISOString(), data: delivery.payload });
+      const timestamp = String(Math.floor(Date.now() / 1000));
       const response = await fetch(hook.url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "X-Boatship-Event": delivery.event,
           "X-Boatship-Delivery": delivery.id,
-          "X-Boatship-Signature": sha256Hex(`${hook.secret}.${body}`),
+          "X-Boatship-Timestamp": timestamp,
+          "X-Boatship-Signature": signWebhookBody(hook.secret, timestamp, body),
         },
         body,
         redirect: "error",

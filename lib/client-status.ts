@@ -70,11 +70,20 @@ export async function syncClientStatusFromTasks(
   return updated;
 }
 
+/**
+ * Base URL for links in emails and OAuth callbacks. Production uses only the
+ * configured APP_URL / NEXT_PUBLIC_APP_URL: request Host headers are
+ * attacker-controlled, and a forged one would point reset and invite links
+ * at another site. Local development may fall back to the request's Host.
+ */
 export function appBaseUrl(req?: Request) {
-  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
-  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
+  const configured = process.env.NEXT_PUBLIC_APP_URL?.trim() || process.env.APP_URL?.trim();
+  if (configured) return configured.replace(/\/$/, "");
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("APP_URL is not configured; set APP_URL (or NEXT_PUBLIC_APP_URL) to the public HTTPS origin");
+  }
   if (req) {
-    const host = req.headers.get("x-forwarded-host") || req.headers.get("host");
+    const host = req.headers.get("host");
     // Cloudflare may omit x-forwarded-proto on Worker requests. OAuth
     // callbacks must still be HTTPS on every deployed hostname.
     const forwardedProto = req.headers.get("x-forwarded-proto");
