@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Check, RotateCcw } from "lucide-react";
-import { Badge, Button, Card, EmptyState, PageHeader, Select, Textarea, Label } from "@/components/shared/ui";
+import { Badge, Button, Card, ConfirmDialog, EmptyState, PageHeader, Select, Textarea, Label } from "@/components/shared/ui";
 import { useAuth } from "@/components/shared/AuthProvider";
 import { apiFetch } from "@/lib/api-client";
 import { formatDate } from "@/lib/utils";
@@ -45,6 +45,7 @@ function ApprovalsContent() {
   const [feedbackId, setFeedbackId] = useState<string | null>(null);
   const [reviewNote, setReviewNote] = useState("");
   const [noteError, setNoteError] = useState("");
+  const [confirmApproval, setConfirmApproval] = useState<Approval | null>(null);
   const clientId = session?.clientId;
 
   const load = useCallback(async () => {
@@ -154,7 +155,7 @@ function ApprovalsContent() {
                       <Button type="button" variant="secondary" disabled={saving} aria-expanded={feedbackId === approval.id} aria-controls={`feedback-${approval.id}`} onClick={() => { setFeedbackId(feedbackId === approval.id ? null : approval.id); setReviewNote(""); setNoteError(""); }}>
                         <RotateCcw className="h-4 w-4" aria-hidden="true" /> Request changes
                       </Button>
-                      <Button type="button" disabled={saving} onClick={() => void review(approval.id, "approved")}>
+                      <Button type="button" disabled={saving} onClick={() => setConfirmApproval(approval)}>
                         <Check className="h-4 w-4" aria-hidden="true" /> {saving ? "Saving…" : "Approve"}
                       </Button>
                     </div>
@@ -166,6 +167,27 @@ function ApprovalsContent() {
           })}
         </section>
       )}
+
+      <ConfirmDialog
+        open={!!confirmApproval}
+        title={confirmApproval ? `Approve “${confirmApproval.subject}”?` : ""}
+        description="Your team will go ahead on the basis of this approval. To ask for changes instead, choose Request changes."
+        confirmLabel="Approve"
+        busyLabel="Saving…"
+        busy={!!confirmApproval && busyId === confirmApproval.id}
+        onCancel={() => setConfirmApproval(null)}
+        onConfirm={() => {
+          const approval = confirmApproval;
+          if (!approval) return;
+          void review(approval.id, "approved").finally(() => setConfirmApproval(null));
+        }}
+      >
+        {confirmApproval ? (
+          <p className="text-sm text-[var(--ink-muted)]">
+            {confirmApproval.kind.charAt(0).toUpperCase() + confirmApproval.kind.slice(1)} · {confirmApproval.engagementId ? engagements.find((item) => item.id === confirmApproval.engagementId)?.name || "Historical engagement" : "Account-wide decision"}
+          </p>
+        ) : null}
+      </ConfirmDialog>
     </div>
   );
 }

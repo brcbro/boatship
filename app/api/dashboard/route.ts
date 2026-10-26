@@ -3,7 +3,7 @@ import { requireRoles } from "@/lib/auth";
 import { evaluateOnboardingHealth } from "@/lib/onboarding-health";
 import { getStore } from "@/lib/store";
 import { filterAssignedClients } from "@/lib/client-access";
-import { calcProgress } from "@/lib/utils";
+import { averageOnboardingDays, calcProgress } from "@/lib/utils";
 import { ENGAGEMENTS } from "@/lib/engagements";
 import { isLocalDemoStore } from "@/lib/firestore";
 import type { ClientStatus, ClientWithProgress } from "@/types";
@@ -92,22 +92,7 @@ export async function GET(req: Request) {
     };
     for (const client of allClients) clientsByStatus[client.status] += 1;
 
-    const completedOnboarding = engagementRows.filter((item) => item.type === "onboarding" && item.status === "completed" && item.completedAt);
-    const completedClients = allClients.filter((client) => client.status === "completed");
-    const avgOnboardingDays = completedOnboarding.length
-      ? Math.round(completedOnboarding.reduce((sum, item) => sum + (new Date(item.completedAt!).getTime() - new Date(item.startDate || item.createdAt).getTime()), 0) / completedOnboarding.length / 8640000 * 10) / 10
-      : completedClients.length
-      ? Math.round(
-          (completedClients.reduce(
-            (sum, client) =>
-              sum + (new Date(client.updatedAt).getTime() - new Date(client.createdAt).getTime()),
-            0
-          ) /
-            completedClients.length /
-            (1000 * 60 * 60 * 24)) *
-            10
-        ) / 10
-      : 0;
+    const avgOnboardingDays = averageOnboardingDays(engagementRows, allClients);
     const currentTime = Date.now();
     const overdueTasks = tasks.filter(
       (task) =>

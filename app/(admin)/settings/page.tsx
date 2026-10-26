@@ -4,11 +4,11 @@ import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { useAuth } from "@/components/shared/AuthProvider";
 import { PageHeader } from "@/components/shared/ui";
-import { SETTINGS_ITEMS } from "@/components/admin/navigation";
+import { SETTINGS_ITEMS, visibleNavItems } from "@/components/admin/navigation";
 
 export default function SettingsHubPage() {
   const { session } = useAuth();
-  const items = SETTINGS_ITEMS.filter((item) => item.href !== "/settings" && (!item.adminOnly || session?.role === "admin"));
+  const items = visibleNavItems(SETTINGS_ITEMS, session).filter((item) => item.href !== "/settings");
   return (
     <div>
       <PageHeader eyebrow="Settings" title="Everything you configure" description="Rules, templates, connections and access live here so the daily navigation stays short. Each item opens its own page." />

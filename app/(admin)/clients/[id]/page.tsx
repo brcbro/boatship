@@ -8,18 +8,20 @@ import {
   Badge,
   Button,
   Card,
+  ConfirmDialog,
   Dropdown,
   EmptyState,
   Input,
   Label,
   Modal,
+  NameList,
   ProgressBar,
   RecordHeader,
   Tabs,
   Textarea,
 } from "@/components/shared/ui";
 import { apiFetch } from "@/lib/api-client";
-import { formatDate, formatDateTime, statusLabel } from "@/lib/utils";
+import { formatDate, formatDueDate, formatDateTime, statusLabel } from "@/lib/utils";
 import { TaskBoard } from "@/components/shared/TaskBoard";
 import { DocumentViewer } from "@/components/shared/DocumentViewer";
 import { hasPermission } from "@/lib/rbac";
@@ -139,6 +141,7 @@ function ClientDetailInner() {
   const [includeAccountDocuments, setIncludeAccountDocuments] = useState(true);
   const [documentCheckedAt, setDocumentCheckedAt] = useState(() => Date.now());
   const [selectedDocs, setSelectedDocs] = useState<Set<string>>(new Set());
+  const [pendingDocReview, setPendingDocReview] = useState<{ status: "approved" | "rejected"; ids: string[] } | null>(null);
   const [forms, setForms] = useState<FormSubmission[]>([]);
   const [formTemplates, setFormTemplates] = useState<FormTemplate[]>([]);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
@@ -596,8 +599,14 @@ function ClientDetailInner() {
     }
   }
 
-  async function bulkReviewDocuments(status: DocumentStatus) {
+  function requestBulkReview(status: "approved" | "rejected") {
     if (!selectedDocs.size) return;
+    setPendingDocReview({ status, ids: Array.from(selectedDocs) });
+  }
+
+  async function bulkReviewDocuments() {
+    if (!pendingDocReview) return;
+    const { status, ids } = pendingDocReview;
     setBusy(true);
     setError("");
     setMessage("");
@@ -608,7 +617,7 @@ function ClientDetailInner() {
           method: "POST",
           token,
           body: JSON.stringify({
-            ids: Array.from(selectedDocs),
+            ids,
             status,
           }),
         }
@@ -620,6 +629,7 @@ function ClientDetailInner() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Bulk review failed");
     } finally {
+      setPendingDocReview(null);
       setBusy(false);
     }
   }
@@ -780,9 +790,9 @@ function ClientDetailInner() {
     .filter((task) => task.dueDate && task.status !== "completed")
     .sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""))[0];
   const nextMilestone = upcomingEngagement
-    ? `${upcomingEngagement.name} · ${formatDate(upcomingEngagement.targetDate!)}`
+    ? `${upcomingEngagement.name} · ${formatDueDate(upcomingEngagement.targetDate!)}`
     : upcomingTask
-      ? `${upcomingTask.title} · ${formatDate(upcomingTask.dueDate!)}`
+      ? `${upcomingTask.title} · ${formatDueDate(upcomingTask.dueDate!)}`
       : "Nothing scheduled";
 
   return (
@@ -1038,7 +1048,7 @@ function ClientDetailInner() {
                   </div>
                   <div className="mt-4 flex justify-between text-sm"><span>{engagement.completedTaskCount} of {engagement.taskCount} tasks</span><span>{engagement.progress}%</span></div>
                   <ProgressBar value={engagement.progress} />
-                  <p className="mt-3 text-xs text-[var(--ink-muted)]">Owner: {users.find((user) => user.uid === engagement.ownerId)?.name || "Unassigned"}{engagement.targetDate ? ` · Target ${formatDate(engagement.targetDate)}` : ""}</p>
+                  <p className="mt-3 text-xs text-[var(--ink-muted)]">Owner: {users.find((user) => user.uid === engagement.ownerId)?.name || "Unassigned"}{engagement.targetDate ? ` · Target ${formatDueDate(engagement.targetDate)}` : ""}</p>
                   <div className="mt-4 flex flex-wrap items-end gap-3">
                     <div className="min-w-40 flex-1">{engagement.id === `onboarding_${id}` ? <p className="text-sm text-[var(--ink-muted)]">Onboarding status is managed in the legacy controls on the Overview tab.</p> : <><Dropdown label="Status" value={engagement.status} disabled={busy || !canManageClient} onChange={(status) => void updateEngagement(engagement.id, { status })} options={(["planned", "active", "paused", "completed", "cancelled"] as Engagement["status"][]).map((status) => ({ value: status, label: statusLabel(status) }))} /></>}</div>
                     <Button type="button" variant="secondary" onClick={() => { setSelectedEngagementId(engagement.id); setTab("tasks"); }}>Open tasks</Button>
@@ -1113,7 +1123,7 @@ function ClientDetailInner() {
                 type="button"
                 size="sm"
                 disabled={busy || !selectedDocs.size}
-                onClick={() => void bulkReviewDocuments("approved")}
+                onClick={() => requestBulkReview("approved")}
               >
                 Approve selected ({selectedDocs.size})
               </Button>
@@ -1122,10 +1132,23 @@ function ClientDetailInner() {
                 size="sm"
                 variant="danger"
                 disabled={busy || !selectedDocs.size}
-                onClick={() => void bulkReviewDocuments("rejected")}
+                onClick={() => requestBulkReview("rejected")}
               >
                 Reject selected
               </Button>
+              <ConfirmDialog
+                open={!!pendingDocReview}
+                title={pendingDocReview ? `${pendingDocReview.status === "approved" ? "Approve" : "Reject"} ${pendingDocReview.ids.length} document${pendingDocReview.ids.length === 1 ? "" : "s"}?` : ""}
+                description="The client sees the new review status on each file."
+                tone={pendingDocReview?.status === "rejected" ? "danger" : "primary"}
+                confirmLabel={pendingDocReview?.status === "rejected" ? "Reject" : "Approve"}
+                busyLabel="Saving…"
+                busy={busy}
+                onCancel={() => setPendingDocReview(null)}
+                onConfirm={() => void bulkReviewDocuments()}
+              >
+                <NameList names={(pendingDocReview?.ids || []).map((id) => documents.find((doc) => doc.id === id)?.fileName || id)} />
+              </ConfirmDialog>
             </div> : <p className="text-sm text-[var(--ink-muted)]">You can view files and review notes. Document review permission is required to approve or reject files.</p>}
             {visibleDocuments.map((doc) => (
               <Card key={doc.id}>

@@ -15,7 +15,7 @@ import {
 } from "@/components/shared/ui";
 import { TaskComments } from "@/components/shared/TaskComments";
 import { TaskEvidencePanel } from "@/components/shared/TaskEvidencePanel";
-import { cn, formatDate, statusLabel } from "@/lib/utils";
+import { cn, formatDueDate, dueDateKey, dueDateToStorage, statusLabel } from "@/lib/utils";
 import type { Task, TaskPriority, TaskStatus, TaskSubtask, TaskType } from "@/types";
 
 function statusTone(status: string): "neutral" | "success" | "warning" | "danger" | "info" {
@@ -466,7 +466,7 @@ export function TaskBoard({
                             </Badge>
                             {blocked ? <Badge tone="danger">Blocked</Badge> : null}
                             {task.dueDate ? (
-                              <Badge tone="neutral">{formatDate(task.dueDate)}</Badge>
+                              <Badge tone="neutral">{formatDueDate(task.dueDate)}</Badge>
                             ) : null}
                           </div>
                         </button>
@@ -638,7 +638,7 @@ export function TaskDetailModal({
       setDescription(task.description || "");
       setInternalNotes(task.internalNotes || "");
       setSection(task.section || "General");
-      setDueDate(task.dueDate ? task.dueDate.slice(0, 10) : "");
+      setDueDate(dueDateKey(task.dueDate) || "");
       setNewSubtask("");
     }, 0);
     return () => window.clearTimeout(timeoutId);
@@ -798,16 +798,16 @@ export function TaskDetailModal({
                   disabled={busy || !canEdit}
                   onChange={(e) => setDueDate(e.target.value)}
                   onBlur={() => {
-                    const next = dueDate ? new Date(dueDate).toISOString() : null;
+                    const next = dueDate ? dueDateToStorage(dueDate) : null;
                     const prev = task.dueDate;
-                    if ((next || null) !== (prev || null)) {
+                    if ((dueDate || null) !== dueDateKey(prev)) {
                       void saveField({ dueDate: next });
                     }
                   }}
                 />
               ) : (
                 <p className="rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--ink)]">
-                  {formatDate(task.dueDate)}
+                  {formatDueDate(task.dueDate)}
                 </p>
               )}
             </div>

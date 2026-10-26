@@ -5,7 +5,7 @@ import { Badge, Button, Card, EmptyState, Input, Label, PageHeader, Select, Text
 import { useAuth } from "@/components/shared/AuthProvider";
 import { apiFetch } from "@/lib/api-client";
 import { hasPermission } from "@/lib/rbac";
-import { formatDate, statusLabel } from "@/lib/utils";
+import { formatDueDate, statusLabel } from "@/lib/utils";
 import type { ClientWithProgress } from "@/types";
 
 type Report = { clientId: string; companyName: string; health: { score: number; label: string; overdue: number; blocked: number; pendingApprovals: number }; completedTasks: number; activeTasks: number; evidenceCount: number };
@@ -90,7 +90,7 @@ export default function ProjectsOperationsPage() {
       <div className="flex items-end"><Button type="submit" disabled={saving || !selected || !title.trim() || loadingEngagements}>{saving ? "Saving…" : action === "milestone" ? "Create milestone" : "Request client approval"}</Button></div>
     </form></Card> : null}
     <section aria-labelledby="operations-queue"><h2 id="operations-queue" className="font-[family-name:var(--font-display)] text-xl">Milestones and client decisions</h2><p className="mt-1 text-sm text-[var(--ink-muted)]">Account-wide work and historical records remain available through the filters.</p>{!loading && !milestones.length && !approvals.length ? <EmptyState title="No work in this view" description="Choose another account or engagement, or create a milestone or approval request." /> : <div className="mt-4 divide-y divide-[var(--border)] border-y border-[var(--border)]">
-      {milestones.map((item) => <article key={item.id} className="py-4"><div className="flex flex-wrap items-start justify-between gap-3"><h3 className="break-words font-semibold">{item.title}</h3><Badge tone={item.status === "completed" ? "success" : "info"}>{statusLabel(item.status)}</Badge></div><p className="mt-1 text-sm text-[var(--ink-muted)]">{clients.find((client) => client.id === item.clientId)?.companyName || "Client account"} · {contextLabel(item.engagementId)}{item.dueDate ? ` · Due ${formatDate(item.dueDate)}` : ""}</p></article>)}
+      {milestones.map((item) => <article key={item.id} className="py-4"><div className="flex flex-wrap items-start justify-between gap-3"><h3 className="break-words font-semibold">{item.title}</h3><Badge tone={item.status === "completed" ? "success" : "info"}>{statusLabel(item.status)}</Badge></div><p className="mt-1 text-sm text-[var(--ink-muted)]">{clients.find((client) => client.id === item.clientId)?.companyName || "Client account"} · {contextLabel(item.engagementId)}{item.dueDate ? ` · Due ${formatDueDate(item.dueDate)}` : ""}</p></article>)}
       {approvals.map((item) => <article key={item.id} className="py-4"><div className="flex flex-wrap items-start justify-between gap-3"><h3 className="break-words font-semibold">{item.subject}</h3><Badge tone={item.status === "approved" ? "success" : item.status === "changes_requested" ? "warning" : "neutral"}>{statusLabel(item.status)}</Badge></div><p className="mt-1 text-sm text-[var(--ink-muted)]">{statusLabel(item.kind)} decision · {clients.find((client) => client.id === item.clientId)?.companyName || "Client account"} · {contextLabel(item.engagementId)}</p>{item.reviewNote ? <p className="mt-3 whitespace-pre-wrap break-words text-sm"><span className="font-semibold">Client review note:</span> {item.reviewNote}</p> : null}</article>)}
     </div>}</section>
   </div>;

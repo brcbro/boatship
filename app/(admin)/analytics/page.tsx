@@ -252,7 +252,7 @@ export default function AnalyticsPage() {
           </p>
         </Card>
         <Card>
-          <p className="text-sm text-[var(--ink-muted)]">Approx. onboarding days</p>
+          <p className="text-sm text-[var(--ink-muted)]">Avg. days to complete an onboarding engagement</p>
           <p className="mt-2 font-[family-name:var(--font-display)] text-3xl">
             {analytics?.avgOnboardingDays ?? 0}
           </p>
@@ -279,7 +279,7 @@ export default function AnalyticsPage() {
 
       <div className="mb-8 grid gap-6 lg:grid-cols-3">
         <Card>
-          <h2 className="mb-4 font-[family-name:var(--font-display)] text-lg">Onboarding funnel</h2>
+          <h2 className="mb-4 font-[family-name:var(--font-display)] text-lg">Engagement funnel</h2>
           <ul className="space-y-3">
             <li className="flex items-center justify-between text-sm">
               <span className="text-[var(--ink-muted)]">Invited</span>

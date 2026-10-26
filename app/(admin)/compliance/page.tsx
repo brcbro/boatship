@@ -1,26 +1,48 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { useAuth } from "@/components/shared/AuthProvider";
 import {
   Button,
   Card,
+  ConfirmDialog,
   Dropdown,
   EmptyState,
+  Input,
+  Label,
   PageHeader,
 } from "@/components/shared/ui";
 import { apiFetch, getStoredToken } from "@/lib/api-client";
+import { hasPermission } from "@/lib/rbac";
 import type { ClientWithProgress } from "@/types";
+
+/**
+ * The demo seed writes a sample client, so it is offered only outside
+ * production builds unless NEXT_PUBLIC_BOATSHIP_DEMO_SEED is "true".
+ */
+const DEMO_SEED_ENABLED = process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_BOATSHIP_DEMO_SEED === "true";
+
+function clientLabel(client: ClientWithProgress) {
+  return client.companyName || client.name;
+}
 
 export default function CompliancePage() {
   const { token, session } = useAuth();
   const isAdmin = session?.role === "admin";
+  const canExport = !!session && hasPermission(session, "audit.export");
+  const confirmInputId = useId();
   const [clients, setClients] = useState<ClientWithProgress[]>([]);
+  // Never preselect a client: GDPR actions must act on a deliberate choice.
   const [clientId, setClientId] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+
+  const selectedClient = clients.find((client) => client.id === clientId) || null;
+  const selectedLabel = selectedClient ? clientLabel(selectedClient) : "";
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -28,7 +50,8 @@ export default function CompliancePage() {
     try {
       const data = await apiFetch<{ clients: ClientWithProgress[] }>("/api/clients", { token });
       setClients(data.clients);
-      setClientId((prev) => prev || data.clients[0]?.id || "");
+      // Drop a selection whose client no longer exists.
+      setClientId((prev) => (data.clients.some((client) => client.id === prev) ? prev : ""));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load clients");
     } finally {
@@ -61,7 +84,7 @@ export default function CompliancePage() {
       a.download = `gdpr-export-${clientId}.json`;
       a.click();
       URL.revokeObjectURL(url);
-      setMessage("GDPR export downloaded.");
+      setMessage(`GDPR export for ${selectedLabel} downloaded.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Export failed");
     } finally {
@@ -92,7 +115,7 @@ export default function CompliancePage() {
         : `audit-all.csv`;
       a.click();
       URL.revokeObjectURL(url);
-      setMessage("Audit CSV downloaded.");
+      setMessage(clientId ? `Audit CSV for ${selectedLabel} downloaded.` : "Audit CSV for all clients downloaded.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Audit export failed");
     } finally {
@@ -100,21 +123,25 @@ export default function CompliancePage() {
     }
   }
 
-  async function deleteClientData() {
-    if (!isAdmin) return;
-    if (!clientId) {
+  function openDeleteConfirm() {
+    if (!isAdmin || !selectedClient) {
       setError("Select a client first");
       return;
     }
-    const client = clients.find((c) => c.id === clientId);
-    const label = client?.companyName || clientId;
-    if (
-      !window.confirm(
-        `Permanently delete all data for "${label}"? This cannot be undone.`
-      )
-    ) {
-      return;
-    }
+    setConfirmText("");
+    setConfirmOpen(true);
+  }
+
+  function closeDeleteConfirm() {
+    setConfirmOpen(false);
+    setConfirmText("");
+  }
+
+  async function deleteClientData() {
+    // Capture the target now; the dropdown cannot change while the dialog is open.
+    const target = selectedClient;
+    if (!isAdmin || !target || confirmText.trim() !== clientLabel(target)) return;
+    const label = clientLabel(target);
     setBusy("gdpr-delete");
     setError("");
     setMessage("");
@@ -122,14 +149,16 @@ export default function CompliancePage() {
       await apiFetch("/api/gdpr/delete", {
         method: "POST",
         token,
-        body: JSON.stringify({ clientId, confirm: true }),
+        body: JSON.stringify({ clientId: target.id, confirm: true }),
       });
       setMessage(`Deleted data for ${label}.`);
-      setClientId("");
+      closeDeleteConfirm();
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Delete failed");
     } finally {
+      // Clear the selection either way so a second click cannot reuse it unseen.
+      setClientId("");
       setBusy(null);
     }
   }
@@ -158,7 +187,7 @@ export default function CompliancePage() {
   }
 
   if (loading) {
-    return <p className="text-sm text-[var(--ink-muted)]">Loading compliance…</p>;
+    return <p role="status" className="text-sm text-[var(--ink-muted)]">Loading compliance…</p>;
   }
 
   if (error && clients.length === 0) {
@@ -175,76 +204,88 @@ export default function CompliancePage() {
     );
   }
 
+  const confirmMatches = !!selectedClient && confirmText.trim() === selectedLabel;
+
   return (
     <div>
       <PageHeader
         title="Compliance"
-        description="GDPR export/delete, audit logs, and demo seed data."
+        description={DEMO_SEED_ENABLED ? "GDPR export/delete, audit logs, and demo seed data." : "GDPR export/delete and audit logs."}
       />
 
       {message ? (
-        <p className="mb-4 rounded-[var(--radius-sm)] bg-[var(--success-soft)] px-3 py-2 text-sm text-[var(--success)]">{message}</p>
+        <p role="status" className="mb-4 rounded-[var(--radius-sm)] bg-[var(--success-soft)] px-3 py-2 text-sm text-[var(--success)]">{message}</p>
       ) : null}
       {error ? (
-        <p className="mb-4 rounded-[var(--radius-sm)] bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger)]">{error}</p>
+        <p role="alert" className="mb-4 rounded-[var(--radius-sm)] bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger)]">{error}</p>
+      ) : null}
+      {!canExport ? (
+        <p role="status" className="mb-4 rounded-[var(--radius-sm)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--ink-muted)]">
+          GDPR and audit exports need the audit export permission. Ask an admin to grant it.
+        </p>
       ) : null}
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <h2 className="mb-2 font-[family-name:var(--font-display)] text-lg">Client data</h2>
-          <p className="mb-4 text-sm text-[var(--ink-muted)]">
-            Export a client’s personal data as JSON, or permanently erase it (admin).
-          </p>
-          <div className="mb-4">
-            <Dropdown
-              value={clientId}
-              onChange={setClientId}
-              options={[
-                { value: "", label: "Select client…" },
-                ...clients.map((c) => ({
-                  value: c.id,
-                  label: c.companyName || c.name,
-                })),
-              ]}
-            />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              disabled={!clientId || busy !== null}
-              onClick={() => void downloadGdprExport()}
-            >
-              {busy === "gdpr-export" ? "Exporting…" : "GDPR export (JSON)"}
-            </Button>
-            {isAdmin ? (
+        {canExport ? (
+          <Card>
+            <h2 className="mb-2 font-[family-name:var(--font-display)] text-lg">Client data</h2>
+            <p className="mb-4 text-sm text-[var(--ink-muted)]">
+              Export a client’s personal data as JSON, or permanently erase it (admin).
+            </p>
+            <div className="mb-4">
+              <Dropdown
+                value={clientId}
+                onChange={(value) => { setClientId(value); setMessage(""); }}
+                ariaLabel="Client"
+                options={[
+                  { value: "", label: "Select client…" },
+                  ...clients.map((c) => ({
+                    value: c.id,
+                    label: clientLabel(c),
+                  })),
+                ]}
+              />
+            </div>
+            <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
-                variant="danger"
                 disabled={!clientId || busy !== null}
-                onClick={() => void deleteClientData()}
+                onClick={() => void downloadGdprExport()}
               >
-                {busy === "gdpr-delete" ? "Deleting…" : "GDPR delete"}
+                {busy === "gdpr-export" ? "Exporting…" : "GDPR export (JSON)"}
               </Button>
-            ) : null}
-          </div>
-        </Card>
+              {isAdmin ? (
+                <Button
+                  type="button"
+                  variant="danger"
+                  disabled={!clientId || busy !== null}
+                  onClick={openDeleteConfirm}
+                >
+                  GDPR delete
+                </Button>
+              ) : null}
+            </div>
+          </Card>
+        ) : null}
 
-        <Card>
-          <h2 className="mb-2 font-[family-name:var(--font-display)] text-lg">Audit log</h2>
-          <p className="mb-4 text-sm text-[var(--ink-muted)]">
-            Download activity as CSV. If a client is selected above, the export is filtered to that
-            client; otherwise all activity is included.
-          </p>
-          <Button
-            type="button"
-            disabled={busy !== null}
-            onClick={() => void downloadAuditCsv()}
-          >
-            {busy === "audit" ? "Downloading…" : "Download audit CSV"}
-          </Button>
-        </Card>
+        {canExport ? (
+          <Card>
+            <h2 className="mb-2 font-[family-name:var(--font-display)] text-lg">Audit log</h2>
+            <p className="mb-4 text-sm text-[var(--ink-muted)]">
+              Download activity as CSV. If a client is selected above, the export is filtered to that
+              client; otherwise all activity is included.
+            </p>
+            <Button
+              type="button"
+              disabled={busy !== null}
+              onClick={() => void downloadAuditCsv()}
+            >
+              {busy === "audit" ? "Downloading…" : selectedClient ? `Download audit CSV for ${selectedLabel}` : "Download audit CSV (all clients)"}
+            </Button>
+          </Card>
+        ) : null}
 
-        {isAdmin ? (
+        {isAdmin && DEMO_SEED_ENABLED ? (
           <Card>
             <h2 className="mb-2 font-[family-name:var(--font-display)] text-lg">Demo seed</h2>
             <p className="mb-4 text-sm text-[var(--ink-muted)]">
@@ -256,6 +297,31 @@ export default function CompliancePage() {
           </Card>
         ) : null}
       </div>
+
+      <ConfirmDialog
+        open={confirmOpen && !!selectedClient}
+        title="Permanently delete client data?"
+        description="This erases the client record and its personal data. It cannot be undone."
+        tone="danger"
+        confirmLabel="Delete permanently"
+        busyLabel="Deleting…"
+        busy={busy === "gdpr-delete"}
+        confirmDisabled={!confirmMatches}
+        onCancel={closeDeleteConfirm}
+        onConfirm={() => void deleteClientData()}
+      >
+        <Label htmlFor={confirmInputId}>
+          Type <strong className="font-semibold text-[var(--ink)]">{selectedLabel}</strong> to confirm
+        </Label>
+        <Input
+          id={confirmInputId}
+          value={confirmText}
+          onChange={(event) => setConfirmText(event.target.value)}
+          autoComplete="off"
+          spellCheck={false}
+          aria-invalid={confirmText.length > 0 && !confirmMatches}
+        />
+      </ConfirmDialog>
     </div>
   );
 }

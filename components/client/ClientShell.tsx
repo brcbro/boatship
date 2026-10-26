@@ -73,6 +73,9 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
     setLoggingOut(true);
     try {
       await logout();
+    } catch {
+      // AuthProvider has already signed out locally and sends the login page a
+      // notice that the server did not confirm; nothing more to show here.
     } finally {
       setLoggingOut(false);
     }

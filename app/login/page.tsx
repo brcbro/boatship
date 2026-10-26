@@ -29,7 +29,12 @@ function LoginContent() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [error, setError] = useState("");
+  const next = searchParams.get("next");
+  const [error, setError] = useState(() =>
+    searchParams.get("signout") === "unconfirmed"
+      ? "You are signed out on this device, but the server did not confirm it. The old session stays valid until it expires."
+      : ""
+  );
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -39,7 +44,7 @@ function LoginContent() {
     setSuccess("");
     setLoading(true);
     try {
-      await login(email.trim(), password);
+      await login(email.trim(), password, next);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {
