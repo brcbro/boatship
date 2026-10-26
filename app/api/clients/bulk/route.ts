@@ -2,6 +2,7 @@ import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
 import { getStore } from "@/lib/store";
 import { canAccessClient } from "@/lib/client-access";
+import { clientBulkSchema, isActiveStaffUser, parseClientInput } from "@/lib/client-validation";
 import type { ClientStatus } from "@/types";
 
 export const runtime = "nodejs";
@@ -9,20 +10,18 @@ export const runtime = "nodejs";
 export async function POST(req: Request) {
   return handleApi(async () => {
     const session = await requireRoles(req, ["admin", "team"]);
-    const body = (await req.json().catch(() => ({}))) as {
-      ids?: string[];
-      status?: ClientStatus;
-      assignedTeamMemberId?: string | null;
-      tags?: string[];
-    };
-
-    const ids = Array.isArray(body.ids)
-      ? body.ids.map((id) => String(id).trim()).filter(Boolean)
-      : [];
-    if (!ids.length) throw jsonError("ids is required", 400);
+    const parsed = parseClientInput(clientBulkSchema, await req.json().catch(() => ({})));
+    if (!parsed.ok) throw jsonError(parsed.error, 400);
+    const body = parsed.data;
+    const ids = body.ids;
     if (session.role === "team") {
       for (const id of ids) if (!await canAccessClient(session, id)) throw jsonError("Forbidden", 403);
       if (body.assignedTeamMemberId !== undefined && body.assignedTeamMemberId !== session.uid) throw jsonError("Forbidden", 403);
+    }
+
+    const store = await getStore();
+    if (body.assignedTeamMemberId && !isActiveStaffUser(await store.getUser(body.assignedTeamMemberId))) {
+      throw jsonError("assignedTeamMemberId must be an active team member", 400);
     }
 
     const patch: {
@@ -34,17 +33,12 @@ export async function POST(req: Request) {
     if (body.assignedTeamMemberId !== undefined) {
       patch.assignedTeamMemberId = body.assignedTeamMemberId;
     }
-    if (body.tags !== undefined) {
-      patch.tags = Array.isArray(body.tags)
-        ? body.tags.map((t) => String(t).trim()).filter(Boolean)
-        : [];
-    }
+    if (body.tags !== undefined) patch.tags = body.tags;
 
     if (!Object.keys(patch).length) {
       throw jsonError("Provide status, assignedTeamMemberId, and/or tags", 400);
     }
 
-    const store = await getStore();
     const clients = await store.bulkUpdateClients(ids, patch);
 
     await Promise.all(

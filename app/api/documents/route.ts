@@ -3,6 +3,7 @@ import { requireSession } from "@/lib/auth";
 import { canAccessClient } from "@/lib/client-access";
 import { getStore } from "@/lib/store";
 import { documentMetadata } from "@/lib/document-response";
+import { clientCanSeeDocument } from "@/lib/client-projection";
 import { validateResourceEngagement, resourceInEngagement, resourceEngagementId } from "@/lib/engagement-resources";
 
 export const runtime = "nodejs";
@@ -20,7 +21,8 @@ export async function GET(req: Request) {
     const selected = url.searchParams.get("engagementId");
     if (selected && selected !== "account") await validateResourceEngagement(clientId, selected, undefined, true);
     const tasks = await store.listTasks(clientId);
-    return { documents: documents.filter((document) => resourceInEngagement(document, tasks, selected, url.searchParams.get("includeAccountWide") === "1")).map((document) => documentMetadata({ ...document, engagementId: resourceEngagementId(document, tasks) })) };
+    const tasksById = new Map(tasks.map((task) => [task.id, task]));
+    return { documents: documents.filter((document) => session.role !== "client" || clientCanSeeDocument(document, tasksById)).filter((document) => resourceInEngagement(document, tasks, selected, url.searchParams.get("includeAccountWide") === "1")).map((document) => documentMetadata({ ...document, engagementId: resourceEngagementId(document, tasks) })) };
   });
 }
 

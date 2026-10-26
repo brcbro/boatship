@@ -1,5 +1,6 @@
 import { requireSession } from "@/lib/auth";
 import { canAccessClient } from "@/lib/client-access";
+import { clientCanSeeTask } from "@/lib/client-projection";
 import { getStore } from "@/lib/store";
 import { withRequestStoreScope } from "@/lib/store-context";
 import { internalErrorResponse, jsonError } from "@/lib/api";
@@ -14,9 +15,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     return await withRequestStoreScope(async () => {
       const session = await requireSession(req);
       const { id } = await params;
-      const document = await (await getStore()).getDocument(id);
+      const store = await getStore();
+      const document = await store.getDocument(id);
       if (!document) return jsonError("Document not found", 404);
       if (!await canAccessClient(session, document.clientId)) return jsonError("Forbidden", 403);
+      if (session.role === "client" && document.taskId && !clientCanSeeTask(await store.getTask(document.taskId))) {
+        return jsonError("Document not found", 404);
+      }
       const url = new URL(req.url);
       const index = documentVersionIndex(url.searchParams.get("version"), document.versions.length);
       const version = index === null ? document : document.versions[index];

@@ -31,11 +31,18 @@ export async function requireClientAccess(session: AuthSession, clientId: string
   });
 }
 
+/**
+ * The clients a session may see: every client for an admin, the assigned
+ * clients for a team member, only its own client for a client session, and
+ * none for any other role.
+ */
 export async function filterAssignedClients<T extends { id: string; assignedTeamMemberId: string | null }>(
   session: AuthSession,
   clients: T[],
 ): Promise<T[]> {
-  if (session.role !== "team") return clients;
+  if (session.role === "admin") return clients;
+  if (session.role === "client") return session.clientId ? clients.filter((client) => client.id === session.clientId) : [];
+  if (session.role !== "team") return [];
   const allowedIds = new Set((await currentAssignments()).filter((client) => client.assignedTeamMemberId === session.uid).map((client) => client.id));
   return clients.filter((client) => allowedIds.has(client.id));
 }

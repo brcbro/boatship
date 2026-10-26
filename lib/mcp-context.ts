@@ -1,10 +1,14 @@
 import type {
+  ActivityLog,
   Client,
+  DocumentRecord,
+  FormSubmission,
   Task,
   AuthSession,
 } from "@/types";
 import { getStore, type DataStore } from "@/lib/store";
 import { filterAssignedClients } from "@/lib/client-access";
+import { clientCanSeeDocument, clientCanSeeTask, clientSafeActivity } from "@/lib/client-projection";
 import { hasPermission } from "@/lib/rbac";
 
 export interface McpContext {
@@ -51,8 +55,13 @@ export function hasMcpScope(context: McpContext, scope: string) {
   return context.scopes.has(scope);
 }
 
+/**
+ * Removes secrets and staff-only internal notes from anything an MCP tool
+ * returns. Internal notes are withheld from every MCP token, staff included,
+ * so no tool path can hand them to a client token by accident.
+ */
 export function sanitizeForMcp<T>(value: T): T {
-  const blocked = /pass(word|hash)?|secret|token|api.?key|credential|invite|content.?base64/i;
+  const blocked = /pass(word|hash)?|secret|token|api.?key|credential|invite|content.?base64|^internalNotes$/i;
   const visit = (input: unknown): unknown => {
     if (Array.isArray(input)) return input.map(visit);
     if (!input || typeof input !== "object") return input;
@@ -65,6 +74,35 @@ export function sanitizeForMcp<T>(value: T): T {
   return visit(value) as T;
 }
 
+const isClientToken = (context: McpContext) => context.session.role === "client";
+
+/** A client token's view of a task: staff-only fields are emptied so the Task shape is kept. */
+function mcpTask(context: McpContext, task: Task): Task {
+  if (!isClientToken(context)) return task;
+  return { ...task, internalNotes: "", watcherIds: [], escalatedAt: null, reminderSentAt: null, metadata: undefined };
+}
+
+/** Records of one client limited to what the token may see; staff tokens get them unchanged. */
+async function clientRecords(context: McpContext, clientId: string) {
+  const [activity, documents, forms] = await Promise.all([
+    context.store.listActivity(clientId),
+    context.store.listDocuments(clientId),
+    context.store.listForms(clientId),
+  ]);
+  if (!isClientToken(context)) return { activity, documents, forms };
+  return scopeForClient(await context.store.listTasks(clientId), activity, documents, forms);
+}
+
+function scopeForClient(tasks: Task[], activity: ActivityLog[], documents: DocumentRecord[], forms: FormSubmission[]) {
+  const tasksById = new Map(tasks.map((task) => [task.id, task]));
+  const visibleDocuments = documents.filter((document) => clientCanSeeDocument(document, tasksById));
+  return {
+    activity: clientSafeActivity(activity, tasksById, new Map(documents.map((document) => [document.id, document]))),
+    documents: visibleDocuments,
+    forms: forms.filter((form) => !form.taskId || clientCanSeeTask(tasksById.get(form.taskId))),
+  };
+}
+
 async function allVisibleData(context: McpContext) {
   const [clients, tasks, activity] = await Promise.all([
     context.store.listClients(),
@@ -73,10 +111,14 @@ async function allVisibleData(context: McpContext) {
   ]);
   const visibleClients = clients.filter((client) => canSeeClient(context, client));
   const ids = new Set(visibleClients.map((client) => client.id));
+  const clientTasks = tasks.filter((task) => ids.has(task.clientId));
+  const clientActivity = activity.filter((entry) => ids.has(entry.clientId));
+  if (!isClientToken(context)) return { clients: visibleClients, tasks: clientTasks, activity: clientActivity };
+  const documents = (await Promise.all(visibleClients.map((client) => context.store.listDocuments(client.id)))).flat();
   return {
     clients: visibleClients,
-    tasks: tasks.filter((task) => ids.has(task.clientId)),
-    activity: activity.filter((entry) => ids.has(entry.clientId)),
+    tasks: (await visibleTasks(context)),
+    activity: clientSafeActivity(clientActivity, new Map(clientTasks.map((task) => [task.id, task])), new Map(documents.map((document) => [document.id, document]))),
   };
 }
 
@@ -93,11 +135,11 @@ export async function visibleTasks(context: McpContext, clientId?: string) {
     if (context.projectIds && !context.projectIds.has(client.id)) return false;
     if (context.session.role === "admin") return true;
     if (context.session.role === "client") {
-      return task.clientId === context.session.clientId && task.assignedRole === "client";
+      return task.clientId === context.session.clientId && task.assignedRole === "client" && clientCanSeeTask(task);
     }
     if (!hasPermission(context.session, "clients.view")) return false;
     return context.assignedClientIds?.has(client.id) ?? false;
-  });
+  }).map((task) => mcpTask(context, task));
 }
 
 export async function visibleClient(context: McpContext, clientId: string) {
@@ -110,7 +152,7 @@ export async function visibleTask(context: McpContext, taskId: string) {
   const task = await context.store.getTask(taskId);
   if (!task) return null;
   const visible = await visibleTasks(context, task.clientId);
-  return visible.some((item) => item.id === task.id) ? task : null;
+  return visible.find((item) => item.id === task.id) ?? null;
 }
 
 export async function taskDetails(context: McpContext, taskId: string) {
@@ -118,11 +160,9 @@ export async function taskDetails(context: McpContext, taskId: string) {
   if (!task) return null;
   const client = await visibleClient(context, task.clientId);
   if (!client) return null;
-  const [comments, activity, documents, forms] = await Promise.all([
+  const [comments, { activity, documents, forms }] = await Promise.all([
     context.store.listTaskComments(task.id),
-    context.store.listActivity(client.id),
-    context.store.listDocuments(client.id),
-    context.store.listForms(client.id),
+    clientRecords(context, client.id),
   ]);
   return sanitizeForMcp({ task, client, comments, activity, documents, forms });
 }
@@ -130,11 +170,9 @@ export async function taskDetails(context: McpContext, taskId: string) {
 export async function progressEvidence(context: McpContext, taskId?: string) {
   const tasks = taskId ? ([await visibleTask(context, taskId)].filter(Boolean) as Task[]) : await visibleTasks(context);
   const evidence = await Promise.all(tasks.map(async (task) => {
-    const [comments, activity, documents, forms] = await Promise.all([
+    const [comments, { activity, documents, forms }] = await Promise.all([
       context.store.listTaskComments(task.id),
-      context.store.listActivity(task.clientId),
-      context.store.listDocuments(task.clientId),
-      context.store.listForms(task.clientId),
+      clientRecords(context, task.clientId),
     ]);
     return {
       taskId: task.id,
@@ -156,14 +194,16 @@ export async function searchContext(context: McpContext, query: string) {
   if (!q) return [];
   const data = await allVisibleData(context);
   const matches: Array<Record<string, unknown>> = [];
+  // Match against what the token may see, so a hidden field cannot act as a search oracle.
+  const searchable = <T>(value: T) => JSON.stringify(sanitizeForMcp(value)).toLowerCase();
   for (const client of data.clients) {
-    if (JSON.stringify(client).toLowerCase().includes(q)) matches.push({ type: "client", client });
+    if (searchable(client).includes(q)) matches.push({ type: "client", client });
   }
   for (const task of data.tasks) {
-    if (JSON.stringify(task).toLowerCase().includes(q)) matches.push({ type: "task", task });
+    if (searchable(task).includes(q)) matches.push({ type: "task", task });
   }
   for (const entry of data.activity) {
-    if (JSON.stringify(entry).toLowerCase().includes(q)) matches.push({ type: "activity", entry });
+    if (searchable(entry).includes(q)) matches.push({ type: "activity", entry });
   }
   for (const task of data.tasks) {
     const comments = await context.store.listTaskComments(task.id);
@@ -195,7 +235,7 @@ export async function authorizedConversation(context: McpContext, input: { taskI
   if (!client) return null;
   const [messages, tasks] = await Promise.all([
     context.store.listMessages(client.id),
-    context.store.listTasks(client.id),
+    isClientToken(context) ? visibleTasks(context, client.id) : context.store.listTasks(client.id),
   ]);
   const comments = (await Promise.all(tasks.map((task) => context.store.listTaskComments(task.id)))).flat();
   return sanitizeForMcp({ clientId: client.id, comments, messages });
@@ -204,11 +244,9 @@ export async function authorizedConversation(context: McpContext, input: { taskI
 export async function projectContext(context: McpContext, clientId: string) {
   const client = await visibleClient(context, clientId);
   if (!client) return null;
-  const [tasks, activity, documents, forms] = await Promise.all([
+  const [tasks, { activity, documents, forms }] = await Promise.all([
     visibleTasks(context, clientId),
-    context.store.listActivity(clientId),
-    context.store.listDocuments(clientId),
-    context.store.listForms(clientId),
+    clientRecords(context, clientId),
   ]);
   return sanitizeForMcp({ project: client, company: { name: client.companyName, contactEmail: client.primaryContactEmail, tags: client.tags }, tasks, activity, documents, forms });
 }

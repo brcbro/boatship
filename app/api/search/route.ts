@@ -1,6 +1,7 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireSession } from "@/lib/auth";
 import { filterAssignedClients } from "@/lib/client-access";
+import { clientCanSeeDocument, clientCanSeeTask } from "@/lib/client-projection";
 import { isStaff } from "@/lib/rbac";
 import { getStore } from "@/lib/store";
 
@@ -70,7 +71,7 @@ export async function GET(req: Request) {
       if (results.filter((r) => r.type === "task").length < LIMIT) {
         let tasks = await store.listTasks(client.id);
         if (!staff) {
-          tasks = tasks.filter((t) => t.type === "client_facing");
+          tasks = tasks.filter(clientCanSeeTask);
         }
         for (const task of tasks) {
           if (results.filter((r) => r.type === "task").length >= LIMIT) break;
@@ -88,7 +89,11 @@ export async function GET(req: Request) {
       }
 
       if (results.filter((r) => r.type === "document").length < LIMIT) {
-        const documents = await store.listDocuments(client.id);
+        let documents = await store.listDocuments(client.id);
+        if (!staff) {
+          const tasksById = new Map((await store.listTasks(client.id)).map((task) => [task.id, task]));
+          documents = documents.filter((doc) => clientCanSeeDocument(doc, tasksById));
+        }
         for (const doc of documents) {
           if (results.filter((r) => r.type === "document").length >= LIMIT) break;
           if (matches(q, doc.fileName, doc.documentType)) {

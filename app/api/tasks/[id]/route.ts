@@ -8,6 +8,7 @@ import { getStore } from "@/lib/store";
 import { dispatchWebhooks } from "@/lib/webhooks";
 import { getPolicy, TASK_MANAGER_APPROVALS } from "@/lib/git-quality";
 import { taskEngagementClosed } from "@/lib/engagements";
+import { clientSafeTask } from "@/lib/client-projection";
 import type {
   AssignedRole,
   TaskPriority,
@@ -197,7 +198,7 @@ export async function PATCH(req: Request, { params }: Params) {
         meta: { taskId: id, patch: clientPatch, by: "client" },
       });
       await afterTaskUpdate(task, clientPatch);
-      return { task };
+      return { task: clientSafeTask(task) };
     }
 
     if (!isStaff(session.role)) throw jsonError("Forbidden", 403);

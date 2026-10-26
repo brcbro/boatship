@@ -7,6 +7,7 @@ import { appBaseUrl, syncClientStatusFromTasks } from "@/lib/client-status";
 import { sendEmail, taskAssignedEmailHtml, taskAssignedSubject } from "@/lib/email";
 import { ensureLegacyEngagement, taskEngagementId, localClientDemo, legacyEngagementId } from "@/lib/engagements";
 import { ENGAGEMENTS } from "@/lib/engagements";
+import { clientCanSeeTask, clientSafeTask } from "@/lib/client-projection";
 
 export const runtime = "nodejs";
 
@@ -34,9 +35,9 @@ export async function GET(req: Request) {
       tasks = tasks.filter((task) => taskEngagementId(task) === engagementId);
     }
     tasks = tasks.map((task) => ({ ...task, engagementId: taskEngagementId(task) }));
-    // Clients only see client_facing tasks
+    // Clients only see client_facing tasks, without staff-only fields.
     if (session.role === "client") {
-      tasks = tasks.filter((t) => t.type === "client_facing");
+      return { tasks: tasks.filter(clientCanSeeTask).map(clientSafeTask) };
     }
 
     return { tasks };

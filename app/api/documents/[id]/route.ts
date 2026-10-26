@@ -5,6 +5,7 @@ import { documentReviewedEmailHtml, sendEmail } from "@/lib/email";
 import { canAccessClient } from "@/lib/client-access";
 import { getStore } from "@/lib/store";
 import { documentMetadata } from "@/lib/document-response";
+import { clientCanSeeTask } from "@/lib/client-projection";
 import { dispatchWebhooks } from "@/lib/webhooks";
 import type { DocumentStatus } from "@/types";
 import { validateResourceEngagement } from "@/lib/engagement-resources";
@@ -22,6 +23,9 @@ export async function GET(req: Request, { params }: Params) {
     if (!document) throw jsonError("Document not found", 404);
     if (!await canAccessClient(session, document.clientId)) {
       throw jsonError("Forbidden", 403);
+    }
+    if (session.role === "client" && document.taskId && !clientCanSeeTask(await store.getTask(document.taskId))) {
+      throw jsonError("Document not found", 404);
     }
     return { document: documentMetadata(document) };
   });
