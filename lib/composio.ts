@@ -13,6 +13,7 @@ async function upsertComposioConnection(userId: string, toolkitSlug: string, con
 }
 import { resolveUserSecret } from "@/lib/user-secrets";
 import { integrationProviderConfirmed, integrationProviderItems } from "@/lib/integration-job-policy";
+import { disconnectOwnedAccount } from "@/lib/composio-policy";
 
 /** Curated client delivery toolkits (Composio catalog has 250+). */
 export const BOATSHIP_TOOLKITS = [
@@ -126,6 +127,8 @@ export function isIntegrationTestTool(toolSlug: string) {
   return BOATSHIP_TOOLKITS.some((toolkit) => toolkit.testTool === toolSlug);
 }
 
+export { ConnectedAccountNotOwnedError, integrationTestArguments } from "@/lib/composio-policy";
+
 export type ConnectedToolkit = {
   slug: string;
   name: string;
@@ -219,6 +222,9 @@ export async function createBoatshipAgentSession(boatshipUid: string, req?: Requ
   return composio.create(userId, {
     toolkits: AGENT_TOOLKITS,
     manageConnections: { callbackUrl },
+    // Remote code execution could call any tool without a reviewable
+    // proposal, so the agent session has no sandbox tools.
+    sandbox: { enable: false },
   });
 }
 
@@ -282,9 +288,14 @@ export async function startToolkitConnect(
   };
 }
 
+/**
+ * Deletes one of the caller's own connected accounts. The id must be listed
+ * under the caller's Composio user id; otherwise ConnectedAccountNotOwnedError
+ * is thrown and nothing is deleted.
+ */
 export async function disconnectAccount(boatshipUid: string, connectedAccountId: string) {
   const composio = await getComposioForUser(boatshipUid);
-  await composio.connectedAccounts.delete(connectedAccountId);
+  await disconnectOwnedAccount(composio, composioUserId(boatshipUid), connectedAccountId);
 }
 
 export async function executeTool(params: {

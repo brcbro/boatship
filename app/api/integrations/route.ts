@@ -1,5 +1,6 @@
 import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles } from "@/lib/auth";
+import { requireStaffPermission } from "@/lib/rbac";
 import {
   isComposioConfiguredForUser,
   listBoatshipConnections,
@@ -13,6 +14,7 @@ export const runtime = "nodejs";
 export async function GET(req: Request) {
   return handleApi(async () => {
     const session = await requireRoles(req, ["admin", "team"]);
+    requireStaffPermission(session, "integrations.manage");
 
     if (!(await isComposioConfiguredForUser(session.uid))) {
       return {
@@ -27,7 +29,7 @@ export async function GET(req: Request) {
           testTool: tk.testTool,
         })),
         message:
-          "Add a Composio credential in the secure credentials panel above to enable integrations.",
+          "An admin must add a Composio credential in the workspace credentials panel to enable integrations.",
         workflows: ONBOARDING_INTEGRATION_WORKFLOWS,
       };
     }
@@ -45,6 +47,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   return handleApi(async () => {
     const session = await requireRoles(req, ["admin", "team"]);
+    requireStaffPermission(session, "integrations.manage");
     if (!(await isComposioConfiguredForUser(session.uid))) {
       throw jsonError("Composio is not configured for this user or the server", 503);
     }
