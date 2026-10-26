@@ -30,8 +30,14 @@ export type HodiActionProposalDoc = {
 export const HODI_QUEUE_ITEMS = new Collection<HodiQueueItemDoc>("HodiQueueItem");
 export const HODI_ACTION_PROPOSALS = new Collection<HodiActionProposalDoc>("HodiActionProposal");
 
+/** Queue items are staff recommendations: client sessions never read, change or generate them. */
+function assertStaff(session: AuthSession) {
+  if (session.role !== "admin" && session.role !== "team") throw new Error("Forbidden");
+}
+
 async function canSee(session: AuthSession, clientId: string | null, ownerId: string | null) {
   if (session.role === "admin") return true;
+  if (session.role !== "team") return false;
   if (clientId) return canAccessClient(session, clientId);
   return session.role === "team" && ownerId === session.uid;
 }
@@ -82,8 +88,8 @@ export async function upsertHodiQueueItem(input: HodiQueueItemInput): Promise<Ho
 }
 
 export async function listHodiQueue(session: AuthSession, filters: { status?: string; clientId?: string; ownerId?: string; includeDismissed?: boolean } = {}) {
-  if (session.role === "client" && !session.clientId) return [];
-  const clientId = filters.clientId || (session.role === "client" ? session.clientId || undefined : undefined);
+  assertStaff(session);
+  const clientId = filters.clientId;
   if (clientId && !await canSee(session, clientId, null)) throw new Error("Forbidden");
   const now = nowIso();
   const items = (await HODI_QUEUE_ITEMS.find([
@@ -97,6 +103,7 @@ export async function listHodiQueue(session: AuthSession, filters: { status?: st
 }
 
 export async function getHodiQueueItem(id: string, session: AuthSession): Promise<HodiQueueItemDoc> {
+  assertStaff(session);
   const item = await HODI_QUEUE_ITEMS.get(id);
   if (!item || !await canSee(session, item.clientId, item.ownerId)) throw new Error("Queue item not found");
   return item;
@@ -104,7 +111,6 @@ export async function getHodiQueueItem(id: string, session: AuthSession): Promis
 
 export async function updateHodiQueueItem(id: string, session: AuthSession, input: { status?: HodiQueueStatus; snoozedUntil?: string | null; ownerId?: string | null; dismissed?: boolean }) {
   const current = await getHodiQueueItem(id, session);
-  if (session.role === "client" && (input.ownerId !== undefined || input.status === "dismissed")) throw new Error("Forbidden");
   if (input.ownerId) {
     const owner = await (await getStore()).getUser(input.ownerId);
     if (!owner || (owner.role !== "admin" && owner.role !== "team")) throw new Error("Queue owner must be an active staff member");
@@ -140,6 +146,7 @@ async function expireHodiActionProposals(now: string) {
 }
 
 export async function generateHodiQueue(session: AuthSession, clientId?: string) {
+  assertStaff(session);
   const store = await getStore();
   const clients = clientId ? [await store.getClient(clientId)].filter(Boolean) : await filterAssignedClients(session, await store.listClients());
   const insights = await buildHodiClientInsights(session, clientId);

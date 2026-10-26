@@ -5,7 +5,7 @@ import { getStore } from "@/lib/store";
 import { ENGAGEMENTS } from "@/lib/engagements";
 import { validateResourceEngagement, resourceInEngagement } from "@/lib/engagement-resources";
 import { requireStaffPermission } from "@/lib/rbac";
-import { createApproval, createMilestone, executeProjectIntegration, listProjectOps, updateApproval, weeklyEvidenceReport } from "@/lib/project-operations";
+import { approvalReviewError, createApproval, createMilestone, executeProjectIntegration, listProjectOps, updateApproval, weeklyEvidenceReport } from "@/lib/project-operations";
 
 export const runtime = "nodejs";
 
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
       if (!clientId || !String(body.subject || "").trim()) throw jsonError("clientId and subject are required", 400);
       if (session.role !== "client") await requireRoles(req, ["admin", "team"]);
       const engagementId = await validateResourceEngagement(clientId, body.engagementId);
-      return { approval: await createApproval({ clientId, engagementId, subject: String(body.subject).trim(), description: String(body.description || "").trim(), kind: body.kind === "design" || body.kind === "release" ? body.kind : "document", requestedBy: session.uid }) };
+      return { approval: await createApproval({ clientId, engagementId, subject: String(body.subject).trim(), description: String(body.description || "").trim(), kind: body.kind === "design" || body.kind === "release" ? body.kind : "document", requestedBy: session.uid, requestedByRole: session.role }) };
     }
     if (action === "approval-review") {
       await requireRoles(req, ["admin", "team", "client"]);
@@ -77,6 +77,9 @@ export async function POST(req: Request) {
       if (!await canAccessClient(session, approval.clientId)) throw jsonError("Forbidden", 403);
       await validateResourceEngagement(approval.clientId, approval.engagementId);
       if (approval.status !== "pending") throw jsonError("This approval has already been reviewed", 409);
+      const requesterRole = approval.requestedByRole ?? (await (await getStore()).getUser(approval.requestedBy))?.role ?? null;
+      const reviewError = approvalReviewError(approval, session, requesterRole);
+      if (reviewError) throw jsonError(reviewError, 403);
       const updated = await updateApproval(approvalId, status, session.uid, reviewNote || null);
       if (!updated) throw jsonError("This approval has already been reviewed", 409);
       return { approval: updated };
