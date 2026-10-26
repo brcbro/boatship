@@ -29,14 +29,14 @@ For a new migrated database, use the guarded [first-admin provisioning runbook](
 2. Open client → **Invite client** → the client receives a one-time password setup link by email
 3. The client sets their password, signs in, completes tasks, submits forms, and uploads documents
 4. Sign in as admin → review documents/forms, update task status, check **Activity** / **Analytics**
-5. Optional: **Integrations** → each member securely saves their own Composio/OpenRouter credentials → connect **Google Drive** and open **Hodi**
+5. Optional: an admin saves the workspace Composio/OpenRouter credentials in **Integrations** → staff with the integrations permission connect **Google Drive** and open **Hodi** (Hodi asks for approval before any connected-app action that sends, shares, creates or deletes)
 6. Optional: connect Slack → set `COMPOSIO_SLACK_CHANNEL` for auto-notify
 
 Hosted email delivery uses `ZEPTOMAIL_API_KEY` and a verified general-purpose `ZEPTOMAIL_FROM` address, or `RESEND_API_KEY` and `RESEND_FROM`. ZeptoMail takes priority when both are configured. Client messages display as Boatship, team invitations as Boatship Team, and digests as Boatship Updates. The API returns an error when delivery is unavailable instead of reporting a demo send. Do not configure an onboarding-specific sender address for the shared Client OS mail stream.
 
 ## Environment
 
-Copy `.env.example` to `.env.local` and set `DATABASE_URL` (the PostgreSQL connection string). On Cloudflare the Worker reaches the database through a Hyperdrive binding instead (see [docs/cloudflare-secrets.md](docs/cloudflare-secrets.md)). Files are stored in the database too, so no Firebase variables are needed; they only matter for the Firestore fallback. The database needs no schema migration; the `documents` and `documents_blobs` tables are created on first use. The application refuses to use the local file store unless `ALLOW_LOCAL_STORE=1` is explicitly set for demo-only work.
+Copy `.env.example` to `.env.local` and set `DATABASE_URL` (the PostgreSQL connection string). On Cloudflare the Worker reaches the database through a Hyperdrive binding instead (see [docs/cloudflare-secrets.md](docs/cloudflare-secrets.md)). Files are stored in the database too, so no Firebase variables are needed; they only matter for the Firestore fallback. The database needs no schema migration; the `documents` and `documents_blobs` tables are created on first use. The application refuses to use the local file store unless `ALLOW_LOCAL_STORE=1` is explicitly set for demo-only work. Production also needs `APP_URL` (set in `wrangler.production.toml`); links in email are built only from it.
 Keep demo data in explicit `ALLOW_LOCAL_STORE=1` mode. The old `db:import-local` shortcut is retired because it could replace populated data and import fixed demo credentials; see the [operations runbooks](docs/operations/README.md) before planning a reviewed data migration. Operator scripts run with `node --import tsx` (for example `node --import tsx scripts/provision-first-admin.mjs --expect-project <postgres host from DATABASE_URL>`).
 
 Passwords are stored as scrypt hashes, and login sessions are opaque database records with hashed tokens.
@@ -73,8 +73,9 @@ header; repeat until the response reports `remaining: 0`.
 
 All data access goes through the storage interface in `lib/firestore/`, implemented for PostgreSQL
 (`DATABASE_URL`, production), the Firestore REST API (fallback and emulator tests), and memory.
-`npm run test:postgres` runs the storage contract against `DATABASE_URL` in a scratch table, and
-`npm run test:e2e:postgres` runs the end-to-end suite the same way with `QA_DATABASE_URL` set.
+`npm run test:postgres` runs the storage contract in a scratch table of `TEST_DATABASE_URL`, and
+`npm run test:e2e:postgres` runs the end-to-end suite the same way. Both refuse non-local hosts unless
+`QA_ALLOW_REMOTE_DATABASE=1` and never read `DATABASE_URL`.
 `npm run test:e2e` and `npm run local-qa` start the Firestore
 emulator (Java 11+ required) and seed an isolated fixture; `npm run test:firestore` runs the client
 contract against the emulator. Run `npm run cf:dry-run` before deployment to build the OpenNext

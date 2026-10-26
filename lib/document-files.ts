@@ -51,7 +51,7 @@ export function documentContentHeaders(fileName: string, contentType: string, at
   return new Headers({
     "Content-Type": contentType,
     "Content-Disposition": `${attachment ? "attachment" : "inline"}; filename="${safeName}"; filename*=UTF-8''${encodedName}`,
-    "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
+    "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer",
     "Content-Security-Policy": "sandbox; default-src 'none'; frame-ancestors 'self'",
   });
 }

@@ -23,7 +23,9 @@ const nextConfig: NextConfig = {
   // OpenNext applies these from the routes manifest on the Worker, including
   // the public homepage that the proxy matcher skips.
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders(process.env.NODE_ENV === "development") }];
+    // File content sets its own sandboxed CSP and same-origin framing for previews
+    // (`documentContentHeaders`); a site-wide CSP would replace it.
+    return [{ source: "/((?!api/documents/[^/]+/content).*)", headers: securityHeaders(process.env.NODE_ENV === "development") }];
   },
 };
 

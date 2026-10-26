@@ -21,7 +21,7 @@ Administrators and team members set up client workspaces and review progress. Cl
 ## Capabilities and Constraints
 
 - Preserve the existing admin/team/client roles, data model, and working task, document, form, message, and approval flows during redesign.
-- The implementation uses Next.js App Router, Tailwind CSS, Neon PostgreSQL, and Prisma, with Cloudflare deployment through OpenNext.
+- The implementation uses Next.js App Router, Tailwind CSS and PostgreSQL (ClickHouse Cloud, through Hyperdrive), with Cloudflare deployment through OpenNext.
 - Product and client-work areas have distinct purposes; their relationship in navigation needs to be made clear.
 - Plan names, prices, testimonials, service guarantees, and customer evidence remain undecided unless supplied by the user or verified in the product.
 
