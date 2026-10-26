@@ -2,6 +2,9 @@ import { handleApi, jsonError } from "@/lib/api";
 import { requireRoles, requireSession } from "@/lib/auth";
 import { findMcpIdentityByPublicId, issueMcpToken, listMcpProjectAccess, MCP_IDENTITIES, MCP_PROJECT_ACCESS, MCP_SCOPES, revokeMcpIdentity, type McpIdentityDoc } from "@/lib/mcp-auth";
 import { getStore } from "@/lib/store";
+import { recordAccountAudit } from "@/lib/accounts";
+import { canAccessClient } from "@/lib/client-access";
+import type { AppUser, AuthSession } from "@/types";
 
 export const runtime = "nodejs";
 
@@ -9,6 +12,7 @@ function serializeIdentity(identity: McpIdentityDoc, projectAccess: Array<{ proj
   return {
     publicId: identity.publicId,
     userId: identity.userId,
+    issuedBy: identity.issuedBy ?? null,
     status: identity.status,
     scopes: identity.scopes,
     projectAccess,
@@ -42,6 +46,26 @@ function validateScopes(scopes: string[] | undefined) {
   return scopes;
 }
 
+/** Projects (clients) the token owner could not open with their own session; a token never grants more. */
+async function inaccessibleProjects(owner: AppUser, projectIds: string[]) {
+  const store = await getStore();
+  const ownerSession: AuthSession = { uid: owner.uid, email: owner.email, name: owner.name, role: owner.role, clientId: owner.clientId, permissions: owner.permissions };
+  const denied: string[] = [];
+  for (const projectId of projectIds) {
+    if (!(await store.getClient(projectId)) || !(await canAccessClient(ownerSession, projectId))) denied.push(projectId);
+  }
+  return denied;
+}
+
+async function recordIssue(actor: AuthSession, userId: string, issued: { publicId: string; scopes: string[] }, projectIds: string[], kind: "issued" | "regenerated", replaces?: string) {
+  await recordAccountAudit({
+    action: `mcp.identity.${kind}`,
+    actor: { uid: actor.uid, role: actor.role },
+    targetUserId: userId,
+    metadata: { publicId: issued.publicId, issuedBy: actor.uid, scopes: issued.scopes, projectIds, ...(replaces ? { replaces } : {}) },
+  });
+}
+
 export async function GET(req: Request) {
   return handleApi(async () => {
     const session = await requireSession(req);
@@ -73,11 +97,15 @@ export async function POST(req: Request) {
 
     if (userId !== session.uid) await requireRoles(req, ["admin"]);
     if (!userId) throw jsonError("userId is required", 400);
-    if (!(await (await getStore()).getUser(userId))) throw jsonError("User not found", 404);
+    const target = await (await getStore()).getUser(userId);
+    if (!target) throw jsonError("User not found", 404);
 
     const scopes = validateScopes(stringArray(body.scopes, "scopes"));
     const projectIds = stringArray(body.projectIds, "projectIds");
-    const issued = await issueMcpToken(userId, { scopes, projectIds });
+    const denied = await inaccessibleProjects(target, projectIds ?? []);
+    if (denied.length) throw jsonError(`The token owner cannot access project: ${denied[0]}`, 400);
+    const issued = await issueMcpToken(userId, { scopes, projectIds, issuedBy: session.uid });
+    await recordIssue(session, userId, issued, projectIds ?? [], "issued");
 
     return {
       identity: { publicId: issued.publicId, userId, scopes: issued.scopes },
@@ -114,9 +142,15 @@ export async function PATCH(req: Request) {
       const identity = await findMcpIdentityByPublicId(publicId);
       if (!identity) throw jsonError("MCP identity not found", 404);
       if (identity.userId !== session.uid) await requireRoles(req, ["admin"]);
-      const projectAccess = await listMcpProjectAccess(identity.id);
+      const owner = await (await getStore()).getUser(identity.userId);
+      if (!owner) throw jsonError("User not found", 404);
+      const previous = (await listMcpProjectAccess(identity.id)).map((item) => item.projectId);
+      // Access the owner has since lost is not carried over to the new token.
+      const lost = new Set(await inaccessibleProjects(owner, previous));
+      const projectIds = previous.filter((projectId) => !lost.has(projectId));
       await revokeMcpIdentity(publicId);
-      const issued = await issueMcpToken(identity.userId, { scopes: identity.scopes, projectIds: projectAccess.map((item) => item.projectId) });
+      const issued = await issueMcpToken(identity.userId, { scopes: identity.scopes, projectIds, issuedBy: session.uid });
+      await recordIssue(session, identity.userId, issued, projectIds, "regenerated", publicId);
       return { identity: { publicId: issued.publicId, userId: identity.userId, scopes: issued.scopes }, token: issued.token, warning: "Store this token now. It will not be returned again." };
     }
     return revoke(req, publicId);

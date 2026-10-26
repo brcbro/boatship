@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "crypto";
-import type { Where } from "@/lib/firestore";
+import { Collection, FirestoreError, nowIso, type Where } from "@/lib/firestore";
 import { MCP_AUDIT_EVENTS, type McpAuditEventDoc } from "@/lib/mcp-auth";
 import { getStore } from "@/lib/store";
 import { canAccessClient } from "@/lib/client-access";
@@ -74,6 +74,31 @@ export async function sessionHistory(identityId: string, limit = 50) {
 
 type ApprovalInput = { context: McpContext; action: string; taskId: string; payload: Record<string, unknown>; approved?: boolean; approvalId?: string };
 
+/**
+ * One document per applied approval, created with an `exists: false`
+ * precondition before the write runs: of two concurrent applications of the
+ * same approvalId exactly one creates it, the other is refused.
+ */
+export type McpApprovalApplicationDoc = { approvalId: string; taskId: string; action: string; userId: string; payloadHash: string; appliedAt: string };
+export const MCP_APPROVAL_APPLICATIONS = new Collection<McpApprovalApplicationDoc>("McpApprovalApplication");
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value as Record<string, unknown>).sort().filter((key) => (value as Record<string, unknown>)[key] !== undefined).map((key) => `${JSON.stringify(key)}:${canonicalJson((value as Record<string, unknown>)[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value ?? null);
+}
+
+/** Hash of the payload as stored on the request (sanitized), independent of key order. */
+export function approvalPayloadHash(payload: Record<string, unknown>) {
+  return `sha256:${createHash("sha256").update(canonicalJson(sanitizeForMcp(payload))).digest("hex")}`;
+}
+
+function forbidden(message: string) {
+  return new Response(JSON.stringify({ error: message }), { status: 403, headers: { "Content-Type": "application/json" } });
+}
+
 export type ApprovalDecision = "approved" | "rejected";
 
 export function isApprovalReviewer(session: AuthSession) {
@@ -134,6 +159,8 @@ export async function reviewMcpWriteApproval(input: { approvalId: string; decisi
       headers: { "Content-Type": "application/json" },
     });
   }
+  // Separation of duties: a reviewer never decides their own request.
+  if (request.actorId === input.reviewer.uid) throw forbidden("You cannot review your own MCP write request");
   if (input.decision === "rejected" && !input.reason?.trim()) throw new Error("A reason is required when rejecting a request");
   const current = approvalDecision(activities, input.approvalId);
   if (current) throw new Error(`This request has already been ${current.status}`);
@@ -157,34 +184,74 @@ export async function runApprovedTaskAction(input: ApprovalInput) {
   const store = input.context.store;
   if (!input.approved) {
     const approvalId = randomUUID();
-    await store.addActivity({ clientId: task.clientId, actorId: input.context.session.uid, actorName: input.context.session.name, action: "mcp.approval.requested", meta: { approvalId, taskId: task.id, action: input.action, payload: sanitizeForMcp(input.payload) } });
+    const payload = sanitizeForMcp(input.payload);
+    await store.addActivity({ clientId: task.clientId, actorId: input.context.session.uid, actorName: input.context.session.name, action: "mcp.approval.requested", meta: { approvalId, taskId: task.id, action: input.action, payload, payloadHash: approvalPayloadHash(payload) } });
     return { status: "approval_required", approvalId, action: input.action, taskId: task.id };
   }
   const approvals = await store.listActivity(task.clientId);
   const approvedRequest = input.approvalId && approvals.find((entry) => entry.action === "mcp.approval.requested" && entry.meta?.approvalId === input.approvalId && entry.meta?.taskId === task.id && entry.meta?.action === input.action);
   if (!approvedRequest) return { status: "blocked", message: "A matching approvalId is required before applying this write" };
+  // An approval is bound to the person who asked for it.
+  if (approvedRequest.actorId !== input.context.session.uid) return { status: "blocked", message: "This approvalId belongs to another requester" };
   const decision = approvalDecision(approvals, input.approvalId || "");
   if (decision?.status === "rejected") return { status: "blocked", message: decision.reason ? `This request was rejected: ${decision.reason}` : "This request was rejected" };
   if (decision?.status !== "approved") return { status: "approval_pending", approvalId: input.approvalId, message: "A manager or admin must approve this request before it can be applied" };
   if (approvals.some((entry) => entry.action === `mcp.${input.action}.applied` && entry.meta?.approvalId === input.approvalId)) return { status: "blocked", message: "This approvalId has already been used" };
 
-  const result: Record<string, unknown> = { status: "applied", taskId: task.id, action: input.action };
+  // The write applies exactly what the reviewer saw: the stored payload. A
+  // differing payload supplied now is refused rather than silently replaced.
+  const approvedPayload = (approvedRequest.meta.payload && typeof approvedRequest.meta.payload === "object" ? approvedRequest.meta.payload : {}) as Record<string, unknown>;
+  const approvedHash = typeof approvedRequest.meta.payloadHash === "string" ? approvedRequest.meta.payloadHash : approvalPayloadHash(approvedPayload);
+  const suppliedHash = approvalPayloadHash(input.payload);
+  if (suppliedHash !== approvedHash || approvalPayloadHash(approvedPayload) !== approvedHash) {
+    return { status: "blocked", message: "The payload differs from the approved request; request a new approval" };
+  }
+  const payload = approvedPayload;
+
+  let apply: (() => Promise<Record<string, unknown>>) | null = null;
+  const actor = { actorId: input.context.session.uid, actorName: input.context.session.name };
   if (input.action === "update_task_status") {
-    const status = input.payload.status;
+    const status = payload.status;
     if (!["pending", "in_progress", "completed", "blocked"].includes(String(status))) return { status: "failed", message: "Invalid task status" };
-    result.task = await store.updateTask(task.id, { status: status as typeof task.status });
+    apply = async () => {
+      // Staff-only bookkeeping never leaves through an MCP result.
+      const { watcherIds: _watchers, escalatedAt: _escalated, reminderSentAt: _reminder, internalNotes: _notes, ...updated } = await store.updateTask(task.id, { status: status as typeof task.status });
+      void [_watchers, _escalated, _reminder, _notes];
+      return { task: updated };
+    };
   } else if (input.action === "add_comment") {
-    const body = String(input.payload.body || "").trim();
+    const body = String(payload.body || "").trim();
     if (!body) return { status: "failed", message: "body is required" };
-    result.comment = await store.addTaskComment({ taskId: task.id, clientId: task.clientId, authorId: input.context.session.uid, authorName: input.context.session.name, body, mentionUserIds: [] });
+    apply = async () => ({ comment: await store.addTaskComment({ taskId: task.id, clientId: task.clientId, authorId: actor.actorId, authorName: actor.actorName, body, mentionUserIds: [] }) });
   } else if (input.action === "create_follow_up") {
-    const title = String(input.payload.title || "").trim();
+    const title = String(payload.title || "").trim();
     if (!title) return { status: "failed", message: "title is required" };
-    result.task = await store.createTask({ clientId: task.clientId, title, description: String(input.payload.description || ""), type: task.type, assignedTo: task.assignedTo, assignedRole: task.assignedRole, status: "pending", dueDate: typeof input.payload.dueDate === "string" ? input.payload.dueDate : null, order: task.order + 1, formTemplateId: null, requiresUpload: false });
+    apply = async () => ({ task: await store.createTask({ clientId: task.clientId, title, description: String(payload.description || ""), type: task.type, assignedTo: task.assignedTo, assignedRole: task.assignedRole, status: "pending", dueDate: typeof payload.dueDate === "string" ? payload.dueDate : null, order: task.order + 1, formTemplateId: null, requiresUpload: false }) });
   } else if (input.action === "request_review" || input.action === "attach_evidence") {
-    await store.addActivity({ clientId: task.clientId, actorId: input.context.session.uid, actorName: input.context.session.name, action: `mcp.${input.action}`, meta: { taskId: task.id, ...sanitizeForMcp(input.payload) } });
+    apply = async () => {
+      await store.addActivity({ clientId: task.clientId, ...actor, action: `mcp.${input.action}`, meta: { taskId: task.id, ...sanitizeForMcp(payload) } });
+      return {};
+    };
   } else return { status: "failed", message: "Unsupported action" };
 
-  await store.addActivity({ clientId: task.clientId, actorId: input.context.session.uid, actorName: input.context.session.name, action: `mcp.${input.action}.applied`, meta: { taskId: task.id, approvalId: input.approvalId } });
-  return sanitizeForMcp(result);
+  // Compare-and-set: claim the approval before writing. A concurrent second
+  // application fails the `exists: false` precondition and writes nothing.
+  const approvalId = input.approvalId!;
+  try {
+    await MCP_APPROVAL_APPLICATIONS.create(approvalId, { approvalId, taskId: task.id, action: input.action, userId: actor.actorId, payloadHash: approvedHash, appliedAt: nowIso() });
+  } catch (error) {
+    if (error instanceof FirestoreError && (error.status === "ALREADY_EXISTS" || error.httpStatus === 409)) return { status: "blocked", message: "This approvalId has already been used" };
+    throw error;
+  }
+  let applied: Record<string, unknown>;
+  try {
+    applied = await apply();
+  } catch (error) {
+    // The single write failed, so the approval may be used again.
+    await MCP_APPROVAL_APPLICATIONS.delete(approvalId).catch(() => undefined);
+    throw error;
+  }
+
+  await store.addActivity({ clientId: task.clientId, ...actor, action: `mcp.${input.action}.applied`, meta: { taskId: task.id, approvalId } });
+  return sanitizeForMcp({ status: "applied", taskId: task.id, action: input.action, ...applied });
 }

@@ -1,5 +1,5 @@
 import type { McpContext } from "@/lib/mcp-context";
-import { validateGitProgress } from "@/lib/git-validation";
+import { gitValidationAvailability, validateGitProgress } from "@/lib/git-validation";
 import type { GitCheckName, GitValidationRequest } from "@/lib/git-validation-types";
 import {
   authorizedConversation,
@@ -39,7 +39,7 @@ const tools = [
   { name: "get_authorized_conversation", description: "Get authorized task or project conversation text.", inputSchema: { type: "object", properties: { taskId: { type: "string" }, clientId: { type: "string" } } } },
   { name: "search_context", description: "Search authorized Boatship context.", inputSchema: { type: "object", required: ["query"], properties: { query: { type: "string" } } } },
   { name: "get_progress_evidence", description: "Return progress evidence from Boatship records, excluding agent summaries and Git validation.", inputSchema: { type: "object", properties: { taskId: { type: "string" } } } },
-  { name: "validate_task_progress", description: "Validate an authorized task using Git-derived evidence only. Agent summaries are never used as evidence.", inputSchema: { type: "object", required: ["taskId"], properties: { taskId: { type: "string" }, repositoryPath: { type: "string" }, repositoryUrl: { type: "string" }, branch: { type: "string" }, baseSha: { type: "string" }, headSha: { type: "string" }, checks: { type: "array", items: { type: "string", enum: ["git-diff-check", "typecheck", "lint", "test", "build"] } } } } },
+  { name: "validate_task_progress", description: "Validate an authorized task using Git-derived evidence only. Agent summaries are never used as evidence. repositoryPath is relative to the server's configured checkout root; the tool is unavailable on hosted deployments.", inputSchema: { type: "object", required: ["taskId"], properties: { taskId: { type: "string" }, repositoryPath: { type: "string" }, repositoryUrl: { type: "string" }, branch: { type: "string" }, baseSha: { type: "string" }, headSha: { type: "string" }, checks: { type: "array", items: { type: "string", enum: ["git-diff-check", "typecheck", "lint", "test", "build"] } } } } },
   { name: "get_task_context_pack", description: "Get a minimal, task-specific context pack with only relevant project records.", inputSchema: { type: "object", required: ["taskId"], properties: { taskId: { type: "string" } } } },
   { name: "get_mcp_session_history", description: "Get recent sanitized MCP tool activity for this identity.", inputSchema: { type: "object", properties: { limit: { type: "number" } } } },
   { name: "update_task_status", description: "Request or apply a task status update. Writes require a returned approvalId.", inputSchema: { type: "object", required: ["taskId", "status"], properties: { taskId: { type: "string" }, status: { type: "string" }, approved: { type: "boolean" }, approvalId: { type: "string" } } } },
@@ -115,7 +115,7 @@ export async function handleMcpRequest(request: McpJsonRpcRequest, context: McpC
     if (uri === "boatship://me/tasks") {
       const denied = missingScope(id, context, "tasks:read");
       if (denied) return denied;
-      return { jsonrpc: "2.0", id, result: { contents: [{ uri, mimeType: "application/json", text: JSON.stringify(await visibleTasks(context)) }] } };
+      return { jsonrpc: "2.0", id, result: { contents: [{ uri, mimeType: "application/json", text: JSON.stringify(sanitizeForMcp(await visibleTasks(context))) }] } };
     }
     return error(id, -32004, "Resource not found or not authorized");
   }
@@ -160,6 +160,8 @@ export async function handleMcpRequest(request: McpJsonRpcRequest, context: McpC
         const taskId = stringArg(args, "taskId");
         if (!taskId) return error(id, -32602, "taskId is required");
         if (!(await visibleTask(context, taskId))) return error(id, -32003, "Task not found or not authorized");
+        const availability = gitValidationAvailability();
+        if (!availability.available) return error(id, -32005, availability.reason);
         let request: GitValidationRequest;
         try {
           request = gitValidationRequest(args);
