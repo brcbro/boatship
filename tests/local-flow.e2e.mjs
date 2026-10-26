@@ -3,6 +3,7 @@ import test from "node:test";
 import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { createLocalQa, QA_PASSWORD } from "../scripts/lib/local-qa.mjs";
+import { assertTestDatabaseTarget, testDatabaseUrl } from "../lib/firestore/test-database.ts";
 
 function loopbackUrl(value, protocols = ["http:"]) {
   const url = new URL(value);
@@ -11,6 +12,14 @@ function loopbackUrl(value, protocols = ["http:"]) {
   assert.equal(url.username, "", "QA HTTP URLs must not contain credentials");
   assert.equal(url.password, "", "QA HTTP URLs must not contain credentials");
   return url;
+}
+
+// The PostgreSQL leg creates and drops a scratch table: it takes TEST_DATABASE_URL
+// (never DATABASE_URL) and refuses remote hosts unless QA_ALLOW_REMOTE_DATABASE=1.
+{
+  const target = testDatabaseUrl();
+  if (target) process.env.QA_DATABASE_URL = target;
+  else if (process.env.QA_DATABASE_URL?.trim()) assertTestDatabaseTarget(process.env.QA_DATABASE_URL.trim());
 }
 
 const override = process.env.BOATSHIP_QA_URL ? loopbackUrl(process.env.BOATSHIP_QA_URL) : null;
