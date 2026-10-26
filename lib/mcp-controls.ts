@@ -6,6 +6,7 @@ import { canAccessClient } from "@/lib/client-access";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import type { McpContext } from "@/lib/mcp-context";
 import { sanitizeForMcp, visibleTask } from "@/lib/mcp-context";
+import { clientCanSeeDocument, clientSafeActivity } from "@/lib/client-projection";
 import type { AuthSession, ActivityLog } from "@/types";
 import { hasPermission } from "@/lib/rbac";
 
@@ -47,13 +48,19 @@ export async function contextPack(context: McpContext, taskId: string) {
   const task = await visibleTask(context, taskId);
   if (!task) return null;
   const store = await getStore();
-  const [client, comments, documents, forms, activity] = await Promise.all([
+  const [client, comments, allDocuments, forms, allActivity, tasks] = await Promise.all([
     store.getClient(task.clientId),
     store.listTaskComments(task.id),
     store.listDocuments(task.clientId),
     store.listForms(task.clientId),
     store.listActivity(task.clientId),
+    store.listTasks(task.clientId),
   ]);
+  // Client tokens get the same projection as the client REST routes.
+  const isClient = context.session.role === "client";
+  const tasksById = new Map(tasks.map((item) => [item.id, item]));
+  const documents = isClient ? allDocuments.filter((item) => clientCanSeeDocument(item, tasksById)) : allDocuments;
+  const activity = isClient ? clientSafeActivity(allActivity, tasksById, new Map(allDocuments.map((item) => [item.id, item]))) : allActivity;
   return sanitizeForMcp({
     task,
     project: client ? { id: client.id, name: client.name, companyName: client.companyName, status: client.status, pipelineStage: client.pipelineStage, tags: client.tags } : null,
